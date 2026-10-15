@@ -3,9 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f1f2ff" />
+    <meta name="theme-color" content="#f4f6fa" />
     <title>集卡物流管理端</title>
     <link rel="stylesheet" href="admin-mobile.css" />
+    <link rel="stylesheet" href="design-tokens.css" />
   </head>
   <body>
     <div class="manager-shell">
@@ -20,19 +21,19 @@
           <section class="manager-hero">
             <div class="hero-top"><div><span>运营中心</span><h2>上午好，调度员</h2><p>今日运力状态已更新</p></div><span class="online-state"><i></i>运行正常</span></div>
             <div class="hero-metrics">
-              <button data-open-module="dispatch" data-filter="待派单" type="button"><strong>2</strong><span>待派单</span></button>
-              <button data-open-module="dispatch" data-filter="运输中" type="button"><strong>1</strong><span>运输中</span></button>
-              <button data-open-module="vehicle" data-filter="空闲" type="button"><strong>0</strong><span>空闲车辆</span></button>
-              <button data-tab-target="messages" type="button"><strong>2</strong><span>预警待办</span></button>
+              <button class="metric-card" data-open-module="dispatch" data-filter="待派单" type="button" aria-label="查看待派单任务"><strong class="metric-value" id="workbenchPendingCount">0</strong><span class="metric-label">待派单</span></button>
+              <button class="metric-card" data-open-module="dispatch" data-filter="运输中" type="button" aria-label="查看运输中任务"><strong class="metric-value" id="workbenchTransitCount">0</strong><span class="metric-label">运输中</span></button>
+              <button class="metric-card" data-open-module="vehicle" data-filter="空闲" type="button" aria-label="查看空闲车辆"><strong class="metric-value" id="workbenchIdleCount">0</strong><span class="metric-label">空闲车辆</span></button>
+              <button class="metric-card" data-tab-target="messages" type="button" aria-label="查看待处理预警"><strong class="metric-value" id="workbenchAlertCount">0</strong><span class="metric-label">预警待办</span></button>
             </div>
           </section>
 
           <section class="workbench-block module-block">
             <header class="block-heading"><div><h2>业务工作台</h2><p>后台核心功能快捷入口</p></div><button id="manageModulesButton" type="button">全部功能</button></header>
             <div class="module-grid" id="moduleGrid">
-              <button data-open-module="plan" type="button"><span class="module-icon blue"><i data-lucide="clipboard-list"></i></span><strong>计划管理</strong><small>计划任务</small></button>
+              <button data-open-module="plan" type="button"><span class="module-icon blue"><i data-lucide="clipboard-list"></i></span><strong>计划与任务</strong><small>计划任务</small></button>
               <button data-open-module="route" type="button"><span class="module-icon purple"><i data-lucide="route"></i></span><strong>固定线路管理</strong><small>4 条线路</small></button>
-              <button data-open-module="dispatch-management" type="button"><span class="module-icon cyan"><i data-lucide="list-checks"></i></span><strong>派单管理</strong><small>待匹配任务</small></button>
+              <button data-open-module="dispatch-management" type="button"><span class="module-icon cyan"><i data-lucide="list-checks"></i></span><strong>任务派单</strong><small>待匹配任务</small></button>
               <button data-open-module="dispatch" type="button"><span class="module-icon cyan"><i data-lucide="send"></i></span><strong>派单列表</strong><small>2 条待执行</small></button>
               <button data-open-module="capacity" type="button"><span class="module-icon cyan"><i data-lucide="gauge"></i></span><strong>运力管理</strong><small>车辆与司机</small></button>
               <button data-open-module="vehicle" type="button"><span class="module-icon green"><i data-lucide="truck"></i></span><strong>车辆档案管理</strong><small>2 台自营</small></button>
@@ -46,13 +47,58 @@
             <header class="block-heading"><div><h2>快捷操作</h2><p>常用业务快速办理</p></div></header>
             <div class="quick-actions">
               <button data-quick-action="dispatch" type="button"><span><i data-lucide="send"></i></span><strong>手动派单</strong><i data-lucide="chevron-right"></i></button>
-              <button data-open-module="dispatch-management" type="button"><span><i data-lucide="list-checks"></i></span><strong>进入派单管理</strong><i data-lucide="chevron-right"></i></button>
+              <button data-open-module="dispatch-management" type="button"><span><i data-lucide="list-checks"></i></span><strong>进入任务派单</strong><i data-lucide="chevron-right"></i></button>
             </div>
           </section>
 
           <section class="workbench-block focus-block">
             <header class="block-heading"><div><h2>今日调度</h2><p>需要优先处理的业务</p></div><button data-open-module="dispatch" type="button">查看全部</button></header>
             <div class="focus-list" id="focusList"></div>
+          </section>
+        </section>
+
+        <section class="manager-view reports-view" id="reportsView" data-title="数据报表">
+          <section class="report-filter-section" aria-label="报表筛选">
+            <div class="report-filter-heading"><div><strong>运营筛选</strong><small id="reportScopeLabel">今日运营全局</small></div><button class="report-refresh" id="reportRefreshButton" type="button" aria-label="刷新报表" title="刷新报表"><i data-lucide="refresh-cw"></i></button></div>
+            <div class="report-filter-grid">
+              <label><span>时间范围</span><select id="reportDateRange"><option value="yesterday">昨日</option><option value="today" selected>今日</option><option value="last7">近7天</option><option value="month">近一月</option></select></label>
+              <label><span>客户</span><select id="reportCustomer"><option value="">全部客户</option></select></label>
+              <label><span>项目</span><select id="reportProject"><option value="">全部项目</option></select></label>
+              <label><span>线路</span><select id="reportRoute"><option value="">全部线路</option></select></label>
+              <label class="report-filter-threshold"><span>快完成规则</span><select id="reportThreshold"><option value="60">进度 ≥ 60%</option><option value="70" selected>进度 ≥ 70%</option><option value="80">进度 ≥ 80%</option><option value="90">进度 ≥ 90%</option></select></label>
+            </div>
+            <small class="report-updated" id="reportUpdatedAt">数据准备中</small>
+          </section>
+
+          <section class="report-section report-amount-section">
+            <div class="report-section-heading"><div><strong>运输金额</strong><small>按线路预估费用口径，不含税费调整</small></div><div class="report-segment" role="group" aria-label="金额分布维度"><button class="active" data-report-amount="customer" type="button" aria-pressed="true">按客户</button><button data-report-amount="route" type="button" aria-pressed="false">按线路</button></div></div>
+            <div class="report-amount-totals" id="reportAmountTotals"></div>
+            <div class="report-bars" id="reportAmountDistribution"></div>
+          </section>
+
+          <section class="report-section">
+            <div class="report-section-heading"><div><strong id="reportTaskTitle">今日任务</strong><small id="reportTaskSummary">计划执行概览</small></div><strong class="report-completion" id="reportCompletionRate">0%</strong></div>
+            <div class="report-completion-track"><i id="reportCompletionBar"></i></div>
+            <small class="report-completion-note" id="reportCompletionNote">已完成 0 / 0</small>
+            <div class="report-task-metrics" id="reportTaskMetrics"></div>
+          </section>
+
+          <section class="report-section">
+            <div class="report-section-heading"><div><strong>运力状态</strong><small>车辆与司机实时可用性</small></div></div>
+            <div class="report-capacity-columns">
+              <div class="report-capacity-group"><strong>车辆分布 <span id="reportVehicleTotal">0 台</span></strong><div class="report-status-bar" id="reportVehicleBar"></div><div class="report-status-list" id="reportVehicleStatus"></div></div>
+              <div class="report-capacity-group"><strong>司机分布 <span id="reportDriverTotal">0 名</span></strong><div class="report-status-bar" id="reportDriverBar"></div><div class="report-status-list" id="reportDriverStatus"></div></div>
+            </div>
+          </section>
+
+          <section class="report-section">
+            <div class="report-section-heading"><div><strong>实时运力任务</strong><small>快完成与异常任务优先展示</small></div><span class="report-date" id="reportOperatingDate"></span></div>
+            <div class="report-dispatch-list" id="reportDispatchList"></div>
+          </section>
+
+          <section class="report-section report-plan-section">
+            <div class="report-section-heading"><div><strong>计划完成统计</strong><small>客户 — 项目 — 线路</small></div></div>
+            <div class="report-plan-list" id="reportPlanList"></div>
           </section>
         </section>
 
@@ -85,7 +131,7 @@
           <div class="detail-scroll" id="managerDetailContent"></div>
         </section>
 
-        <section class="entry-view" id="managerEntryView" aria-hidden="true">
+        <section class="entry-view" id="managerEntryView" role="dialog" aria-modal="true" aria-labelledby="entryTitle" aria-hidden="true" tabindex="-1">
           <form id="managerEntryForm">
             <header class="subpage-header entry-header"><button class="subpage-back" id="entryBackButton" type="button" aria-label="返回列表"><i data-lucide="chevron-left"></i></button><div><span id="entryEyebrow">业务建档</span><strong id="entryTitle">新增</strong></div><span aria-hidden="true"></span></header>
             <div class="entry-scroll" id="managerEntryContent"></div>
@@ -114,6 +160,7 @@
 
       <nav class="manager-bottom-nav" id="managerBottomNav" aria-label="主导航">
         <button class="active" data-view="workbench" type="button"><span><i data-lucide="layout-dashboard"></i></span><strong>工作台</strong></button>
+        <button data-view="reports" type="button"><span><i data-lucide="chart-no-axes-combined"></i></span><strong>报表</strong></button>
         <button data-view="messages" type="button"><span><i data-lucide="message-square-text"></i><em>3</em></span><strong>消息</strong></button>
         <button data-view="profile" type="button"><span><i data-lucide="user-round"></i></span><strong>我的</strong></button>
       </nav>

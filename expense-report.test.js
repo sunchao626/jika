@@ -24,6 +24,7 @@ assert.match(source, /state\.expenses\.unshift\(\{/);
 assert.match(source, /saveExpenses\(state\.expenses\)/);
 assert.match(source, /waybillNo: dispatch\.waybillNo/);
 assert.match(source, /vehicleId,/);
+assert.match(source, /function expenseStatusMeta/);
 assert.match(source, /data-expense-type/);
 assert.match(source, /back-expense-types/);
 assert.match(source, /function openProfileSubpage[\s\S]*elements\.bottomNav\.hidden = true/);

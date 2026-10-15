@@ -7,7 +7,7 @@ const component = fs.readFileSync("attachment-upload.js", "utf8");
 const app = fs.readFileSync("app.js", "utf8");
 
 const fileInputs = html.match(/<input[^>]+type="file"[^>]+data-upload-hint="[^"]+"[^>]*>/g) || [];
-assert.equal(fileInputs.length, 5, "all five backend attachment controls should remain functional file inputs");
+assert.equal(fileInputs.length, 6, "all six backend attachment controls should remain functional file inputs");
 fileInputs.forEach((input) => {
   assert.match(input, /accept="\.jpg,\.jpeg,\.png,\.pdf"/);
   assert.match(input, /data-upload-hint=/);

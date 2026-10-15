@@ -20,7 +20,8 @@ function createElement() {
 }
 
 const html = fs.readFileSync("index.html", "utf8");
-assert.match(html, /data-page="dispatch-management"[^>]*>派单管理</);
+const styles = fs.readFileSync("styles.css", "utf8");
+assert.match(html, /data-page="dispatch-management"[^>]*>任务派单</);
 assert.match(html, /id="dispatchManagementTaskStats"/);
 assert.match(html, /id="dispatchManagementCapacityStats"/);
 assert.match(html, /task-lane-column[\s\S]*dispatchManagementTaskStats[\s\S]*<section class="dispatch-management-lane task-lane"/);
@@ -44,7 +45,17 @@ assert.doesNotMatch(html, /dispatchManagementRefreshBtn/);
 const dispatchTaskHead = html.match(/<table class="dispatch-management-task-table">[\s\S]*?<\/thead>/)?.[0] || "";
 assert.doesNotMatch(dispatchTaskHead, /匹配状态/);
 assert.doesNotMatch(dispatchTaskHead, /操作/);
-assert.match(html, /司机 \/ 电话[\s\S]*车辆 \/ 挂车[\s\S]*当前进度[\s\S]*匹配值/);
+assert.doesNotMatch(dispatchTaskHead, /拍照要求/);
+assert.match(dispatchTaskHead, /客户项目<\/th><th>运输线路<\/th>/);
+assert.match(html, /选择[\s\S]*匹配值[\s\S]*司机 \/ 电话[\s\S]*车辆 \/ 挂车[\s\S]*当前进度/);
+assert.match(html, /<colgroup>[\s\S]*task-select-col[\s\S]*task-date-col[\s\S]*<\/colgroup>/);
+assert.match(styles, /\.dispatch-management-table-wrap \{[^}]*overflow-x: hidden/);
+assert.match(styles, /\.dispatch-management-task-table \{[^}]*min-width: 0;[^}]*table-layout: fixed/);
+assert.match(styles, /\.dispatch-management-lane\.capacity-lane \.dispatch-capacity-list-head,[\s\S]*?grid-template-columns: 28px 50px[\s\S]*?min-width: 0/);
+assert.match(styles, /\.capacity-lane-column \{[^}]*border-left: 1px solid #dfe5ee;[^}]*padding-left: 16px/);
+assert.match(styles, /\.capacity-lane-column \.dispatch-stat-grid \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+assert.match(styles, /\.dispatch-management-lanes \{[^}]*gap: 20px/);
+assert.match(styles, /@media \(max-width: 1060px\) \{[\s\S]*?\.capacity-lane-column \{[^}]*border-left: 0;[^}]*padding-left: 0/);
 
 const financeDialogEnd = html.indexOf("</dialog>", html.indexOf('id="financeExpenseDialog"'));
 const financePageEnd = html.indexOf("</section>", financeDialogEnd);
@@ -84,13 +95,20 @@ const vehicles = [
   { plateNo: "浙B20002", driver: "赵亮 / 13800000002", trailerId: "T-2", vehicleState: "在用", vehicleType: "集装箱牵引车", ratedLoad: 32, energyType: "新能源", currentLocation: "宁波港区" },
   { plateNo: "浙B20003", driver: "陈涛 / 13800000003", trailerId: "T-3", vehicleState: "在用", vehicleType: "集装箱牵引车", ratedLoad: 31, energyType: "天然气", currentLocation: "宁波北仑" },
   { plateNo: "沪B20004", driver: "周明 / 13800000004", trailerId: "T-4", vehicleState: "在用", dispatchState: "即将完成", vehicleType: "普通货车", ratedLoad: 12, energyType: "新能源", currentLocation: "上海临港" },
+  { plateNo: "浙B20005", driver: "钱峰 / 13800000005", trailerId: "T-5", vehicleState: "在用", vehicleType: "集装箱牵引车", ratedLoad: 31, energyType: "燃油", currentLocation: "宁波北仑" },
 ];
+drivers.push({ id: "D-5", name: "钱峰", phone: "13800000005", driverState: "空闲", certificationStatus: "verified", qualificationExpiry: "2028-10-10" });
+vehicles[4].driver = "钱峰 / 13800000005";
+vehicles[4].trailerId = "T-5";
+const now = new Date();
+dispatches.push({ id: "PD-5", waybillNo: "WB-5", driverId: "D-1", status: "已完成", acceptedAt: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-02 10:00` });
 const trailers = [
   { id: "T-1", plateNo: "挂001", trailerType: "集装箱骨架车", trailerState: "在用" },
   { id: "T-2", plateNo: "挂002", trailerType: "集装箱骨架车", trailerState: "在用" },
   { id: "T-3", plateNo: "挂003", trailerType: "集装箱骨架车", trailerState: "在用" },
   { id: "T-4", plateNo: "挂004", trailerType: "普通栏板车", trailerState: "在用" },
 ];
+trailers.push({ id: "T-5", plateNo: "挂005", trailerType: "集装箱骨架车", trailerState: "在用" });
 const fixedRoutes = [
   { id: "R-1", routeName: "北仑港至园区", origin: "宁波北仑港", defaultVehicle: "浙B20001", defaultDriver: "王海" },
   { id: "R-2", routeName: "港区短驳", origin: "宁波北仑港" },
@@ -102,6 +120,7 @@ let renderedAutoDispatch = 0;
 let navigatedPage = "";
 const windowMock = {
   DispatchStore: { nowText: () => "2026-10-10 15:00", save() {} },
+  PhotoRequirementConfig: { forTaskType: () => [{ name: "封号照片", quantity: 2 }] },
   AutoDispatchManager: { render() { renderedAutoDispatch += 1; } },
   addEventListener() {},
 };
@@ -124,28 +143,78 @@ const context = vm.createContext({
   Math,
   switchPage(pageName) { navigatedPage = pageName; },
 });
+vm.runInContext(fs.readFileSync("dispatch-rules.js", "utf8"), context);
 vm.runInContext(fs.readFileSync("dispatch-management.js", "utf8"), context);
 
+const today = new Date();
+const dayText = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const todayText = dayText(today);
+const tomorrowText = dayText(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
+const dayAfterTomorrowText = dayText(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 2));
+
 assert.match(getElement("#dispatchManagementTaskStats").innerHTML, /待派单/);
+assert.match(getElement("#dispatchManagementTaskStats").innerHTML, /待派单总计/);
+assert.match(getElement("#dispatchManagementTaskStats").innerHTML, /今日待派单/);
+assert.match(getElement("#dispatchManagementTaskStats").innerHTML, /明日待派单/);
 assert.doesNotMatch(getElement("#dispatchManagementTaskStats").innerHTML, /已派单|运输中|已完成/);
 assert.match(html, /dispatch-stat-group task-only/);
 assert.match(getElement("#dispatchManagementCapacityStats").innerHTML, /空闲/);
 assert.equal(windowMock.DispatchManagement.getDemoState().tasks.length, 15);
 assert.equal(windowMock.DispatchManagement.getDemoState().tasks.filter((task) => task.status === "待派单").length, 15);
+assert.equal(windowMock.DispatchManagement.getDemoState().tasks.filter((task) => task.orderDate === todayText).length, 5);
+assert.equal(windowMock.DispatchManagement.getDemoState().tasks.filter((task) => task.orderDate === tomorrowText).length, 5);
 assert.equal(getElement("#dispatchManagementTaskCount").textContent, "15 条待匹配");
 assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /东方港联/);
 assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010030/);
+assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /封号照片|1 项 · 2 张/);
 assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010031/);
 assert.doesNotMatch(getElement("#dispatchManagementCapacityList").innerHTML, /司机资质|核载 \/ 容积|dispatch-capacity-node-progress/);
 assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /dispatch-capacity-progress-track/);
 assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /匹配值/);
-assert.match(getElement("#dispatchManagementCapacityList").innerHTML, />100<\/strong>/);
+assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /dispatch-match-tooltip/);
+assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /空闲优先/);
+const sharedRuleTags = windowMock.DispatchRuleRegistry.scoreMatch({ idle: true, routeVehicle: true, familiarDriver: true, lowDriverLoad: true, closeToPickup: true }).tags.map((tag) => tag.label);
+assert.ok(sharedRuleTags.includes("线路专属车辆"));
+assert.ok(sharedRuleTags.includes("司机熟悉线路"));
+assert.doesNotMatch(getElement("#dispatchManagementCapacityList").innerHTML, /dispatch-capacity-avatar/);
+assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /dispatch-capacity-progress[^>]*>[\s\S]*dispatch-capacity-progress-track[\s\S]*%<\/b>/);
 assert.doesNotMatch(getElement("#dispatchManagementCapacityList").innerHTML, /待开始/);
-assert.equal((getElement("#dispatchManagementCapacityList").innerHTML.match(/dispatch-capacity-row/g) || []).length, 4,
+assert.equal((getElement("#dispatchManagementCapacityList").innerHTML.match(/dispatch-capacity-row/g) || []).length, 5,
   "all capacity resources should render as list rows");
+assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /王海<em class="driver-monthly-accepted">本月 1<\/em>/);
 assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /type="checkbox"/);
 assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /type="checkbox"/);
 assert.equal(getElement("#dispatchManagementManualBtn").disabled, true);
+
+getElement("#dispatchManagementTaskStats").listeners.click({
+  target: { closest: () => ({ dataset: { dispatchStatRange: "date", dispatchStatDate: todayText } }) },
+});
+assert.equal(getElement("#dispatchManagementTaskDateFilter").value, todayText);
+assert.equal(getElement("#dispatchManagementTaskCount").textContent, "5 条待匹配");
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010021/);
+assert.equal(navigatedPage, "", "stat filters should stay on the dispatch management page");
+getElement("#dispatchManagementTaskStats").listeners.click({
+  target: { closest: () => ({ dataset: { dispatchStatRange: "date", dispatchStatDate: tomorrowText } }) },
+});
+assert.equal(getElement("#dispatchManagementTaskDateFilter").value, tomorrowText);
+assert.equal(getElement("#dispatchManagementTaskCount").textContent, "5 条待匹配");
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010026/);
+assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010021/);
+assert.equal(navigatedPage, "", "tomorrow stat should stay on the dispatch management page");
+getElement("#dispatchManagementTaskStats").listeners.click({
+  target: { closest: () => ({ dataset: { dispatchStatRange: "all" } }) },
+});
+assert.equal(getElement("#dispatchManagementTaskDateFilter").value, "");
+assert.equal(getElement("#dispatchManagementTaskCount").textContent, "15 条待匹配");
+assert.equal(navigatedPage, "", "total stat should not navigate away from the workbench");
+
+getElement("#dispatchManagementTaskBody").listeners.click({
+  target: { closest: (selector) => selector === "[data-dispatch-management-task]" ? { dataset: { dispatchManagementTask: "DM-003" } } : null },
+});
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /class="selected" data-dispatch-management-task="DM-003"/);
+getElement("#dispatchManagementTaskBody").listeners.click({
+  target: { closest: (selector) => selector === "[data-dispatch-management-task]" ? { dataset: { dispatchManagementTask: "DM-003" } } : null },
+});
 
 const taskSearch = getElement("#dispatchManagementTaskCustomerSearch");
 taskSearch.value = "海晟";
@@ -170,13 +239,13 @@ assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /DM-004/);
 taskTypeFilter.value = "";
 taskTypeFilter.listeners.change();
 const taskDateFilter = getElement("#dispatchManagementTaskDateFilter");
-taskDateFilter.value = "2026-10-11";
+taskDateFilter.value = dayAfterTomorrowText;
 taskDateFilter.listeners.change();
 assert.equal(getElement("#dispatchManagementTaskCount").textContent, "0 条待匹配");
 assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /没有符合条件的任务/);
-taskDateFilter.value = "2026-10-10";
+taskDateFilter.value = todayText;
 taskDateFilter.listeners.change();
-assert.equal(getElement("#dispatchManagementTaskCount").textContent, "15 条待匹配");
+assert.equal(getElement("#dispatchManagementTaskCount").textContent, "5 条待匹配");
 taskDateFilter.value = "";
 taskDateFilter.listeners.change();
 const capacityDriverSearch = getElement("#dispatchManagementCapacityDriverSearch");
@@ -187,6 +256,20 @@ assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /赵亮/);
 assert.doesNotMatch(getElement("#dispatchManagementCapacityList").innerHTML, /王海/);
 capacityDriverSearch.value = "";
 capacityDriverSearch.listeners.input();
+
+for (const state of ["空闲", "运输中", "即将完成"]) {
+  getElement("#dispatchManagementCapacityStats").listeners.click({
+    target: { closest: () => ({ dataset: { capacityStatState: state } }) },
+  });
+  assert.equal(getElement("#dispatchManagementCapacityFilter").value, state);
+  const matchingRows = (getElement("#dispatchManagementCapacityList").innerHTML.match(new RegExp(`state-${state}`, "g")) || []).length;
+  const displayedCount = Number(getElement("#dispatchManagementCapacityCount").textContent.match(/\d+/)?.[0] || 0);
+  assert.equal(matchingRows, displayedCount, `${state} stat should show only matching resources`);
+  assert.match(getElement("#dispatchManagementCapacityStats").innerHTML, new RegExp(`class="dispatch-management-stat [^\"]+ active" data-capacity-stat-state="${state}"`));
+}
+assert.doesNotMatch(getElement("#dispatchManagementCapacityStats").innerHTML, /维修中|停用/);
+getElement("#dispatchManagementCapacityFilter").value = "";
+getElement("#dispatchManagementCapacityFilter").listeners.change();
 
 getElement("#dispatchManagementCapacityList").listeners.click({
   target: {
@@ -211,19 +294,42 @@ getElement("#dispatchManagementManualBtn").listeners.click();
 
 assert.equal(getElement("#dispatchManagementConfirmDialog").open, true, "manual dispatch should require confirmation");
 assert.equal(windowMock.DispatchManagement.getDemoState().assignmentCount, 0, "manual dispatch must not execute before confirmation");
-assert.equal((getElement("#dispatchManagementConfirmMatches").innerHTML.match(/<tr>/g) || []).length, 2);
+assert.equal((getElement("#dispatchManagementConfirmMatches").innerHTML.match(/<tr\b/g) || []).length, 2);
 assert.match(getElement("#dispatchManagementConfirmMatches").innerHTML, /王海[\s\S]*浙B20001/);
+assert.match(getElement("#dispatchManagementConfirmMatches").innerHTML, /data-confirm-note="0"/);
+assert.match(getElement("#dispatchManagementConfirmMatches").innerHTML, /data-replace-vehicle="0"/);
+assert.doesNotMatch(getElement("#dispatchManagementConfirmMatches").innerHTML, /dispatch-confirm-score|WB20261010021/);
+assert.match(html, /<th>客户 \/ 项目<\/th>[\s\S]*<th>派单备注<\/th>/);
 assert.equal(windowMock.DispatchManagement.getPendingPlan().assignments.length, 2);
 getElement("#dispatchManagementConfirmCancel").listeners.click();
 assert.equal(getElement("#dispatchManagementConfirmDialog").open, false);
 assert.equal(windowMock.DispatchManagement.getDemoState().assignmentCount, 0, "cancel should leave tasks and vehicles unchanged");
 getElement("#dispatchManagementManualBtn").listeners.click();
+getElement("#dispatchManagementConfirmMatches").listeners.input({
+  target: { closest: () => ({ dataset: { confirmNote: "0" }, value: "预约号 A123" }) },
+});
+getElement("#dispatchManagementConfirmMatches").listeners.click({
+  target: { closest: () => ({ dataset: { replaceVehicle: "0" } }) },
+});
+assert.equal(getElement("#dispatchManagementVehicleDialog").open, true);
+getElement("#dispatchManagementVehicleDriverSearch").value = "钱峰";
+getElement("#dispatchManagementVehicleDriverSearch").listeners.input();
+assert.match(getElement("#dispatchManagementVehicleList").innerHTML, /浙B20005/);
+assert.doesNotMatch(getElement("#dispatchManagementVehicleList").innerHTML, /浙B20003/);
+getElement("#dispatchManagementVehicleList").listeners.click({
+  target: { closest: () => ({ dataset: { pickerPlate: "浙B20005" }, disabled: false }) },
+});
+assert.equal(getElement("#dispatchManagementVehicleDialog").open, false);
+assert.match(getElement("#dispatchManagementConfirmMatches").innerHTML, /钱峰[\s\S]*浙B20005/);
 getElement("#dispatchManagementConfirmSubmit").listeners.click();
 
 const manualState = windowMock.DispatchManagement.getDemoState();
 assert.equal(manualState.assignmentCount, 2);
 assert.equal(manualState.tasks.find((task) => task.id === "DM-001").status, "已派单");
 assert.equal(manualState.tasks.find((task) => task.id === "DM-002").status, "已派单");
+assert.equal(manualState.tasks.find((task) => task.id === "DM-001").vehicleId, "浙B20005");
+assert.equal(manualState.tasks.find((task) => task.id === "DM-001").driverName, "钱峰");
+assert.equal(manualState.tasks.find((task) => task.id === "DM-001").note, "预约号 A123");
 assert.equal(dispatches[0].status, "待派单", "demo dispatch must not mutate the global dispatch store");
 assert.equal(dispatches[1].status, "待派单", "demo dispatch must not mutate the global dispatch store");
 assert.equal(waybills[0].plateNo, undefined, "demo dispatch must not mutate waybills");
@@ -250,18 +356,18 @@ assert.equal(resetState.tasks.filter((task) => task.status === "待派单").leng
 getElement("#dispatchManagementAutoBtn").listeners.click();
 assert.equal(getElement("#dispatchManagementConfirmDialog").open, true, "automatic dispatch should require confirmation");
 assert.equal(windowMock.DispatchManagement.getDemoState().assignmentCount, 0, "automatic dispatch must not execute before confirmation");
-assert.equal((getElement("#dispatchManagementConfirmMatches").innerHTML.match(/<tr>/g) || []).length, 3);
+assert.equal((getElement("#dispatchManagementConfirmMatches").innerHTML.match(/<tr\b/g) || []).length, 4);
 assert.equal(getElement("#dispatchManagementConfirmUnassigned").hidden, false);
-assert.equal(windowMock.DispatchManagement.getPendingPlan().unassignedTaskIds.length, 12);
+assert.equal(windowMock.DispatchManagement.getPendingPlan().unassignedTaskIds.length, 11);
 getElement("#dispatchManagementConfirmSubmit").listeners.click();
 const autoState = windowMock.DispatchManagement.getDemoState();
-assert.equal(autoState.assignmentCount, 3);
-assert.equal(autoState.tasks.filter((task) => task.status === "已派单").length, 3);
-assert.equal(autoState.tasks.filter((task) => task.status === "待派单").length, 12);
+assert.equal(autoState.assignmentCount, 4);
+assert.equal(autoState.tasks.filter((task) => task.status === "已派单").length, 4);
+assert.equal(autoState.tasks.filter((task) => task.status === "待派单").length, 11);
 assert.equal(getElement("#dispatchManagementResultTitle").textContent, "自动派单部分完成");
 assert.equal(getElement("#dispatchManagementResultTotal").textContent, "15");
-assert.equal(getElement("#dispatchManagementResultSuccess").textContent, "3");
-assert.equal(getElement("#dispatchManagementResultUnassigned").textContent, "12");
+assert.equal(getElement("#dispatchManagementResultSuccess").textContent, "4");
+assert.equal(getElement("#dispatchManagementResultUnassigned").textContent, "11");
 assert.match(getElement("#dispatchManagementResultMessage").textContent, /未派任务将继续保留在当前列表/);
 
 windowMock.DispatchManagement.reset();

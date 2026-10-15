@@ -15,13 +15,13 @@
   const autoHeadingActions = page.querySelector(".auto-heading-actions");
   const rulesDialog = configRoot?.querySelector("#autoRulesDialog");
   const rulesForm = configRoot?.querySelector("#autoRulesForm");
-  const SETTINGS_KEY = "container-logistics-auto-dispatch-settings-v1";
+  const SETTINGS_KEY = window.DispatchRuleRegistry?.SETTINGS_KEY || "container-logistics-auto-dispatch-settings-v1";
   const routeMileageSnapshotFor = (route) => {
     if (typeof getRouteMileageSnapshot === "function") return getRouteMileageSnapshot(route);
     const mileage = Number(route?.mileage);
     return route && route.mileage !== "" && Number.isFinite(mileage) && mileage >= 0 ? mileage : null;
   };
-  const defaultRuleConfig = {
+  const defaultRuleConfig = window.DispatchRuleRegistry?.defaultRuleConfig || {
     filters: { filterVehicleStatus: true, filterDriverStatus: true, filterDailyTrips: true, filterCapacity: true, filterTimeWindow: true, filterCrossRoute: true },
     scores: { scoreIdle: true, scoreIdleValue: 100, scoreInTransit: true, scoreInTransitValue: 20, scoreRouteMatch: true, scoreRouteMatchValue: 30, scoreDriverLoad: true, scoreDriverLoadValue: 20, scoreDistance: true, scoreDistanceValue: 20, scoreDelay: true, scoreDelayValue: -15, scoreTimeTight: true, scoreTimeTightValue: -10 },
   };
@@ -37,12 +37,18 @@
   const settings = loadSettings();
   const saveSettings = () => {
     try { window.localStorage?.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (error) { /* Storage can be unavailable in private contexts. */ }
+    window.DispatchManagement?.render?.();
   };
   const syncRuleControls = () => {
     const filters = settings.ruleConfig.filters;
     const scores = settings.ruleConfig.scores;
     Object.entries(filters).forEach(([name, value]) => { if (rulesForm.elements[name]) rulesForm.elements[name].checked = Boolean(value); });
-    Object.entries(scores).forEach(([name, value]) => { if (rulesForm.elements[name]) rulesForm.elements[name].value = value; });
+    Object.entries(scores).forEach(([name, value]) => {
+      const control = rulesForm.elements[name];
+      if (!control) return;
+      if (name.endsWith("Value")) control.value = value;
+      else control.checked = Boolean(value);
+    });
     rulesForm.elements.maxTrips.value = String(settings.maxTrips);
     rulesForm.elements.warningDays.value = String(settings.warningDays);
   };
@@ -246,8 +252,27 @@
       const familiar = driver.name === route.defaultDriver;
       const soon = [driver.licenseExpiry, driver.qualificationExpiry, vehicle.insuranceDue, vehicle.inspectionDue]
         .some((end) => (new Date(`${end}T12:00:00`) - new Date(`${task.planDate}T12:00:00`)) / 86400000 <= settings.warningDays);
-      return { driver, vehicle, load, dedicated, soon, score: 76 + (dedicated ? 15 : 0) + (familiar ? 4 : 0) + Math.max(0, 5 - load * 3) };
-    })).sort((a, b) => Number(b.dedicated) - Number(a.dedicated) || a.load - b.load || b.score - a.score ||
+      const vehicleLocation = String(vehicle.currentLocation || vehicle.fleetName || "");
+      const locationTokens = ["北仑", "宁波", "上海", "杭州", "苏州", "绍兴", "嘉兴", "金华", "舟山"];
+      const originToken = locationTokens.find((token) => String(route.origin || "").includes(token));
+      const closeToPickup = Boolean(originToken && vehicleLocation.includes(originToken));
+      const recentDelay = dispatches.some((dispatch) => dispatch.driverId === driver.id && (dispatch.timeline || []).some((entry) => /延误/.test(`${entry.node || ""}${entry.desc || ""}`)));
+      const sharedMatch = window.DispatchRuleRegistry?.scoreMatch?.({
+        idle: true,
+        routeVehicle: dedicated,
+        familiarDriver: familiar,
+        lowDriverLoad: load < settings.maxTrips,
+        closeToPickup,
+        recentDelay,
+        timeTight: false,
+        unavailable: false,
+      }, settings.ruleConfig);
+      return {
+        driver, vehicle, load, dedicated, familiar, soon,
+        score: sharedMatch?.score ?? 76 + (dedicated ? 15 : 0) + (familiar ? 4 : 0) + Math.max(0, 5 - load * 3),
+        ruleTags: sharedMatch?.tags || [],
+      };
+    })).sort((a, b) => b.score - a.score || Number(b.dedicated) - Number(a.dedicated) || a.load - b.load ||
       a.driver.id.localeCompare(b.driver.id) || a.vehicle.plateNo.localeCompare(b.vehicle.plateNo, "zh-CN"));
     return { candidates: candidates.slice(0, 4), reason: "" };
   }

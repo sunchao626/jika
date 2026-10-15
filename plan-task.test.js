@@ -5,7 +5,7 @@ const vm = require("node:vm");
 const html = fs.readFileSync("index.html", "utf8");
 const app = fs.readFileSync("app.js", "utf8");
 const auto = fs.readFileSync("auto-dispatch.js", "utf8");
-assert.match(html, /data-page="waybill"[^>]*>计划管理/);
+assert.match(html, /data-page="waybill"[^>]*>计划与任务/);
 for (const id of ["planTaskDialog", "planTaskForm", "planTaskBatchInput", "planRouteSelect", "planExecutionTime", "planBoxType", "batchPlanTaskBtn", "planTaskQuantity", "generatePlanTaskBtn", "planTaskList", "planTaskListToggleBtn"]) {
   assert.ok(html.includes(`id="${id}"`), `缺少计划任务控件 ${id}`);
 }
@@ -56,6 +56,10 @@ for (const project of ["比亚迪", "提箱装货", "X387", "X8588", "X8786", "�
 for (const field of ["pickupPoint", "loadingPoint", "unloadingPoint", "dropoffPoint"]) assert.match(app, new RegExp(`${field}:`), `缺少线路节点字段 ${field}`);
 assert.match(app, /function parsePlanTaskCsv\(/);
 assert.match(app, /function createPlanTaskRecords\(/);
+assert.match(app, /function updatePlanTaskRecords\(/);
+assert.match(planDialogMarkup, /固定线路（选填）/);
+assert.doesNotMatch(planDialogMarkup, /name="routeId"[^>]*required/);
+for (const field of ["data-plan-task-box-no-1", "data-plan-task-seal-no-1", "data-plan-task-box-no-2", "data-plan-task-seal-no-2"]) assert.ok(app.includes(field), `子任务缺少字段 ${field}`);
 assert.match(app, /renderRouteStops\(route/);
 assert.doesNotMatch(app, /isPlanTaskAutoDispatch|input\[name="batchDispatchMode"\]|input\[name="dispatchMode"\]/);
 assert.match(auto, /function isAutoDispatchDue\(/);
@@ -74,11 +78,18 @@ const context = vm.createContext({
   PLAN_TASK_TYPES: ["提空装货", "提重送货", "排空箱（A→B）", "排重箱（A→B）"],
   normalize: (value) => String(value || "").trim().toLowerCase(),
   getNextWaybillNo: () => `WB20260928001`,
-  createPendingDispatch(waybill, route) { dispatches.push({ waybillNo: waybill.waybillNo, status: "待派单", routeId: route.id, autoDispatch: waybill.autoDispatch }); },
+  createPendingDispatch(waybill, route) { dispatches.push({ waybillNo: waybill.waybillNo, status: "待派单", routeId: route?.id || "", autoDispatch: waybill.autoDispatch }); },
   saveWaybills() {},
   window: { CustomerManager: { getActiveCustomerByName: () => ({ customerNo: "KH-1008" }) } },
 });
 vm.runInContext(app.slice(start, end), context);
+const parserStart = app.indexOf("function parsePlanTaskCsvLine(");
+const parserEnd = app.indexOf("function normalizePlanTaskExecutionTime(", parserStart);
+vm.runInContext(app.slice(parserStart, parserEnd), context);
+const imported = context.parsePlanTaskCsv("执行时间,线路,柜型,客户名称,项目名称,任务类型,运单数量,箱号1,铅封号1,箱号2,铅封号2\n2026-09-28 08:00,,40HQ,华贸,比亚迪,提空装货,1,BOX-A,SEAL-A,BOX-B,SEAL-B");
+assert.equal(imported[0].routeValue, "", "固定线路允许在导入中留空");
+assert.equal(imported[0].boxNo2, "BOX-B");
+assert.equal(imported[0].sealNo2, "SEAL-B");
 const result = context.createPlanTaskRecords([{ executionTime: "2026-09-28 08:00", routeValue: "北仑港至江北仓", boxType: "40HQ", customerName: "宁波远海供应链有限公司", projectName: "进口柜日配", taskType: "提空装货", autoDispatch: true, dispatchAdvanceMinutes: 30 }]);
 assert.equal(result.created.length, 1);
 assert.equal(waybills[0].taskType, "提空装货");
@@ -86,6 +97,37 @@ assert.equal(waybills[0].projectId, "PR-ZT-X8786");
 assert.equal(waybills[0].autoDispatch, false, "new plan tasks enter the pending pool without an auto-dispatch choice");
 assert.equal(waybills[0].dispatchAdvanceMinutes, 0);
 assert.equal(dispatches[0].status, "待派单");
+const noRoute = context.createPlanTaskRecords([{ executionTime: "2026-09-28 10:00", routeId: "", boxType: "20GP", customerName: "华贸", projectName: "比亚迪", customerId: "KH-HM", taskType: "提空装货", quantity: 1, boxNo1: "", sealNo1: "", boxNo2: "BOX-ONLY", sealNo2: "SEAL-ONLY" }]);
+assert.equal(noRoute.created.length, 1, "没有固定线路也应创建计划任务");
+assert.equal(noRoute.created[0].routeId, "");
+assert.equal(noRoute.created[0].boxNo1, "BOX-ONLY", "只有第二组输入时压紧存入箱号1");
+assert.equal(noRoute.created[0].sealNo1, "SEAL-ONLY", "只有第二组输入时压紧存入铅封号1");
+assert.equal(noRoute.created[0].boxNo2, "");
+const twoBoxes = context.createPlanTaskRecords([{ executionTime: "2026-09-28 11:00", routeId: "", boxType: "40HQ", customerName: "华贸", projectName: "比亚迪", quantity: 1, boxNo1: "BOX-1", sealNo1: "SEAL-1", boxNo2: "BOX-2", sealNo2: "SEAL-2" }]);
+assert.equal(twoBoxes.created[0].containers.length, 2);
+assert.equal(twoBoxes.created[0].boxNo2, "BOX-2");
+const editedWaybill = { waybillNo: "WB-EDIT", planTaskId: "PT-EDIT", routeId: "XL-001", boxNo1: "OLD", sealNo1: "OLD-S", boxNo2: "", sealNo2: "", containers: [], freight: 100, receivable: 120, payable: 90, profit: 30 };
+const editedDispatch = { waybillNo: "WB-EDIT", routeId: "XL-001", routeName: "Old route", status: "待派单" };
+const editContext = vm.createContext({
+  waybills: [editedWaybill], dispatches: [editedDispatch], waybillRouteMap: { "WB-EDIT": "XL-001" },
+  getPlanTaskGroups: () => [{ id: "PT-EDIT", canEdit: true, waybills: [editedWaybill] }],
+  normalizePlanTaskExecutionTime: (value) => value,
+  resolvePlanTaskRoute: () => null,
+  getRouteStops: () => [{ value: "待维护" }, { value: "待维护" }, { value: "待维护" }, { value: "待维护" }],
+  getRouteMileageSnapshot: () => null, formatWaybillBoxes: () => "BOX-NEW", routeAccountCatalog: [],
+  getRouteAccount: () => null, saveWaybills() {}, saveDispatches() {},
+  window: { CustomerManager: { getActiveCustomerByName: () => ({ customerNo: "KH-1008" }) } },
+});
+const editStart = app.indexOf("function normalizePlanTaskContainerPairs(");
+const editEnd = app.indexOf("function refreshAfterPlanTaskCreate(", editStart);
+vm.runInContext(app.slice(editStart, editEnd), editContext);
+assert.equal(editContext.updatePlanTaskRecords("PT-EDIT", { executionTime: "2026-09-28T12:00", customerName: "华贸", customerId: "KH-HM", projectName: "比亚迪", projectId: "PR-HM", taskType: "提空装货" }, [{ routeValue: "", boxType: "40HQ", boxNo1: "", sealNo1: "", boxNo2: "BOX-NEW", sealNo2: "SEAL-NEW" }]), true);
+assert.equal(editedWaybill.routeId, "", "编辑可清空固定线路");
+assert.equal(editedWaybill.boxNo1, "BOX-NEW", "编辑时单组数据始终写入箱号1");
+assert.equal(editedWaybill.sealNo1, "SEAL-NEW", "编辑时单组数据始终写入铅封号1");
+assert.equal(editedWaybill.boxNo2, "");
+assert.equal(editedWaybill.receivable, 120, "清空线路不清空既有金额");
+assert.equal(editedDispatch.routeName, "未指定线路");
 const varied = context.createPlanTaskRecords([{ executionTime: "2026-09-28 09:00", routeId: "XL-001", boxType: "40HQ", customerName: "宁波远海供应链有限公司", projectName: "进口柜日配", taskType: "提空装货", taskItems: [{ routeId: "XL-001", boxType: "20GP" }, { routeId: "XL-002", boxType: "40GP" }], quantity: 2 }]);
 assert.equal(varied.created.length, 2);
 assert.equal(varied.created[0].planTaskId, varied.created[1].planTaskId);

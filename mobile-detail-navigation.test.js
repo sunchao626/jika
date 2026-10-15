@@ -3,6 +3,10 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const source = fs.readFileSync("mobile.js", "utf8");
+assert.match(source, /还箱地/);
+assert.match(source, /到达时间/);
+assert.match(source, /到达地点/);
+assert.match(source, /收货人/);
 const start = source.indexOf("function openDetail(");
 const end = source.indexOf("let toastTimer", start);
 assert.ok(start >= 0 && end > start, "detail navigation functions must exist");

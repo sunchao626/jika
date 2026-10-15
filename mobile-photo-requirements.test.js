@@ -7,73 +7,82 @@ const html = fs.readFileSync("mobile.html", "utf8");
 const styles = fs.readFileSync("mobile.css", "utf8");
 const storeSource = fs.readFileSync("dispatch-store.js", "utf8");
 const taskNodesSource = fs.readFileSync("dispatch-task-nodes.js", "utf8");
+const photoRequirementsSource = fs.readFileSync("photo-requirements.js", "utf8");
 const constantsStart = source.indexOf("const DEFAULT_TASK_TYPE");
 const constantsEnd = source.indexOf("const dispatchSeed", constantsStart);
-const helpersStart = source.indexOf("function dispatchTaskType(");
-const helpersEnd = source.indexOf("function isTaskAwaitingStart(", helpersStart);
-assert.ok(constantsStart >= 0 && constantsEnd > constantsStart, "photo rule map must exist");
-assert.ok(helpersStart >= 0 && helpersEnd > helpersStart, "photo upload helpers must exist");
+const typeHelpersStart = source.indexOf("function dispatchTaskType(");
+const typeHelpersEnd = source.indexOf("function photoRequirementsForDispatch(", typeHelpersStart);
+const photoHelpersStart = source.indexOf("function photoRequirementsForDispatch(");
+const photoHelpersEnd = source.indexOf("let photoViewerUrls", photoHelpersStart);
+const renderRequirementsStart = source.indexOf("function renderProgressPhotoRequirements(");
+const renderRequirementsEnd = source.indexOf("function isTaskAwaitingStart(", renderRequirementsStart);
+assert.ok(constantsStart >= 0 && constantsEnd > constantsStart, "task type constants must exist");
+assert.ok(typeHelpersStart >= 0 && typeHelpersEnd > typeHelpersStart, "task type helpers must exist");
+assert.ok(photoHelpersStart >= 0 && photoHelpersEnd > photoHelpersStart, "photo upload helpers must exist");
 
 const nodes = {
-  photoRequirements: { hidden: false },
+  photoRequirements: { hidden: false, dataset: {} },
   photoSlotList: { innerHTML: "" },
   photoRequirementsHint: { textContent: "" },
   photoRequirementsCount: { textContent: "" },
   photoRequirementsTitle: { textContent: "" },
 };
+const photoConfigStorage = new Map();
 const context = vm.createContext({
   window: {},
+  localStorage: { getItem: (key) => photoConfigStorage.get(key) || null, setItem: (key, value) => photoConfigStorage.set(key, value) },
+  CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init.detail; },
+  console,
+  state: { dispatches: [], activeDispatchId: "" },
   waybillMeta: {},
   h: (value) => String(value),
   document: { querySelector: (selector) => nodes[selector.slice(1)] },
 });
 vm.runInContext(taskNodesSource, context);
-vm.runInContext(`${source.slice(constantsStart, constantsEnd)}\n${source.slice(helpersStart, helpersEnd)}`, context);
+vm.runInContext(photoRequirementsSource, context);
+vm.runInContext(`${source.slice(constantsStart, constantsEnd)}\n${source.slice(typeHelpersStart, typeHelpersEnd)}\n${source.slice(photoHelpersStart, photoHelpersEnd)}\n${source.slice(renderRequirementsStart, renderRequirementsEnd)}`, context);
 
-const rules = [
-  { type: "提空装货", node: "已提空", labels: ["左侧箱体", "右侧箱体", "前侧箱体", "后侧箱体", "空箱全开门", "临封照片"] },
-  { type: "提空装货", node: "完成装货", labels: ["装货进度 1/4", "装货进度 1/2", "装货进度 3/4", "装货完成全开门", "装货完成半关门", "全关门及签封号"] },
-  { type: "提空装货", node: "重箱进站", labels: ["铁路临封照片 1/3", "铁路临封照片 2/3", "铁路临封照片 3/3"] },
-  { type: "提重送货", node: "已提重", labels: ["全关门箱门照片", "封号照片"] },
-  { type: "提重送货", node: "完成卸货", labels: ["卸货过程照片 1/3", "卸货过程照片 2/3", "卸货过程照片 3/3"] },
-  { type: "提重送货", node: "空箱进站", labels: ["空箱照片 1/5", "空箱照片 2/5", "空箱照片 3/5", "空箱照片 4/5", "空箱照片 5/5"] },
-  { type: "排空箱（A→B）", node: "已提空", labels: ["左侧箱体", "右侧箱体", "前侧箱体", "后侧箱体", "空箱全开门", "临封照片"] },
-  { type: "排重箱（A→B）", node: "已提重", labels: ["全关门箱门照片", "封条照片"] },
-  { type: "排重箱（A→B）", node: "箱进站", labels: ["铁路临封照片 1/3", "铁路临封照片 2/3", "铁路临封照片 3/3"] },
-];
-
-for (const rule of rules) {
-  const dispatch = { taskType: rule.type };
-  assert.deepEqual([...context.photoRequirementsForNode(dispatch, rule.node)], rule.labels);
-  context.renderProgressPhotoRequirements(dispatch, rule.node);
+const configuration = context.window.PhotoRequirementConfig.load();
+for (const taskType of Object.keys(context.window.DispatchTaskNodes.sequences)) {
+  const requirements = configuration[taskType];
+  const total = requirements.reduce((sum, item) => sum + item.quantity, 0);
+  const dispatch = { taskType, timeline: [] };
+  assert.deepEqual([...context.photoRequirementsForDispatch(dispatch)].map((item) => item.name), [...requirements].map((item) => item.name));
+  context.renderProgressPhotoRequirements(dispatch, context.taskNodes(dispatch)[0]);
   assert.equal(nodes.photoRequirements.hidden, false);
-  assert.equal((nodes.photoSlotList.innerHTML.match(/data-photo-slot/g) || []).length, rule.labels.length);
-  for (const label of rule.labels) assert.ok(nodes.photoSlotList.innerHTML.includes(label));
-  assert.equal(nodes.photoRequirementsCount.textContent, `0/${rule.labels.length}`);
+  assert.equal((nodes.photoSlotList.innerHTML.match(/data-photo-slot /g) || []).length, total);
+  for (const requirement of requirements) {
+    assert.ok(nodes.photoSlotList.innerHTML.includes(requirement.name));
+    assert.ok(nodes.photoSlotList.innerHTML.includes(requirement.description));
+  }
+  assert.equal(nodes.photoRequirementsCount.textContent, `0/${total}`);
 }
 
-assert.deepEqual([...context.photoRequirementsForNode({ taskType: "提重送货" }, "重箱在途")], [], "unlisted nodes must not require photos");
-context.renderProgressPhotoRequirements({ taskType: "提重送货" }, "重箱在途");
-assert.equal(nodes.photoRequirements.hidden, true);
-assert.equal(nodes.photoSlotList.innerHTML, "");
+const snapshot = [{ id: "rule-a", name: "签封照片", description: "封号需清晰", quantity: 2 }];
+const snapshotDispatch = { taskType: "提空装货", photoRequirements: snapshot, timeline: [{ photoAttachments: [{ requirementId: "rule-a", requirementName: "签封照片" }] }] };
+assert.deepEqual([...context.photoRequirementsForDispatch(snapshotDispatch)].map((item) => item.id), ["rule-a"]);
+context.renderProgressPhotoRequirements(snapshotDispatch, "已提空");
+assert.equal((nodes.photoSlotList.innerHTML.match(/data-photo-slot /g) || []).length, 1, "previously uploaded requirement slots stay completed");
+assert.match(nodes.photoRequirementsTitle.textContent, /1\/2 张已上传/);
+context.renderProgressPhotoRequirements(snapshotDispatch, "完成落重");
+assert.equal(nodes.photoRequirements.dataset.finalNode, "true");
 
 assert.equal(context.missingPhotoCount([{ files: [] }, { files: [{}] }, { files: [] }]), 2);
-assert.equal(context.missingPhotoCount([]), 0, "nodes without photo rules can be submitted without photos");
+assert.equal(context.missingPhotoCount([]), 0, "empty requirement collections remain valid");
 
 const submitStart = source.indexOf('document.querySelector("#progressForm").addEventListener("submit"');
 const submitEnd = source.indexOf('document.querySelector("#progressForm").addEventListener("change"', submitStart);
 const submitHandler = source.slice(submitStart, submitEnd);
 assert.ok(submitStart >= 0 && submitEnd > submitStart, "progress submission handler must exist");
-assert.match(submitHandler, /const missingCount = missingPhotoCount\(photoInputs\)/);
-assert.match(submitHandler, /if \(missingCount\) \{[\s\S]*return;/);
-assert.match(submitHandler, /label: input\.dataset\.photoLabel[\s\S]*name: input\.files\[0\]\.name/);
+assert.match(submitHandler, /if \(isComplete && missingCount\) \{[\s\S]*return;/);
+assert.match(submitHandler, /requirementId: input\.dataset\.photoRequirementId[\s\S]*name: input\.files\[0\]\.name/);
 assert.match(submitHandler, /await window\.DispatchStore\.savePhotos/);
-assert.ok(submitHandler.indexOf("if (missingCount)") < submitHandler.indexOf("dispatch.currentNode = node"), "missing required photos must block node progress");
+assert.ok(submitHandler.indexOf("if (isComplete && missingCount)") < submitHandler.indexOf("dispatch.currentNode = node"), "missing photos must block final task completion");
 assert.ok(submitHandler.indexOf("await window.DispatchStore.savePhotos") < submitHandler.indexOf("dispatch.currentNode = node"), "photos must be persisted before node completion");
 assert.match(html, /id="photoRequirements"[\s\S]*id="photoSlotList"/);
 assert.match(html, /id="photoViewerDialog"[\s\S]*id="photoViewerGrid"/);
 assert.match(source, /accept="image\/\*" capture="environment"/);
-assert.match(source, /data-photo-label="\$\{h\(label\)\}"/);
+assert.match(source, /data-photo-requirement-id="\$\{h\(requirement\.id\)\}"/);
 assert.match(source, /data-view-photo data-photo-id=/);
 assert.match(source, /nodePhotoAttachments\(dispatch, node\)/);
 assert.match(source, /data-photo-name="\$\{h\(photo\)\}"/);
@@ -82,7 +91,12 @@ assert.match(source, /photo\.placeholder \? null : await window\.DispatchStore\.
 assert.match(storeSource, /function savePhotos\(photos\)/);
 assert.match(storeSource, /function getPhoto\(id\)/);
 assert.match(storeSource, /window\.DispatchStore = \{[^}]*savePhotos, getPhoto/);
-assert.match(styles, /\.photo-slot-list \{ display: grid; grid-template-columns: 1fr 1fr/);
+assert.match(styles, /\.photo-slot-list \{ display: grid; grid-template-columns: minmax\(0, 1fr\)/);
+assert.match(styles, /\.photo-requirements \{ margin-top: 13px;[^}]*background: #fafaff/);
+assert.doesNotMatch(styles, /\.photo-requirements \{[^}]*max-height:/);
+assert.match(styles, /\.progress-dialog-scroll \{ min-height: 0; flex: 1; overflow-y: auto/);
+assert.match(styles, /#progressForm > \.primary-action \{ flex: 0 0 auto/);
+assert.match(html, /id="progressForm"[\s\S]*class="progress-dialog-scroll"[\s\S]*id="photoRequirements"[\s\S]*确认提交/);
 assert.match(styles, /\.photo-viewer-item img/);
 assert.match(styles, /\.photo-viewer-grid \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 assert.match(styles, /\.photo-viewer-placeholder \{[^}]*flex-direction: column/);

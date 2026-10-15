@@ -3,9 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f1f2ff" />
+    <meta name="theme-color" content="#f4f6fa" />
     <title>集卡司机端</title>
     <link rel="stylesheet" href="mobile.css" />
+    <link rel="stylesheet" href="design-tokens.css" />
   </head>
   <body>
     <div class="phone-shell">
@@ -17,9 +18,9 @@
           <span class="eyebrow" id="headerEyebrow">集卡司机端</span>
           <h1 id="mobileTitle">接单</h1>
         </div>
-        <button class="icon-button notification-button" id="notificationButton" type="button" aria-label="消息通知">
+        <button class="icon-button notification-button" id="notificationButton" type="button" aria-label="打开消息中心">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
-          <span class="notification-dot"></span>
+          <span class="notification-dot" id="headerMessageDot" hidden></span>
         </button>
       </header>
 
@@ -33,38 +34,28 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
             <input id="orderSearch" type="search" placeholder="搜索运单号、线路或箱号" />
           </div>
-          <div class="order-status-tabs" id="orderStatusTabs">
-            <button class="active" data-status="all" type="button">全部</button>
-            <button data-status="active" type="button">进行中</button>
-            <button data-status="completed" type="button">已完成</button>
-            <button data-status="cancelled" type="button">已取消</button>
+          <div class="order-status-tabs" id="orderStatusTabs" role="group" aria-label="运单状态筛选">
+            <button class="filter-chip active" data-status="all" aria-pressed="true" type="button">全部</button>
+            <button class="filter-chip" data-status="active" aria-pressed="false" type="button">进行中</button>
+            <button class="filter-chip" data-status="completed" aria-pressed="false" type="button">已完成</button>
+            <button class="filter-chip" data-status="cancelled" aria-pressed="false" type="button">已取消</button>
           </div>
           <div class="order-list" id="orderList"></div>
         </section>
 
-        <section class="mobile-view assistant-view" id="assistantView" data-title="AI 助手">
-          <div class="assistant-hero">
-            <div class="assistant-avatar" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 3a8 8 0 0 0-8 8v2a2 2 0 0 0 2 2h1v-4a5 5 0 0 1 10 0v4h1a2 2 0 0 0 2-2v-2a8 8 0 0 0-8-8Z"/><path d="M7 15v1a5 5 0 0 0 10 0v-1M10 19h4"/></svg>
-            </div>
-            <div>
-              <strong>你好，我是你的 AI 助手</strong>
-              <p>可以帮你快速查看运单、路线和任务状态</p>
-            </div>
+        <section class="mobile-view messages-view" id="messagesView" data-title="消息">
+          <div class="driver-message-tabs" id="driverMessageTabs" role="group" aria-label="消息类型">
+            <button class="active" data-message-filter="all" aria-pressed="true" type="button">全部</button>
+            <button data-message-filter="task" aria-pressed="false" type="button">任务</button>
+            <button data-message-filter="warning" aria-pressed="false" type="button">预警</button>
+            <button data-message-filter="announcement" aria-pressed="false" type="button">公告</button>
           </div>
-          <div class="assistant-context" id="assistantContext"></div>
-          <div class="assistant-messages" id="assistantMessages" aria-live="polite"></div>
-          <div class="assistant-quick-list" id="assistantQuickList" aria-label="快捷提问">
-            <button type="button" data-assistant-prompt="我有哪些进行中的运单？">进行中的运单</button>
-            <button type="button" data-assistant-prompt="帮我看一下最近的路线">最近的路线</button>
-            <button type="button" data-assistant-prompt="我的任务现在是什么状态？">任务状态</button>
+          <div class="driver-message-summary">
+            <span class="driver-message-summary-icon"><i data-lucide="bell-ring"></i></span>
+            <div><strong id="driverUnreadSummary">0 条未读消息</strong><small>任务与预警状态同步更新</small></div>
+            <button id="driverReadAllButton" type="button">全部已读</button>
           </div>
-          <form class="assistant-composer" id="assistantForm">
-            <input id="assistantInput" type="text" autocomplete="off" placeholder="问问你的运单、路线或任务状态" maxlength="120" />
-            <button type="submit" aria-label="发送消息">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 8-16 8 3-8-3-8Z"/><path d="M7 12h13"/></svg>
-            </button>
-          </form>
+          <div class="driver-message-list" id="driverMessageList" aria-live="polite"></div>
         </section>
 
         <section class="mobile-view profile-view" id="profileView" data-title="个人中心">
@@ -74,6 +65,9 @@
               <div class="profile-name-line"><h2 id="profileName">赵亮</h2><button id="profileCertificationBadge" data-profile-page="certification" type="button">未认证</button></div>
               <p id="profileMeta">自有司机 · 临港车队</p>
               <small id="profilePhone">139****6662</small>
+              <div class="profile-identity-actions" aria-label="基础资料入口">
+                <button data-profile-page="personal" type="button">基础信息 <b>›</b></button>
+              </div>
             </div>
             <button class="profile-edit" id="switchDriverButton" type="button" aria-label="切换演示司机">切换</button>
           </div>
@@ -86,25 +80,11 @@
             <div class="profile-order-stats" id="profileOrderStats"></div>
           </section>
 
-          <section class="profile-data-section">
-            <header class="profile-data-heading"><div><span>资料管理</span><h2>我的资料</h2></div><small>实时同步</small></header>
-            <div class="profile-data-grid">
-              <article class="profile-info-card basic-info-card">
-                <button class="profile-info-card-main" data-profile-page="personal" type="button"><span class="profile-info-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg></span><span><strong>基础信息</strong><small id="profileBasicMeta">个人信息 · 证件资料</small></span><b>›</b></button>
-                <div class="profile-info-card-links"><button data-profile-page="certification" type="button"><span>司机认证</span><em class="certification-state" id="certificationMenuStatus">未认证</em><b>›</b></button><button data-profile-page="documents" type="button"><span>证件管理</span><b>›</b></button></div>
-              </article>
-              <article class="profile-info-card vehicle-info-card">
-                <button class="profile-info-card-main" data-profile-page="vehicle" type="button"><span class="profile-info-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V8l2-3h10l2 3v8M5 11h14M7 16v2M17 16v2"/><circle cx="8" cy="14" r="1"/><circle cx="16" cy="14" r="1"/></svg></span><span><strong>车辆信息</strong><small id="profileVehicleMeta">车辆档案 · 保险信息</small></span><b>›</b></button>
-                <div class="profile-info-card-links"><button data-profile-page="insurance" type="button"><span>车辆保险</span><em id="vehicleInsuranceStatus">已关联</em><b>›</b></button></div>
-              </article>
-            </div>
-          </section>
-
-          <section class="profile-menu-group">
-            <h2>服务与设置</h2>
+          <section class="profile-menu-group profile-service-group">
+            <h2>功能与服务</h2>
             <div class="profile-menu-list">
-              <button data-profile-page="messages" type="button"><span class="profile-menu-icon orange"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></span><span>消息通知</span><em id="messageBadge">2</em><b>›</b></button>
               <button data-profile-page="expenses" type="button"><span class="profile-menu-icon purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M8 8h8M8 12h2M14 12h2M8 16h2M14 16h2"/></svg></span><span>费用上报</span><b>›</b></button>
+              <button class="profile-vehicle-row" data-profile-page="vehicle" type="button"><span class="profile-menu-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V8l2-3h10l2 3v8M5 11h14M7 16v2M17 16v2"/><circle cx="8" cy="14" r="1"/><circle cx="16" cy="14" r="1"/></svg></span><span>车辆信息</span><span class="profile-vehicle-summary"><strong id="profileVehiclePlate">暂未分配</strong><small id="profileVehicleDescription">暂无车辆信息</small></span><b>›</b></button>
               <button data-profile-page="service" type="button"><span class="profile-menu-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 16 0v5a2 2 0 0 1-2 2h-2v-7h4M4 12v5h4v-5H4M12 20h4"/></svg></span><span>联系调度</span><b>›</b></button>
               <button data-profile-page="settings" type="button"><span class="profile-menu-icon gray"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.7-1L14.5 3h-5L9 6.1a8 8 0 0 0-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 0 0 0 2l-2.1 1.5 2 3.4 2.4-1a8 8 0 0 0 1.7 1l.5 3.1h5l.5-3.1a8 8 0 0 0 1.7-1l2.4 1 2-3.4L19 13a7 7 0 0 0 .1-1Z"/></svg></span><span>系统设置</span><b>›</b></button>
             </div>
@@ -171,8 +151,8 @@
         <button data-view="orders" type="button">
           <span class="nav-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/></svg></span><span>运单</span>
         </button>
-        <button data-view="assistant" type="button">
-          <span class="nav-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8 8 0 0 0-8 8v2a2 2 0 0 0 2 2h1v-4a5 5 0 0 1 10 0v4h1a2 2 0 0 0 2-2v-2a8 8 0 0 0-8-8Z"/><path d="M7 15v1a5 5 0 0 0 10 0v-1M10 19h4"/></svg></span><span>AI 助手</span>
+        <button data-view="messages" type="button">
+          <span class="nav-symbol"><i data-lucide="message-square-text"></i><em class="nav-message-badge" id="navMessageBadge" hidden>0</em></span><span>消息</span>
         </button>
         <button data-view="profile" type="button">
           <span class="nav-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg></span><span>我的</span>
@@ -196,15 +176,17 @@
 
       <dialog class="bottom-sheet" id="progressDialog">
         <form id="progressForm">
-          <div class="sheet-handle"></div>
-          <header><div><strong id="progressTitle">更新运输节点</strong><span id="progressHint">操作后将实时同步至调度后台</span></div><button class="sheet-close" type="button">×</button></header>
-          <div class="next-node-card"><span>本次提交节点</span><strong id="nextNodeText">已提货</strong></div>
-          <label class="sheet-field">现场说明<textarea name="remark" rows="3" placeholder="填写现场情况或异常说明"></textarea></label>
-          <section class="photo-requirements" id="photoRequirements" aria-live="polite" hidden>
-            <div class="photo-requirements-heading"><strong id="photoRequirementsTitle">拍照要求</strong><span id="photoRequirementsCount">0/0</span></div>
-            <div class="photo-slot-list" id="photoSlotList"></div>
-            <p class="photo-requirements-hint" id="photoRequirementsHint"></p>
-          </section>
+          <div class="progress-dialog-scroll">
+            <div class="sheet-handle"></div>
+            <header><div><strong id="progressTitle">更新运输节点</strong><span id="progressHint">操作后将实时同步至调度后台</span></div><button class="sheet-close" type="button">×</button></header>
+            <div class="next-node-card"><span>本次提交节点</span><strong id="nextNodeText">已提货</strong></div>
+            <label class="sheet-field">现场说明<textarea name="remark" rows="3" placeholder="填写现场情况或异常说明"></textarea></label>
+            <section class="photo-requirements" id="photoRequirements" aria-live="polite" hidden>
+              <div class="photo-requirements-heading"><strong id="photoRequirementsTitle">拍照要求</strong><span id="photoRequirementsCount">0/0</span></div>
+              <div class="photo-slot-list" id="photoSlotList"></div>
+              <p class="photo-requirements-hint" id="photoRequirementsHint"></p>
+            </section>
+          </div>
           <button class="primary-action" type="submit">确认提交</button>
         </form>
       </dialog>
@@ -225,8 +207,12 @@
       <div class="toast" id="toast" role="status"></div>
     </div>
 
+    <script src="vendor/lucide.min.js"></script>
     <script src="dispatch-store.js"></script>
+    <script src="admin-data-bridge.js"></script>
+    <script src="vehicle-repair.js"></script>
     <script src="dispatch-task-nodes.js"></script>
+    <script src="photo-requirements.js"></script>
     <script src="expense-report.js"></script>
     <script src="mobile.js"></script>
   </body>

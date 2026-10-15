@@ -10,8 +10,21 @@ const customerScript = fs.readFileSync("customer.js", "utf8");
 
 assert.match(desktop, /href="admin-mobile\.html"[^>]*>管理移动端<\/a>\s*<a class="mobile-entry" href="mobile\.html"/);
 assert.match(html, /data-view="workbench"[\s\S]*data-view="messages"[\s\S]*data-view="profile"/);
+assert.match(html, /id="reportsView"[\s\S]*数据报表/);
+assert.match(html, /data-view="reports"[^>]*>[\s\S]*报表/);
+for (const reportSection of ["运输金额", "运力状态", "实时运力任务", "计划完成统计"]) assert.ok(html.includes(reportSection), `数据报表缺少 ${reportSection}`);
+for (const reportFilter of ["reportDateRange", "reportCustomer", "reportProject", "reportRoute", "reportThreshold"]) assert.ok(html.includes(`id="${reportFilter}"`), `数据报表缺少筛选 ${reportFilter}`);
+assert.match(html, /data-report-amount="customer"[\s\S]*data-report-amount="route"/);
+assert.match(css, /\.manager-bottom-nav\s*\{[^}]*grid-template-columns:\s*repeat\(4,1fr\)/);
+assert.match(script, /function renderReports\(\)/);
+assert.match(script, /function reportTaskRows\(/);
+assert.match(script, /reportRanges = \{ yesterday: \{ label: "昨日", days: 1, endOffset: -1 \}, today: \{ label: "今日", days: 1, endOffset: 0 \}, last7: \{ label: "近7天", days: 7, endOffset: 0 \}, month: \{ label: "近一月", days: 30, endOffset: 0 \} \}/);
+assert.match(script, /if \(view === "reports"\) renderReports\(\)/);
+assert.match(script, /if \(state\.currentView === "reports"\) renderReports\(\)/);
+assert.match(script, /data-report-capacity-scope/);
+assert.match(script, /container-logistics-dashboard-near-complete/);
 
-for (const label of ["计划管理", "固定线路管理", "派单管理", "派单列表", "运力管理", "车辆档案管理", "挂车档案", "司机档案", "客户管理"]) {
+for (const label of ["计划与任务", "固定线路管理", "任务派单", "派单列表", "运力管理", "车辆档案管理", "挂车档案", "司机档案", "客户管理"]) {
   assert.ok(html.includes(label), `工作台缺少 ${label} 入口`);
 }
 assert.doesNotMatch(html, /data-open-module="waybill"|data-quick-action="waybill"|运单管理|新增运单/, "工作台不应展示运单管理入口或新增运单快捷操作");
@@ -72,9 +85,14 @@ assert.match(script, /function renderDispatchDetail\(item\)/);
 assert.match(script, /function buildDispatchRecord\(values\)/);
 assert.match(script, /state\.currentModule === "dispatch-management"/);
 assert.match(script, /state\.currentModule === "dispatch"/);
-for (const fieldName of ["waybillId", "projectId", "routeId", "driverId", "vehicleId", "trailerId", "vehicleType", "note"]) {
+for (const fieldName of ["waybillId", "projectId", "routeId", "boxType", "boxNo1", "sealNo1", "boxNo2", "sealNo2", "driverId", "vehicleId", "trailerId", "vehicleType", "consignee", "arrivalTime", "arrivalLocation", "note"]) {
   assert.ok(script.includes(`name: "${fieldName}"`), `移动管理端派单表单缺少后台字段 ${fieldName}`);
 }
+assert.equal((script.match(/class="mobile-container-group"/g) || []).length, 2, "每组箱号和铅封号应有独立集装箱分组");
+assert.match(script, /每个集装箱对应填写自己的铅封号/);
+assert.match(script, /mobile-container-fields[\s\S]*name: "boxNo1"[\s\S]*name: "sealNo1"/);
+assert.match(css, /\.mobile-dispatch-box-grid > \.mobile-field\s*\{[^}]*max-width:\s*190px/);
+assert.match(css, /@media\s*\(max-width:\s*360px\)[\s\S]*\.mobile-container-fields\s*\{\s*grid-template-columns:\s*1fr/);
 for (const detailLabel of ["任务与派单信息", "司机与车辆", "线路与箱信息", "运输节点记录", "其他后台字段"]) {
   assert.ok(script.includes(detailLabel), `派单详情缺少 ${detailLabel}`);
 }

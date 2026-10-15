@@ -1,2 +1,7 @@
 .edge-headless/
 *.log
+node_modules/
+outputs/
+test-results/
+.chrome-*/
+.chrome-*.png

@@ -3,6 +3,12 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const source = fs.readFileSync("app.js", "utf8");
+const desktopHtml = fs.readFileSync("index.html", "utf8");
+const desktopCss = fs.readFileSync("styles.css", "utf8");
+assert.match(desktopHtml, /class="dispatch-container-group"><legend>集装箱 1<\/legend><div class="dispatch-container-fields"><label class="field"><span class="field-label">箱号<\/span><input name="boxNo1"[\s\S]*?<label class="field"><span class="field-label">对应铅封号<\/span><input name="sealNo1"/);
+assert.match(desktopHtml, /class="dispatch-container-group"><legend>集装箱 2<\/legend><div class="dispatch-container-fields"><label class="field"><span class="field-label">箱号<\/span><input name="boxNo2"[\s\S]*?<label class="field"><span class="field-label">对应铅封号<\/span><input name="sealNo2"/);
+assert.match(desktopCss, /\.dispatch-box-type-field\s*\{[^}]*max-width:\s*210px/);
+assert.match(desktopCss, /\.dispatch-container-fields\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
 const start = source.indexOf('dispatchForm.addEventListener("submit"');
 const end = source.indexOf('dispatchBody.addEventListener("change"', start);
 assert.ok(start >= 0 && end > start);
@@ -18,7 +24,7 @@ const nextDriver = { id: "SJ-NEW", name: "新司机", phone: "13800000000", driv
 const form = {
   dispatchMode: "edit",
   editingDispatchId: dispatch.id,
-  elements: { waybillId: { value: waybill.waybillNo }, driverId: { value: nextDriver.id }, vehicleId: { value: "浙B-002" }, note: { value: " 变更后备注 " } },
+  elements: { waybillId: { value: waybill.waybillNo }, driverId: { value: nextDriver.id }, vehicleId: { value: "浙B-002" }, boxType: { value: "40HQ" }, boxNo1: { value: "MSKU-EDIT" }, sealNo1: { value: "SEAL-EDIT" }, boxNo2: { value: "-" }, sealNo2: { value: "-" }, consignee: { value: "李收货" }, arrivalTime: { value: "2026-09-27T18:30" }, arrivalLocation: { value: "宁波北仑仓" }, note: { value: " 变更后备注 " } },
   addEventListener(name, handler) { this[name] = handler; },
 };
 const context = vm.createContext({
@@ -43,6 +49,12 @@ form.submit({ preventDefault() {} });
 assert.equal(dispatch.dispatchMode, "manual");
 assert.equal(dispatch.driverId, "SJ-NEW");
 assert.equal(dispatch.vehicleId, "浙B-002");
+assert.equal(dispatch.boxType, "40HQ");
+assert.equal(dispatch.boxNo1, "MSKU-EDIT");
+assert.equal(dispatch.sealNo1, "SEAL-EDIT");
+assert.equal(dispatch.consignee, "李收货");
+assert.equal(dispatch.arrivalTime, "2026-09-27T18:30");
+assert.equal(dispatch.arrivalLocation, "宁波北仑仓");
 assert.equal(dispatch.note, "变更后备注");
 assert.equal(dispatch.timeline.at(-1).node, "派单调整");
 assert.equal(waybill.driverId, "SJ-NEW");

@@ -203,6 +203,11 @@ const planTaskForm = document.querySelector("#planTaskForm");
 const planTaskBatchMode = document.querySelector("#planTaskBatchMode");
 const planTaskSingleMode = document.querySelector("#planTaskSingleMode");
 const planTaskBatchInput = document.querySelector("#planTaskBatchInput");
+const planTaskTemplateManagerDialog = document.querySelector("#planTaskTemplateManagerDialog");
+const planTaskTemplateEditorDialog = document.querySelector("#planTaskTemplateEditorDialog");
+const planTaskTemplateForm = document.querySelector("#planTaskTemplateForm");
+const planTaskTemplateBody = document.querySelector("#planTaskTemplateBody");
+const planTaskTemplateItemsBody = document.querySelector("#planTaskTemplateItems");
 const waybillContainerBody = document.querySelector("#waybillContainerBody");
 const receivableFeeBody = document.querySelector("#receivableFeeBody");
 const payableFeeBody = document.querySelector("#payableFeeBody");
@@ -215,6 +220,31 @@ const userAccountButton = document.querySelector("#userAccountButton");
 const userAccountMenu = document.querySelector("#userAccountMenu");
 const userActionFeedback = document.querySelector("#userActionFeedback");
 let userActionFeedbackTimer;
+const appNoticeDialog = document.querySelector("#appNoticeDialog");
+const appConfirmDialog = document.querySelector("#appConfirmDialog");
+let pendingAppConfirmation = null;
+
+function showApplicationAlert(message) {
+  const text = document.querySelector("#appNoticeText");
+  if (!appNoticeDialog || !text) return showUserActionFeedback(String(message));
+  text.textContent = String(message);
+  if (!appNoticeDialog.open) appNoticeDialog.showModal();
+}
+
+function askApplicationConfirm(message, { label = "确认", danger = false } = {}, action) {
+  document.querySelector("#appConfirmText").textContent = message;
+  const confirmButton = document.querySelector("#acceptAppConfirmBtn");
+  confirmButton.textContent = label;
+  confirmButton.classList.toggle("danger", danger);
+  confirmButton.classList.toggle("primary", !danger);
+  pendingAppConfirmation = action;
+  appConfirmDialog.showModal();
+}
+
+document.querySelector("#closeAppNoticeBtn")?.addEventListener("click", () => appNoticeDialog.close());
+document.querySelector("#cancelAppConfirmBtn")?.addEventListener("click", () => { pendingAppConfirmation = null; appConfirmDialog.close(); });
+document.querySelector("#acceptAppConfirmBtn")?.addEventListener("click", () => { const action = pendingAppConfirmation; pendingAppConfirmation = null; appConfirmDialog.close(); action?.(); });
+appConfirmDialog?.addEventListener("cancel", () => { pendingAppConfirmation = null; });
 
 function setUserAccountMenu(open) {
   if (!userAccountButton || !userAccountMenu) return;
@@ -233,7 +263,7 @@ function showUserActionFeedback(action) {
   window.clearTimeout(userActionFeedbackTimer);
   userActionFeedbackTimer = window.setTimeout(() => {
     userActionFeedback.hidden = true;
-  }, 2600);
+  }, 2500);
 }
 
 userAccountButton?.addEventListener("click", () => {
@@ -278,6 +308,27 @@ const reminderTemplates = (() => {
 let reminderTemplateEditingId = "";
 let reminderTemplateCurrentPage = 1;
 
+const ANNOUNCEMENT_STORAGE_KEY = "container-logistics-announcements-v1";
+const announcementSeed = [
+  { id: "AN-001", title: "国庆期间港区作业安排", type: "运营通知", content: "国庆期间各港区作业时间按现场预约安排执行，请提前确认进港计划。", scope: "全部司机", targetDriverIds: [], attachment: "", status: "已发布", publishedAt: "2026-10-01 08:30", published: true },
+  { id: "AN-002", title: "雨季行车安全提醒", type: "安全提醒", content: "近期雨天增多，请检查雨刷、轮胎和灯光，进出港区减速慢行。", scope: "部分司机 · 3 人", targetDriverIds: ["SJ-1001", "SJ-1002", "SJ-1004"], attachment: "安全行车指引.pdf", status: "已发布", publishedAt: "2026-09-26 16:20", published: true },
+];
+const announcements = (() => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(ANNOUNCEMENT_STORAGE_KEY) || "null");
+    return Array.isArray(stored) ? stored : announcementSeed.map((item) => ({ ...item, targetDriverIds: [...item.targetDriverIds] }));
+  } catch (error) {
+    return announcementSeed.map((item) => ({ ...item, targetDriverIds: [...item.targetDriverIds] }));
+  }
+})();
+let announcementCurrentPage = 1;
+let announcementSelectedDriverIds = new Set();
+
+function saveAnnouncements() {
+  try { localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, JSON.stringify(announcements)); } catch (error) { console.warn("公告保存失败。", error); }
+}
+saveAnnouncements();
+
 function saveReminderTemplates() {
   try { localStorage.setItem(REMINDER_TEMPLATE_STORAGE_KEY, JSON.stringify(reminderTemplates)); } catch (error) { console.warn("提醒模板保存失败。", error); }
 }
@@ -293,10 +344,14 @@ const pageViews = {
   capacity: document.querySelector("#capacityPage"),
   autoDispatch: document.querySelector("#autoDispatchPage"),
   autoDispatchConfig: document.querySelector("#autoDispatchConfigPage"),
+  photoRequirements: document.querySelector("#photoRequirementPage"),
+  userAccess: document.querySelector("#userAccessPage"),
   finance: document.querySelector("#financePage"),
   driverExpenses: document.querySelector("#driverExpensePage"),
+  vehicleRepairs: document.querySelector("#vehicleRepairPage"),
   customer: document.querySelector("#customerPage"),
   reminderTemplates: document.querySelector("#reminderTemplatePage"),
+  announcements: document.querySelector("#announcementPage"),
   vehicle: document.querySelector("#vehiclePage"),
   trailer: document.querySelector("#trailerPage"),
   driver: document.querySelector("#driverPage"),
@@ -304,19 +359,23 @@ const pageViews = {
 const pageMeta = {
   home: { title: "首页看板", kicker: "运营中心 / 全局驾驶舱", view: "dashboard", navPage: "vehicle-dashboard" },
   "vehicle-dashboard": { title: "首页看板", kicker: "运营中心 / 全局驾驶舱", view: "dashboard", navPage: "vehicle-dashboard" },
-  waybill: { title: "计划管理", kicker: "计划与派单 / 计划任务", view: "waybill" },
+  waybill: { title: "计划与任务", kicker: "计划与派单 / 计划任务", view: "waybill" },
   "fixed-routes": { title: "固定线路管理", kicker: "线路管理 / 固定线路", view: "route" },
-  "dispatch-management": { title: "派单管理", kicker: "计划与派单 / 调度工作台", view: "dispatchManagement" },
+  "dispatch-management": { title: "任务派单", kicker: "计划与派单 / 调度工作台", view: "dispatchManagement" },
   "dispatch-list": { title: "派单列表", kicker: "计划与派单 / 派单调度", view: "dispatch" },
   "dispatch-detail": { title: "派单详情", kicker: "计划与派单 / 派单列表 / 派单详情", view: "dispatchDetail", navPage: "dispatch-list" },
-  "plan-task-detail": { title: "计划 / 派单详情", kicker: "计划与派单 / 计划管理 / 详情", view: "planTaskDetail", navPage: "waybill" },
+  "plan-task-detail": { title: "计划 / 派单详情", kicker: "计划与派单 / 计划与任务 / 详情", view: "planTaskDetail", navPage: "waybill" },
   "capacity-management": { title: "运力管理", kicker: "计划与派单 / 运力状态", view: "capacity" },
   "auto-dispatch": { title: "自动派单", kicker: "计划与派单 / 智能调度", view: "autoDispatch" },
   "auto-dispatch-config": { title: "自动派单配置", kicker: "系统配置 / 自动派单", view: "autoDispatchConfig" },
+  "photo-requirements": { title: "司机拍照要求", kicker: "系统配置 / 司机拍照要求", view: "photoRequirements" },
+  "user-access": { title: "用户与权限", kicker: "系统配置 / 用户与权限", view: "userAccess" },
   "finance-reports": { title: "运输成本台账", kicker: "财务管理 / 运输成本台账", view: "finance" },
   "driver-expenses": { title: "司机费用上报", kicker: "财务管理 / 司机费用上报", view: "driverExpenses" },
+  "vehicle-repairs": { title: "车辆维修管理", kicker: "车辆管理 / 维修台账", view: "vehicleRepairs" },
   "customer-archives": { title: "客户管理", kicker: "基础资料 / 客户档案", view: "customer" },
-  "reminder-templates": { title: "消息提醒模板", kicker: "基础资料 / 消息提醒", view: "reminderTemplates" },
+  "reminder-templates": { title: "消息提醒模板", kicker: "系统配置 / 消息提醒", view: "reminderTemplates" },
+  announcements: { title: "公告管理", kicker: "系统配置 / 公告管理", view: "announcements" },
   vehicle: {
     title: "车辆档案管理",
     kicker: "车辆管理 / 车辆档案",
@@ -551,6 +610,11 @@ function saveVehicleComplianceRecords() {
 loadVehicleComplianceRecords();
 
 let selectedVehicle = vehicles[0];
+let vehicleRepairRecords = window.VehicleRepair.load();
+vehicleRepairRecords.filter((record) => window.VehicleRepair.OPEN_STATUSES.has(record.status)).forEach((record) => {
+  const vehicle = vehicles.find((item) => item.plateNo === record.plateNo);
+  if (vehicle) vehicle.vehicleState = "维修中";
+});
 let vehicleCurrentPage = 1;
 let vehiclePageSize = 10;
 let vehicleFormMode = "create";
@@ -1004,6 +1068,7 @@ function publishAdminDataSnapshot() {
     dispatches,
     fixedRoutes,
     vehicles,
+    vehicleRepairs: vehicleRepairRecords,
     trailers,
     drivers,
     routeAccounts: typeof routeAccountCatalog !== "undefined" ? routeAccountCatalog : [],
@@ -1168,7 +1233,8 @@ function getPlanTaskGroups(rows = waybills) {
     const allTasksCompleted = group.waybills.length > 0 && group.waybills.every((waybill) => waybill.status === "已完成");
     const status = isCancelled ? "已取消" : allTasksCompleted || completed === group.waybills.length ? "已完成" : active ? "进行中" : "待派发";
     const canCancel = !["已取消", "已完成", "进行中"].includes(status) && !dispatchList.some((item) => ["运输中", "已完成"].includes(item.status));
-    return { ...group, dispatchList, completed, active, pending: Math.max(0, pending), status, canCancel, progress: group.waybills.length ? Math.round((completed / group.waybills.length) * 100) : 0 };
+    const canEdit = status === "待派发" && dispatchList.every((item) => item.status === "待派单");
+    return { ...group, dispatchList, completed, active, pending: Math.max(0, pending), status, canCancel, canEdit, progress: group.waybills.length ? Math.round((completed / group.waybills.length) * 100) : 0 };
   });
 }
 
@@ -1195,7 +1261,7 @@ function renderRows(rows) {
       <td><strong>${group.completed} / ${group.waybills.length}</strong><div class="task-progress"><span style="width:${group.progress}%"></span></div><small>待派发 ${group.pending} · 进行中 ${group.active}</small></td>
       <td><span class="dispatch-status ${group.status === "已取消" ? "cancelled" : group.status === "已完成" ? "done" : group.status === "进行中" ? "active" : "pending"}">${group.status}</span></td>
       <td class="money">${formatMoney(amount)}</td>
-      <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-view-plan-dispatch="${dashboardEscape(group.id)}" type="button">查看详情</button>${group.canCancel ? `<button class="link-btn danger-link" data-cancel-plan="${dashboardEscape(group.id)}" type="button">取消计划</button>` : ""}</div></td>
+      <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-view-plan-dispatch="${dashboardEscape(group.id)}" type="button">查看详情</button>${group.canEdit ? `<button class="link-btn" data-edit-plan="${dashboardEscape(group.id)}" type="button">编辑计划</button>` : ""}${group.canCancel ? `<button class="link-btn danger-link" data-cancel-plan="${dashboardEscape(group.id)}" type="button">取消计划</button>` : ""}</div></td>
     </tr>`;
   }).join("");
 }
@@ -1345,6 +1411,7 @@ function renderVehicleRows(rows, warningDays = 30) {
           <td class="fixed-action-column">
             <div class="vehicle-action-group">
               <button class="link-btn" data-detail-plate="${vehicle.plateNo}" type="button">详情</button>
+              ${window.VehicleRepair?.hasOpenRepair(vehicleRepairRecords, vehicle.plateNo) ? `<button class="link-btn" data-view-vehicle-repair="${dashboardEscape(vehicle.plateNo)}" type="button">查看维修</button>` : `<button class="link-btn" data-repair-plate="${dashboardEscape(vehicle.plateNo)}" type="button">发起维修</button>`}
               <button class="link-btn" data-edit-plate="${vehicle.plateNo}" type="button">编辑</button>
               <button class="link-btn delete-btn" data-delete-plate="${vehicle.plateNo}" type="button">删除</button>
             </div>
@@ -1718,6 +1785,7 @@ function openVehicleForm(mode, plateNo = "") {
   vehicleForm.reset();
 
   const vehicle = vehicles.find((item) => item.plateNo === plateNo);
+  const hasOpenRepair = window.VehicleRepair.hasOpenRepair(vehicleRepairRecords, plateNo);
   populateVehicleTrailerOptions(vehicle?.trailerId || "");
   document.querySelector("#vehicleFormTitle").textContent = mode === "edit" ? "编辑车辆档案" : "新增车辆档案";
   vehicleForm.dataset.attachments = vehicle?.attachments || "";
@@ -1763,6 +1831,7 @@ function openVehicleForm(mode, plateNo = "") {
       }
     );
   }
+  vehicleForm.elements.vehicleState.disabled = hasOpenRepair;
 
   vehicleDialog.showModal();
 }
@@ -1770,6 +1839,7 @@ function openVehicleForm(mode, plateNo = "") {
 function closeVehicleForm() {
   if (vehicleDialog.open) vehicleDialog.close();
   vehicleForm.reset();
+  vehicleForm.elements.vehicleState.disabled = false;
   vehicleFormMode = "create";
   editingVehiclePlate = "";
 }
@@ -1942,7 +2012,7 @@ function requestDeleteTrailer(trailerId) {
   const trailer = trailers.find((item) => item.id === trailerId);
   if (!trailer) return;
   if (vehicles.some((vehicle) => vehicle.trailerId === trailerId)) {
-    window.alert("该挂车已被车辆档案关联，请先解除关联后再删除。");
+    showApplicationAlert("该挂车已被车辆档案关联，请先解除关联后再删除。");
     return;
   }
   deletingTrailerId = trailerId;
@@ -2549,7 +2619,7 @@ function saveProjectFromForm() {
   if (!customerId || !projectName) return false;
   const duplicate = routeAccountCatalog.some((item) => item.customerId === customerId && normalize(item.projectName) === normalize(projectName));
   if (duplicate) {
-    window.alert("同一客户下已存在同名项目，请更换项目名称。");
+    showApplicationAlert("同一客户下已存在同名项目，请更换项目名称。");
     projectForm.elements.projectName.focus();
     return false;
   }
@@ -3092,7 +3162,7 @@ function populateDispatchFormOptions() {
     waybillSelect.disabled = false;
   }
   const availableVehicles = vehicles.filter((vehicle) => vehicle.vehicleState === "在用");
-  const currentVehicle = editingDispatch && vehicles.find((vehicle) => vehicle.plateNo === editingDispatch.vehicleId);
+  const currentVehicle = editingDispatch && vehicles.find((vehicle) => vehicle.plateNo === editingDispatch.vehicleId && vehicle.vehicleState === "在用");
   const availableDrivers = availableOwnDrivers();
   const currentDriver = editingDispatch && typeof drivers !== "undefined" ? drivers.find((driver) => driver.id === editingDispatch.driverId) : null;
   const vehicleDriverName = String(currentVehicle?.driver || "").split("/")[0].trim();
@@ -3175,18 +3245,18 @@ function setDispatchEditableVisibility(isEditing) {
   });
 }
 
-function updateDispatchEditableFields(waybill, route) {
+function updateDispatchEditableFields(waybill, route, dispatch = null) {
   const projectSelect = document.querySelector("#dispatchProjectSelect");
   const routeSelect = document.querySelector("#dispatchRouteSelect");
   const boxTypeSelect = document.querySelector("#dispatchBoxTypeSelect");
   const values = {
     projectId: waybill?.projectId || route?.projectId || "",
     routeId: waybill?.routeId || route?.id || "",
-    boxType: String(waybill?.boxType || "40HQ").replace(/\*\d+$/, ""),
-    boxNo1: waybill?.boxNo1 || "",
-    sealNo1: waybill?.sealNo1 || "",
-    boxNo2: waybill?.boxNo2 || "",
-    sealNo2: waybill?.sealNo2 || "",
+    boxType: String(dispatch?.boxType || waybill?.boxType || "40HQ").replace(/\*\d+$/, ""),
+    boxNo1: dispatch?.boxNo1 || waybill?.boxNo1 || "",
+    sealNo1: dispatch?.sealNo1 || waybill?.sealNo1 || "",
+    boxNo2: dispatch?.boxNo2 || waybill?.boxNo2 || "",
+    sealNo2: dispatch?.sealNo2 || waybill?.sealNo2 || "",
   };
   if (projectSelect && !projectSelect.value) projectSelect.value = values.projectId;
   if (routeSelect && !routeSelect.value) routeSelect.value = values.routeId;
@@ -3199,9 +3269,9 @@ function updateDispatchEditableFields(waybill, route) {
 
 function updateDispatchRoutePreview(waybill, route) {
   document.querySelector("#dispatchRouteName").value = route ? `${route.routeCode} / ${route.routeName}` : "";
-  document.querySelector("#dispatchOrigin").value = route?.origin || waybill?.loadAddress || "";
-  document.querySelector("#dispatchDestination").value = route?.destination || "";
-  document.querySelector("#dispatchLoadAddress").value = route?.loadingPoint || waybill?.loadAddress || "";
+  document.querySelector("#dispatchOrigin").value = route?.pickupPoint || route?.origin || waybill?.loadAddress || "";
+  document.querySelector("#dispatchDestination").value = route?.unloadingPoint || route?.loadingPoint || route?.destination || "";
+  document.querySelector("#dispatchLoadAddress").value = route?.dropoffPoint || waybill?.returnPoint || route?.destination || "";
   document.querySelector("#dispatchBoxes").value = waybill ? formatWaybillBoxes(waybill) : "";
   document.querySelector("#dispatchRevenue").value = route ? formatMoney(route.estimatedRevenue) : "";
   document.querySelector("#dispatchCommission").value = route ? formatMoney(calculateRouteCommission(route)) : "";
@@ -3236,7 +3306,7 @@ function openDispatchForm() {
   setDispatchEditableVisibility(false);
   dispatchForm.elements.waybillId.value = "";
   document.querySelector("#dispatchFormTitle").textContent = "新建派单";
-  document.querySelector("#dispatchFormDescription").textContent = "选择已有运单并分配司机、车辆，提交后推送至司机微信小程序";
+  document.querySelector("#dispatchFormDescription").textContent = "选择已有运单，维护项目、线路、箱封号、运力及到达信息，提交后推送至司机微信小程序";
   document.querySelector("#dispatchPushTitle").textContent = "提交派单后自动推送";
   document.querySelector("#dispatchPushDescription").textContent = "司机将在微信小程序收到运单、线路、箱信息和节点上报任务。";
   document.querySelector("#dispatchSubmitBtn").textContent = "派单并推送";
@@ -3264,13 +3334,16 @@ function openDispatchEdit(dispatchId) {
   syncDispatchVehicleAssignment();
   const waybill = waybills.find((item) => item.waybillNo === dispatch.waybillNo);
   populateDispatchEditableOptions(waybill, dispatch);
-  updateDispatchEditableFields(waybill, fixedRoutes.find((item) => item.id === (dispatch.routeId || waybill?.routeId)));
+  updateDispatchEditableFields(waybill, fixedRoutes.find((item) => item.id === (dispatch.routeId || waybill?.routeId)), dispatch);
   const vehicleTypeSelect = document.querySelector("#dispatchVehicleTypeSelect");
   if (vehicleTypeSelect) vehicleTypeSelect.value = getDispatchVehicleType(dispatch);
   if (typeof refreshDispatchCustomSelects === "function") refreshDispatchCustomSelects();
-  dispatchForm.elements.note.value = dispatch.note || "";
+  if (dispatchForm.elements.consignee) dispatchForm.elements.consignee.value = dispatch.consignee || "";
+  if (dispatchForm.elements.arrivalTime) dispatchForm.elements.arrivalTime.value = String(dispatch.arrivalTime || "").replace(" ", "T").slice(0, 16);
+  if (dispatchForm.elements.arrivalLocation) dispatchForm.elements.arrivalLocation.value = dispatch.arrivalLocation || "";
+  if (dispatchForm.elements.note) dispatchForm.elements.note.value = dispatch.note || "";
   document.querySelector("#dispatchFormTitle").textContent = "编辑派单";
-  document.querySelector("#dispatchFormDescription").textContent = "修改项目、线路、箱型、箱号、铅封号及运力信息，保存后同步司机微信小程序";
+  document.querySelector("#dispatchFormDescription").textContent = "修改项目、线路、箱封号、运力及到达信息，保存后同步司机微信小程序";
   document.querySelector("#dispatchPushTitle").textContent = "保存后同步派单变更";
   document.querySelector("#dispatchPushDescription").textContent = dispatch.status === "运输中" ? "运输中的派单也可调整运力，变更记录会写入运输节点时间线。" : "司机将在微信小程序收到最新的司机、车辆和任务安排。";
   document.querySelector("#dispatchSubmitBtn").textContent = "保存更改并推送";
@@ -3288,7 +3361,7 @@ function closeDispatchForm() {
   dispatchForm.elements.waybillId.disabled = false;
   setDispatchEditableVisibility(false);
   document.querySelector("#dispatchFormTitle").textContent = "新建派单";
-  document.querySelector("#dispatchFormDescription").textContent = "选择已有运单并分配司机、车辆，提交后推送至司机微信小程序";
+  document.querySelector("#dispatchFormDescription").textContent = "选择已有运单，维护项目、线路、箱封号、运力及到达信息，提交后推送至司机微信小程序";
   document.querySelector("#dispatchPushTitle").textContent = "提交派单后自动推送";
   document.querySelector("#dispatchPushDescription").textContent = "司机将在微信小程序收到运单、线路、箱信息和节点上报任务。";
   document.querySelector("#dispatchSubmitBtn").textContent = "派单并推送";
@@ -3321,6 +3394,36 @@ function renderDispatchPhotoGallery(item) {
     return `<button class="dispatch-photo-card ${hasImage ? "has-preview" : "file-only"}" data-dispatch-photo-index="${index}" type="button"><span class="dispatch-photo-thumb">${meta.src ? `<img src="${dashboardEscape(meta.src)}" alt="${dashboardEscape(meta.name)}" />` : '<i data-lucide="image" aria-hidden="true"></i>'}</span><span class="dispatch-photo-copy"><strong>${dashboardEscape(meta.name)}</strong><small>${hasImage ? "点击查看原图" : "已上传文件 · 当前仅有文件名"}</small></span></button>`;
   }).join("");
   return `<div class="dispatch-photo-gallery">${cards}</div>`;
+}
+
+function dispatchPhotoRequirements(dispatch, taskType = window.DispatchTaskNodes.resolve(dispatch.taskType)) {
+  return Array.isArray(dispatch.photoRequirements)
+    ? dispatch.photoRequirements
+    : window.PhotoRequirementConfig?.forTaskType?.(taskType) || [];
+}
+
+function renderDispatchPhotoRequirementList(dispatch, taskType) {
+  const requirements = dispatchPhotoRequirements(dispatch, taskType);
+  if (!requirements.length) {
+    return `<section class="dispatch-detail-panel dispatch-photo-requirements-panel"><div class="dispatch-detail-panel-title"><i data-lucide="camera" aria-hidden="true"></i><div><h3>拍照要求与照片</h3><span>${dashboardEscape(taskType)} · 暂无配置要求</span></div></div><div class="dispatch-photo-requirements-empty">该任务类型暂无拍照要求。</div></section>`;
+  }
+  const attachments = (dispatch.timeline || []).flatMap((item) => item.photoAttachments || []);
+  const legacyPhotos = (dispatch.timeline || []).filter((item) => !(item.photoAttachments || []).length).flatMap((item) => item.photos || []).filter((item) => typeof item === "string");
+  const totalRequired = requirements.reduce((total, requirement) => total + Number(requirement.quantity || 0), 0);
+  const totalUploaded = requirements.reduce((total, requirement) => total + attachments.filter((photo) => photo.requirementId === requirement.id || (!photo.requirementId && (photo.requirementName || photo.label) === requirement.name)).length + legacyPhotos.filter((photo) => photo.startsWith(`${requirement.name}：`) || photo === requirement.name).length, 0);
+  const rows = requirements.map((requirement) => {
+    const matched = attachments.filter((photo) => photo.requirementId === requirement.id || (!photo.requirementId && (photo.requirementName || photo.label) === requirement.name));
+    const oldNames = legacyPhotos.filter((photo) => photo.startsWith(`${requirement.name}：`) || photo === requirement.name);
+    const uploaded = matched.length + oldNames.length;
+    const photoCells = matched.map((photo) => {
+      const index = dispatchDetailPhotoTargets.push({ id: photo.id, name: photo.name || photo.requirementName || photo.label || requirement.name, note: `${requirement.name} · ${photo.uploadedAt || "司机上传"}` }) - 1;
+      return `<button class="dispatch-requirement-photo" data-dispatch-photo-index="${index}" type="button"><i data-lucide="image" aria-hidden="true"></i><span>${dashboardEscape(photo.name || photo.requirementName || photo.label || requirement.name)}</span></button>`;
+    }).join("");
+    const legacyCells = oldNames.map((name) => `<span class="dispatch-requirement-photo file-only"><i data-lucide="file-image" aria-hidden="true"></i><span>${dashboardEscape(name.replace(`${requirement.name}：`, "") || requirement.name)}</span></span>`).join("");
+    const state = uploaded >= requirement.quantity ? `<em class="dispatch-requirement-state complete">${uploaded}/${requirement.quantity} 张</em>` : `<em class="dispatch-requirement-state pending">${uploaded}/${requirement.quantity} 张</em>`;
+    return `<tr><td><strong>${dashboardEscape(requirement.name)}</strong></td><td><span class="dispatch-requirement-description">${dashboardEscape(requirement.description || "-")}</span></td><td>${state}</td><td><div class="dispatch-requirement-photos">${photoCells || legacyCells || `<span class="dispatch-requirement-photo-empty">尚未上传</span>`}</div></td></tr>`;
+  }).join("");
+  return `<section class="dispatch-detail-panel dispatch-photo-requirements-panel"><div class="dispatch-detail-panel-title"><i data-lucide="camera" aria-hidden="true"></i><div><h3>拍照要求与照片</h3><span>${dashboardEscape(taskType)} · 已上传 ${totalUploaded}/${totalRequired} 张</span></div></div><div class="dispatch-photo-requirement-table-wrap"><table class="dispatch-photo-requirement-table"><thead><tr><th>拍照要求</th><th>照片规则描述</th><th>数量 / 状态</th><th>对应照片</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 function getDispatchDetailSampleNodes(dispatch, taskType) {
@@ -3369,12 +3472,13 @@ function renderDispatchDetailPage(dispatchId) {
     </section>
     <div class="dispatch-detail-page-grid">
       <div class="dispatch-detail-page-main">
-        <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="file-text" aria-hidden="true"></i><div><h3>运单信息</h3><span>任务与线路基础资料</span></div></div><div class="dispatch-detail-field-grid"><div><span>运单号</span><strong>${dashboardEscape(dispatch.waybillNo || "-")}</strong></div><div><span>计划任务编号</span><strong>${dashboardEscape(dispatch.planTaskNo || waybill?.planTaskNo || "-")}</strong></div><div><span>客户 / 项目</span><strong>${dashboardEscape([dispatch.customerName, dispatch.projectName].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>任务类型</span><strong>${dashboardEscape(taskType)}</strong></div><div><span>派单方式</span><strong>${modeLabel}</strong></div><div><span>箱信息</span><strong>${dashboardEscape(dispatch.boxes || formatWaybillBoxes(waybill || {}) || "-")}</strong></div><div class="wide"><span>装卸地址</span><strong>${dashboardEscape(dispatch.loadAddress || dispatch.origin || "-")}</strong></div><div class="wide"><span>派单备注</span><strong>${dashboardEscape(dispatch.note || "-")}</strong></div></div></section>
+        <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="file-text" aria-hidden="true"></i><div><h3>运单信息</h3><span>任务与线路基础资料</span></div></div><div class="dispatch-detail-field-grid"><div><span>运单号</span><strong>${dashboardEscape(dispatch.waybillNo || "-")}</strong></div><div><span>计划任务编号</span><strong>${dashboardEscape(dispatch.planTaskNo || waybill?.planTaskNo || "-")}</strong></div><div><span>客户 / 项目</span><strong>${dashboardEscape([dispatch.customerName, dispatch.projectName].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>任务类型</span><strong>${dashboardEscape(taskType)}</strong></div><div><span>派单方式</span><strong>${modeLabel}</strong></div><div><span>箱信息</span><strong>${dashboardEscape(dispatch.boxes || formatWaybillBoxes(waybill || {}) || "-")}</strong></div><div><span>收货人</span><strong>${dashboardEscape(dispatch.consignee || "-")}</strong></div><div><span>到达时间</span><strong>${dashboardEscape(dispatch.arrivalTime || "-")}</strong></div><div><span>到达地点</span><strong>${dashboardEscape(dispatch.arrivalLocation || "-")}</strong></div><div class="wide"><span>还箱地</span><strong>${dashboardEscape(dispatch.loadAddress || "-")}</strong></div><div class="wide"><span>备注</span><strong>${dashboardEscape(dispatch.note || "-")}</strong></div></div></section>
         <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="truck" aria-hidden="true"></i><div><h3>运力与结算</h3><span>司机、车辆及本次派单金额</span></div></div><div class="dispatch-detail-field-grid"><div><span>司机</span><strong>${dashboardEscape(dispatch.driverName || "待分配")}</strong></div><div><span>联系电话</span><strong>${dashboardEscape(dispatch.phone || "-")}</strong></div><div><span>车牌</span><strong>${dashboardEscape(dispatch.vehicleId || "待分配")}</strong></div><div><span>车型 / 挂车</span><strong>${dashboardEscape([getDispatchVehicleType(dispatch), dispatch.trailerId].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>预估收入</span><strong class="money-value">${formatMoney(dispatch.estimatedRevenue || 0)}</strong></div><div><span>司机提成</span><strong>${formatMoney(dispatch.commission || 0)}</strong></div></div></section>
-        <section class="dispatch-detail-panel dispatch-route-panel"><div class="dispatch-detail-panel-title"><i data-lucide="route" aria-hidden="true"></i><div><h3>运输路线</h3><span>起运地与目的地</span></div></div><div class="dispatch-route-line"><div><span>起运地</span><strong>${dashboardEscape(dispatch.origin || "-")}</strong></div><i data-lucide="arrow-right" aria-hidden="true"></i><div><span>目的地</span><strong>${dashboardEscape(dispatch.destination || "-")}</strong></div></div></section>
+        <section class="dispatch-detail-panel dispatch-route-panel"><div class="dispatch-detail-panel-title"><i data-lucide="route" aria-hidden="true"></i><div><h3>运输路线</h3><span>提箱地、装卸地与还箱地</span></div></div><div class="dispatch-route-line"><div><span>提箱地</span><strong>${dashboardEscape(dispatch.origin || "-")}</strong></div><i data-lucide="arrow-right" aria-hidden="true"></i><div><span>装卸地</span><strong>${dashboardEscape(dispatch.destination || "-")}</strong></div><i data-lucide="arrow-right" aria-hidden="true"></i><div><span>还箱地</span><strong>${dashboardEscape(dispatch.loadAddress || "-")}</strong></div></div></section>
       </div>
       <aside class="dispatch-detail-page-side"><section class="dispatch-detail-panel dispatch-timeline-panel"><div class="dispatch-detail-panel-title"><i data-lucide="history" aria-hidden="true"></i><div><h3>运输节点</h3><span>${timeline.length} 个任务节点 · 后台测试数据</span></div></div><div class="dispatch-detail-timeline">${timeline.map((item) => `<article class="dispatch-node-card ${item.state}"><span class="dispatch-node-dot" aria-hidden="true"></span><div class="dispatch-node-card-head"><div><strong>${dashboardEscape(item.node)}</strong><span>${dashboardEscape(item.time)}</span></div><em>${item.state === "current" ? "进行中" : item.state === "completed" ? "已完成" : item.state === "cancelled" ? "已取消" : "待执行"}</em></div><p>${dashboardEscape(item.desc)}</p>${item.photos.length ? renderDispatchPhotoGallery(item) : ""}</article>`).join("")}</div></section></aside>
-    </div>`;
+    </div>
+    ${renderDispatchPhotoRequirementList(dispatch, taskType)}`;
   window.lucide?.createIcons();
 }
 
@@ -3606,6 +3710,7 @@ function getDashboardTasks(filters = getDashboardFilters()) {
 }
 
 function getDashboardVehicleState(vehicle) {
+  if (vehicle.vehicleState === "维修中") return "maintenance";
   if (vehicle.vehicleState !== "在用") return /复检|维修/.test(vehicle.remark || "") ? "maintenance" : "disabled";
   const vehicleTasks = dispatches.filter((dispatch) => dispatch.vehicleId === vehicle.plateNo && isDashboardToday(dispatch));
   if (vehicleTasks.some((dispatch) => ["已派单", "运输中"].includes(dispatch.status))) return "moving";
@@ -3986,6 +4091,122 @@ function updateReminderTemplatePreview() {
   document.querySelector("#reminderTemplatePreviewContent").textContent = replace(form.elements.content.value) || "消息正文预览将在这里显示。";
 }
 
+function getAnnouncementFiltered() {
+  const form = document.querySelector("#announcementQueryForm");
+  if (!form) return announcements;
+  const data = new FormData(form);
+  const keyword = String(data.get("keyword") || "").trim().toLowerCase();
+  const type = String(data.get("type") || "");
+  const status = String(data.get("status") || "");
+  return announcements.filter((item) => {
+    const keywordMatch = !keyword || [item.title, item.content, item.type].some((value) => String(value || "").toLowerCase().includes(keyword));
+    return keywordMatch && (!type || item.type === type) && (!status || item.status === status);
+  });
+}
+
+function announcementScopeText(item) {
+  if (item.scope === "全部司机") return "全部司机";
+  const count = Array.isArray(item.targetDriverIds) ? item.targetDriverIds.length : 0;
+  return item.scope || `部分司机 · ${count} 人`;
+}
+
+function renderAnnouncementSummary(rows) {
+  const published = announcements.filter((item) => item.status === "已发布").length;
+  const targeted = announcements.filter((item) => item.scope !== "全部司机").length;
+  const attachmentCount = announcements.filter((item) => item.attachment).length;
+  document.querySelector("#announcementSummary").innerHTML = [
+    ["公告总数", announcements.length, "已保存的公告记录"],
+    ["已发布", published, "司机端可见"],
+    ["定向公告", targeted, "仅发送给部分司机"],
+    ["含附件", attachmentCount, "已上传附件的公告"],
+  ].map(([label, value, note], index) => `<div class="reminder-template-stat stat-${index}"><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`).join("");
+  document.querySelector("#announcementPublishedBadge").textContent = `已发布 ${published}`;
+  document.querySelector("#announcementQuerySummary").textContent = `筛选结果 ${rows.length} 条`;
+}
+
+function renderAnnouncementPage(rows = getAnnouncementFiltered()) {
+  const body = document.querySelector("#announcementBody");
+  if (!body) return;
+  const pageSize = Number(document.querySelector("#announcementPageSize")?.value) || 10;
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  announcementCurrentPage = Math.min(Math.max(1, announcementCurrentPage), pageCount);
+  const visible = rows.slice((announcementCurrentPage - 1) * pageSize, announcementCurrentPage * pageSize);
+  body.innerHTML = visible.length ? visible.map((item) => `<tr>
+    <td><div class="reminder-template-name"><strong>${dashboardEscape(item.title)}</strong><small>${dashboardEscape(item.content).slice(0, 48)}${String(item.content || "").length > 48 ? "…" : ""}</small></div></td>
+    <td><span class="reminder-event-badge announcement-type-${dashboardEscape(item.type)}">${dashboardEscape(item.type)}</span></td>
+    <td><span class="reminder-template-scope">${dashboardEscape(announcementScopeText(item))}</span></td>
+    <td>${item.attachment ? `<span class="announcement-attachment">${dashboardEscape(item.attachment)}</span>` : `<span class="reminder-template-scope">无附件</span>`}</td>
+    <td><span class="reminder-template-updated">${dashboardEscape(item.publishedAt || "未发布")}</span></td>
+    <td><span class="state-pill ${item.status === "已发布" ? "active-state" : "muted-state"}">${dashboardEscape(item.status || "草稿")}</span></td>
+    <td class="fixed-action-column"><div class="table-actions"><button class="link-btn" data-announcement-action="preview" data-announcement-id="${dashboardEscape(item.id)}" type="button">查看</button></div></td>
+  </tr>`).join("") : `<tr><td colspan="7"><div class="reminder-template-empty"><strong>暂无匹配的公告</strong><span>调整筛选条件，或点击“发布公告”创建一条公告。</span></div></td></tr>`;
+  document.querySelector("#announcementResultText").textContent = `共 ${rows.length} 条公告，发布后目标司机将在消息通知中收到`;
+  document.querySelector("#announcementCurrentPage").textContent = String(announcementCurrentPage);
+  document.querySelector("#announcementTotalText").textContent = `共 ${rows.length} 条记录`;
+  document.querySelector("#announcementPrevPage").disabled = announcementCurrentPage <= 1;
+  document.querySelector("#announcementNextPage").disabled = announcementCurrentPage >= pageCount;
+  document.querySelector("#announcementPageJump").value = String(announcementCurrentPage);
+  renderAnnouncementSummary(rows);
+  window.lucide?.createIcons();
+}
+
+function announcementDriverTypeOptions() {
+  return [...new Set(drivers.map((driver) => String(driver.driverType || "其他司机")).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
+function getAnnouncementVisibleDrivers() {
+  const type = document.querySelector("#announcementDriverType")?.value || "";
+  return drivers.filter((driver) => !type || driver.driverType === type);
+}
+
+function renderAnnouncementDriverPicker() {
+  const list = document.querySelector("#announcementDriverList");
+  if (!list) return;
+  const visible = getAnnouncementVisibleDrivers();
+  list.innerHTML = visible.length ? visible.map((driver) => `<label class="announcement-driver-option"><input type="checkbox" data-announcement-driver="${dashboardEscape(driver.id)}" ${announcementSelectedDriverIds.has(driver.id) ? "checked" : ""} /><span><strong>${dashboardEscape(driver.name)}</strong><small>${dashboardEscape(driver.driverType || "其他司机")} · ${dashboardEscape(driver.fleet || "未分配车队")}</small></span><em>${dashboardEscape(driver.driverState || "")}</em></label>`).join("") : `<div class="announcement-driver-empty">暂无符合条件的司机</div>`;
+  document.querySelector("#announcementDriverResultText").textContent = `当前结果 ${visible.length} 名司机`;
+  document.querySelector("#announcementSelectedDriverText").textContent = `已选 ${announcementSelectedDriverIds.size} 名司机`;
+}
+
+function setAnnouncementScope(scope) {
+  const picker = document.querySelector("#announcementDriverPicker");
+  if (!picker) return;
+  picker.hidden = scope !== "partial";
+  if (scope === "partial") renderAnnouncementDriverPicker();
+}
+
+function setAnnouncementForm(item = null) {
+  const form = document.querySelector("#announcementForm");
+  form.reset();
+  form.elements.title.value = item?.title || "";
+  form.elements.type.value = item?.type || "";
+  form.elements.content.value = item?.content || "";
+  form.elements.scope.value = item?.scope === "全部司机" ? "all" : "partial";
+  announcementSelectedDriverIds = new Set(item?.targetDriverIds || []);
+  window.AttachmentPicker?.setExisting(form.elements.attachment, item?.attachment || "");
+  document.querySelector("#announcementFormTitle").textContent = item ? "公告详情" : "发布公告";
+  form.querySelector("button[type='submit']").hidden = Boolean(item);
+  form.querySelectorAll("input, select, textarea").forEach((input) => { input.disabled = Boolean(item); });
+  document.querySelector("#announcementPreviewTitle").textContent = item?.title || "公告标题";
+  document.querySelector("#announcementPreviewContent").textContent = item?.content || "公告内容将在这里显示。";
+  document.querySelectorAll("#announcementForm input[name='scope']").forEach((input) => { input.checked = input.value === (item?.scope === "全部司机" ? "all" : item ? "partial" : "all"); });
+  const typeSelect = document.querySelector("#announcementDriverType");
+  typeSelect.innerHTML = `<option value="">全部类型</option>${announcementDriverTypeOptions().map((type) => `<option value="${dashboardEscape(type)}">${dashboardEscape(type)}</option>`).join("")}`;
+  setAnnouncementScope(item?.scope === "全部司机" || !item ? "all" : "partial");
+  renderAnnouncementDriverPicker();
+}
+
+function openAnnouncementDialog(id = "") {
+  const item = announcements.find((record) => record.id === id) || null;
+  setAnnouncementForm(item);
+  document.querySelector("#announcementDialog")?.showModal();
+}
+
+function closeAnnouncementDialog() {
+  const dialog = document.querySelector("#announcementDialog");
+  if (dialog?.open) dialog.close();
+}
+
 const FINANCE_EXPENSE_STORAGE_KEY = "container-logistics-finance-expenses-v1";
 const financeExpenseRecords = (() => {
   try {
@@ -4263,6 +4484,7 @@ let driverExpenseCurrentPage = 1;
 let driverExpensePageSize = 10;
 let driverExpenseVisiblePendingIds = [];
 let reviewingDriverExpenseId = "";
+let driverExpenseClientWindow = null;
 const selectedDriverExpenseIds = new Set();
 
 function normalizeDriverExpenseRecord(item, index = 0) {
@@ -4298,6 +4520,25 @@ function loadDriverExpenseRecords() {
 
 function saveDriverExpenseRecords() {
   try { localStorage.setItem(DRIVER_EXPENSE_STORAGE_KEY, JSON.stringify(driverExpenseRecords)); } catch (error) { console.warn("司机费用数据保存失败。", error); }
+}
+
+function mergeDriverExpenseRecords(incoming) {
+  const merged = new Map(driverExpenseRecords.map((item) => [item.id, item]));
+  incoming.map(normalizeDriverExpenseRecord).forEach((item) => {
+    const current = merged.get(item.id);
+    if (current && current.status !== "pending" && item.status === "pending") {
+      merged.set(item.id, { ...item, status: current.status, reviewedBy: current.reviewedBy, reviewedAt: current.reviewedAt, rejectionReason: current.rejectionReason });
+      return;
+    }
+    merged.set(item.id, item);
+  });
+  driverExpenseRecords = [...merged.values()];
+}
+
+function notifyDriverExpenseClient() {
+  if (driverExpenseClientWindow && !driverExpenseClientWindow.closed) {
+    driverExpenseClientWindow.postMessage({ type: "driver-expense-sync-data", expenses: driverExpenseRecords }, "*");
+  }
 }
 
 function getDriverExpenseRows() {
@@ -4471,6 +4712,7 @@ function applyDriverExpenseReview(recordIds, result, rejectionReason = "") {
   });
   ids.forEach((id) => selectedDriverExpenseIds.delete(id));
   saveDriverExpenseRecords();
+  notifyDriverExpenseClient();
   renderDriverExpensePage();
   return ids.length;
 }
@@ -4488,6 +4730,223 @@ function reviewCurrentDriverExpense(result) {
   const count = applyDriverExpenseReview([reviewingDriverExpenseId], result, reason);
   closeDriverExpenseReview();
   document.querySelector("#driverExpenseResultText").textContent = result === "approved" ? `已通过 ${count} 条费用上报` : `已驳回 ${count} 条费用上报`;
+}
+
+const vehicleRepairQueryForm = document.querySelector("#vehicleRepairQueryForm");
+const vehicleRepairForm = document.querySelector("#vehicleRepairForm");
+let editingVehicleRepairId = "";
+
+function getFilteredVehicleRepairs() {
+  if (!vehicleRepairQueryForm) return vehicleRepairRecords.slice();
+  const query = new FormData(vehicleRepairQueryForm);
+  const plate = normalize(query.get("plateNo"));
+  const status = query.get("status");
+  const source = query.get("source");
+  const category = query.get("category");
+  const reporterName = normalize(query.get("reporterName"));
+  const fromDate = query.get("fromDate");
+  const toDate = query.get("toDate");
+  return vehicleRepairRecords.filter((record) => {
+    const date = String(record.reportedAt || "").slice(0, 10);
+    return normalize(record.plateNo).includes(plate)
+      && (!status || record.status === status)
+      && (!source || record.source === source)
+      && (!category || record.category === category)
+      && normalize(record.reporterName || record.createdBy).includes(reporterName)
+      && (!fromDate || date >= fromDate)
+      && (!toDate || date <= toDate);
+  }).sort((left, right) => String(right.reportedAt).localeCompare(String(left.reportedAt)));
+}
+
+function renderVehicleRepairPage() {
+  const rows = getFilteredVehicleRepairs();
+  const openCount = vehicleRepairRecords.filter((record) => window.VehicleRepair.OPEN_STATUSES.has(record.status)).length;
+  const doneCount = vehicleRepairRecords.filter((record) => record.status === "已完成").length;
+  const actualTotal = vehicleRepairRecords.filter((record) => record.status === "已完成").reduce((sum, record) => sum + Number(record.actualCost || 0), 0);
+  const summary = document.querySelector("#vehicleRepairSummary");
+  const body = document.querySelector("#vehicleRepairBody");
+  if (!summary || !body) return;
+  summary.innerHTML = `
+    <article class="repair-summary-item"><span>全部维修单</span><strong>${vehicleRepairRecords.length}</strong><small>累计登记</small></article>
+    <article class="repair-summary-item in-progress"><span>待处理 / 维修中</span><strong>${openCount}</strong><small>车辆暂不可派单</small></article>
+    <article class="repair-summary-item completed"><span>已完成维修</span><strong>${doneCount}</strong><small>实际费用 ¥${actualTotal.toFixed(2)}</small></article>`;
+  body.innerHTML = rows.length ? rows.map((record) => `<tr>
+    <td><strong>${dashboardEscape(record.repairNo)}</strong></td>
+    <td><strong>${dashboardEscape(record.plateNo)}</strong><small>${dashboardEscape(record.vehicleType || "")}</small></td>
+    <td><strong>${dashboardEscape(record.category)}</strong><small class="repair-cell-description">${dashboardEscape(record.description)}</small>${record.evidence?.length ? `<small>凭证 ${record.evidence.length} 个</small>` : ""}</td>
+    <td>${dashboardEscape(record.repairLocation || "-")}</td>
+    <td><strong>${dashboardEscape(record.source)}</strong><small>${dashboardEscape(record.reporterName || record.createdBy || "-")}</small></td>
+    <td>${dashboardEscape(String(record.reportedAt || "-").replace("T", " ").slice(0, 16))}</td>
+    <td><span class="repair-status-pill ${record.status === "已完成" ? "done" : record.status === "已取消" ? "cancelled" : record.status === "维修中" ? "working" : "pending"}">${dashboardEscape(record.status)}</span></td>
+    <td>¥${Number(record.actualCost || 0).toFixed(2)}</td>
+    <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-edit-repair="${dashboardEscape(record.id)}" type="button">处理</button></div></td>
+  </tr>`).join("") : '<tr><td class="no-data-cell" colspan="9">暂无符合条件的维修记录</td></tr>';
+  document.querySelector("#vehicleRepairResultText").textContent = `共 ${rows.length} 条维修记录`;
+  window.lucide?.createIcons();
+}
+
+function fillVehicleRepairVehicleOptions(selectedPlate = "") {
+  const select = vehicleRepairForm?.elements.plateNo;
+  if (!select) return;
+  select.innerHTML = '<option value="">请选择车辆</option>' + vehicles.map((vehicle) => {
+    const hasActive = window.VehicleRepair.hasOpenRepair(vehicleRepairRecords, vehicle.plateNo, editingVehicleRepairId);
+    const disabled = hasActive && vehicle.plateNo !== selectedPlate;
+    return `<option value="${dashboardEscape(vehicle.plateNo)}" ${vehicle.plateNo === selectedPlate ? "selected" : ""} ${disabled ? "disabled" : ""}>${dashboardEscape(vehicle.plateNo)} · ${dashboardEscape(vehicle.vehicleType)}${disabled ? " · 维修中" : ""}</option>`;
+  }).join("");
+}
+
+function openVehicleRepairDialog(plateNo = "", repairId = "") {
+  if (!vehicleRepairForm) return;
+  editingVehicleRepairId = repairId;
+  vehicleRepairForm.reset();
+  vehicleRepairForm.dataset.repairId = repairId;
+  const record = repairId ? vehicleRepairRecords.find((item) => item.id === repairId) : null;
+  document.querySelector("#vehicleRepairFormTitle").textContent = record ? `处理维修单 ${record.repairNo}` : "新增维修";
+  fillVehicleRepairVehicleOptions(record?.plateNo || plateNo);
+  const values = record || {};
+  ["category", "description", "repairLocation", "repairVendor", "vendorContact", "expectedCost", "actualCost", "status", "result"].forEach((name) => {
+    if (vehicleRepairForm.elements[name]) vehicleRepairForm.elements[name].value = values[name] ?? (name === "status" ? "待维修" : "");
+  });
+  const reportedAt = values.reportedAt || new Date().toISOString().slice(0, 16);
+  vehicleRepairForm.elements.reportedAt.value = String(reportedAt).replace(" ", "T").slice(0, 16);
+  vehicleRepairForm.dataset.evidence = JSON.stringify(values.evidence || []);
+  const evidenceList = document.querySelector("#vehicleRepairExistingEvidence");
+  evidenceList.hidden = !(values.evidence || []).length;
+  evidenceList.innerHTML = (values.evidence || []).length ? `<span class="field-label">已归档凭证</span><div class="repair-evidence-links">${values.evidence.map((file) => {
+    const item = typeof file === "string" ? { name: file } : file;
+    return item.id ? `<button class="link-btn" data-repair-evidence="${dashboardEscape(item.id)}" type="button">${dashboardEscape(item.name)}</button>` : `<span>${dashboardEscape(item.name)}</span>`;
+  }).join("")}</div>` : "";
+  if (vehicleRepairForm.elements.evidenceFiles?._renderAttachmentPicker) vehicleRepairForm.elements.evidenceFiles._renderAttachmentPicker();
+  document.querySelector("#vehicleRepairDialog").showModal();
+}
+
+function saveRepairVehicleState(plateNo, state) {
+  const vehicle = vehicles.find((item) => item.plateNo === plateNo);
+  if (!vehicle) return;
+  vehicle.vehicleState = state;
+  publishAdminDataSnapshot();
+  renderVehiclePage(getFilteredVehicles(), getWarningDays());
+  renderCapacityPage(getFilteredCapacityRecords());
+  window.DispatchManagement?.render();
+  window.AutoDispatchManager?.refresh();
+}
+
+function persistVehicleRepairRecords() {
+  vehicleRepairRecords = window.VehicleRepair.save(vehicleRepairRecords);
+  publishAdminDataSnapshot();
+  renderVehicleRepairPage();
+  renderVehiclePage(getFilteredVehicles(), getWarningDays());
+  renderDashboard();
+  renderCapacityPage(getFilteredCapacityRecords());
+  renderDispatchPage(getFilteredDispatches());
+  window.DispatchManagement?.render();
+  window.AutoDispatchManager?.refresh();
+}
+
+async function saveVehicleRepairEvidence(recordId, files) {
+  const uploadedAt = window.DispatchStore.nowText();
+  const evidence = files.map((file, index) => ({
+    id: `repair-${recordId}-${Date.now()}-${index}`,
+    name: file.name,
+    type: file.type || "application/octet-stream",
+    uploadedAt,
+  }));
+  if (files.length) await window.DispatchStore.savePhotos(evidence.map((item, index) => ({ id: item.id, blob: files[index] })));
+  return evidence;
+}
+
+async function submitVehicleRepairForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const vehicle = vehicles.find((item) => item.plateNo === data.plateNo);
+  if (!vehicle) return;
+  const existingEvidence = JSON.parse(form.dataset.evidence || "[]");
+  const selectedFiles = Array.from(form.elements.evidenceFiles.files || []);
+  if (selectedFiles.some((file) => file.size > 10 * 1024 * 1024)) { showApplicationAlert("单个维修凭证不能超过 10 MB。"); return; }
+  const patch = {
+    ...data,
+    vehicleType: vehicle.vehicleType,
+    fleet: vehicle.fleetName || vehicle.fleet,
+    expectedCost: Math.max(0, Number(data.expectedCost) || 0),
+    actualCost: Math.max(0, Number(data.actualCost) || 0),
+    reportedAt: data.reportedAt || new Date().toISOString(),
+    evidence: existingEvidence,
+  };
+  delete patch.evidenceFiles;
+  let nextVehicleState = null;
+  if (editingVehicleRepairId) {
+    const current = vehicleRepairRecords.find((item) => item.id === editingVehicleRepairId);
+    if (!current) return;
+    if (current.plateNo !== patch.plateNo) {
+      showApplicationAlert("维修单关联车辆不能修改，请取消后为其他车辆新建维修单。");
+      return;
+    }
+    const targetStatus = patch.status;
+    if (targetStatus !== current.status && !window.VehicleRepair.STATUS_TRANSITIONS[current.status]?.has(targetStatus)) {
+      showApplicationAlert(`不能将“${current.status}”变更为“${targetStatus}”。`);
+      return;
+    }
+    let addedEvidence = [];
+    try { addedEvidence = await saveVehicleRepairEvidence(current.id, selectedFiles); }
+    catch (error) { showApplicationAlert("凭证保存失败，请重试。"); return; }
+    patch.evidence = [...(current.evidence || []), ...addedEvidence];
+    delete patch.status;
+    let next = vehicleRepairRecords.map((item) => item.id === current.id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item);
+    if (targetStatus !== current.status) {
+      const transitioned = window.VehicleRepair.transition(next, current.id, targetStatus, { patch });
+      if (transitioned.error) { showApplicationAlert(transitioned.error); return; }
+      next = transitioned.records;
+      nextVehicleState = transitioned.vehicleState;
+    } else if (window.VehicleRepair.OPEN_STATUSES.has(current.status)) {
+      nextVehicleState = "维修中";
+    }
+    vehicleRepairRecords = next;
+  } else {
+    const targetStatus = patch.status || "待维修";
+    delete patch.status;
+    const operatorName = document.querySelector("#userAccountButton .user-account-copy strong")?.textContent.trim() || "后台用户";
+    const created = window.VehicleRepair.createRecord(vehicleRepairRecords, {
+      ...patch,
+      status: "待维修",
+      source: "后台新增",
+      createdBy: operatorName,
+      reporterName: operatorName,
+    }, { vehicleState: vehicle.vehicleState });
+    if (created.error) { showApplicationAlert(created.error); return; }
+    let addedEvidence = [];
+    try { addedEvidence = await saveVehicleRepairEvidence(created.record.id, selectedFiles); }
+    catch (error) { showApplicationAlert("凭证保存失败，请重试。"); return; }
+    created.record.evidence = [...(created.record.evidence || []), ...addedEvidence];
+    patch.evidence = created.record.evidence;
+    vehicleRepairRecords.unshift(created.record);
+    nextVehicleState = "维修中";
+    if (targetStatus !== "待维修") {
+      const transitioned = window.VehicleRepair.transition(vehicleRepairRecords, created.record.id, targetStatus, { patch });
+      if (transitioned.error) { showApplicationAlert(transitioned.error); return; }
+      vehicleRepairRecords = transitioned.records;
+      nextVehicleState = transitioned.vehicleState;
+    }
+  }
+  if (nextVehicleState) vehicle.vehicleState = nextVehicleState;
+  persistVehicleRepairRecords();
+  document.querySelector("#vehicleRepairDialog").close();
+  editingVehicleRepairId = "";
+}
+
+function exportVehicleRepairReport() {
+  const headers = ["维修单号", "车牌号", "车辆类型", "所属车队", "故障类别", "故障描述", "维修地点", "提交方式", "提交人", "报修时间", "维修状态", "维修厂", "预计费用", "实际费用", "维修开始时间", "完工时间", "维修结果", "凭证", "备注"];
+  const escapeCsv = (value) => {
+    const text = String(value ?? "").replace(/^([=+\-@])/, "'$1");
+    return `"${text.replaceAll('"', '""')}"`;
+  };
+  const rows = getFilteredVehicleRepairs().map((record) => [record.repairNo, record.plateNo, record.vehicleType, record.fleet, record.category, record.description, record.repairLocation, record.source, record.reporterName || record.createdBy, record.reportedAt, record.status, record.repairVendor, record.expectedCost, record.actualCost, record.startedAt, record.completedAt, record.result, (record.evidence || []).map((file) => typeof file === "string" ? file : file.name).join("、"), record.remark]);
+  const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
+  link.download = `车辆维修报表-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 function switchPage(pageName) {
@@ -4552,22 +5011,31 @@ function switchPage(pageName) {
     window.AutoDispatchManager?.renderConfig();
     window.lucide?.createIcons();
   }
+  if (meta.view === "userAccess") {
+    window.UserAccessManager?.render();
+  }
+  if (meta.view === "photoRequirements") renderPhotoRequirementConfigPage();
   if (meta.view === "finance") {
     renderFinancePage(getFilteredFinanceRows());
   }
   if (meta.view === "driverExpenses") {
     renderDriverExpensePage();
   }
+  if (meta.view === "vehicleRepairs") renderVehicleRepairPage();
   if (meta.view === "customer") {
     window.CustomerManager?.render();
   }
   if (meta.view === "reminderTemplates") {
     renderReminderTemplatePage(getReminderTemplateFiltered());
   }
+  if (meta.view === "announcements") {
+    renderAnnouncementPage(getAnnouncementFiltered());
+  }
 }
 
 renderRows(waybills);
 renderVehiclePage();
+renderVehicleRepairPage();
 renderTrailerPage();
 renderDriverPage();
 renderRoutePage();
@@ -4576,6 +5044,7 @@ renderCapacityPage();
 renderFinancePage();
 renderDriverExpensePage();
 renderReminderTemplatePage();
+renderAnnouncementPage();
 renderDashboard();
 
 moreBtn.addEventListener("click", () => {
@@ -4749,7 +5218,7 @@ function fillWaybillFromRoute() {
 function loadRouteFee(type) {
   const route = fixedRoutes.find((item) => item.id === waybillForm.elements.routeId.value);
   if (!route) {
-    window.alert("请先选择固定线路。");
+    showApplicationAlert("请先选择固定线路。");
     return;
   }
   const body = type === "receivable" ? receivableFeeBody : payableFeeBody;
@@ -4786,8 +5255,57 @@ function closeWaybillForm() {
 
 const PLAN_TASK_TYPES = ["提空装货", "提重送货", "排空箱（A→B）", "排重箱（A→B）"];
 const PLAN_TASK_BOX_TYPES = ["40HQ", "40GP", "20GP", "45HQ"];
+const PLAN_TASK_TEMPLATE_STORAGE_KEY = "container-logistics-plan-task-templates-v1";
+function normalizePlanTaskTemplate(template = {}, index = 0) {
+  const quantity = Math.min(100, Math.max(1, Number(template.quantity) || 1));
+  const taskItems = Array.isArray(template.taskItems) ? template.taskItems.slice(0, 100) : [];
+  return {
+    id: String(template.id || `PTT-${Date.now()}-${index}`),
+    name: String(template.name || "").trim(),
+    taskType: PLAN_TASK_TYPES.includes(template.taskType) ? template.taskType : PLAN_TASK_TYPES[0],
+    customerId: String(template.customerId || ""), customerName: String(template.customerName || ""),
+    projectId: String(template.projectId || ""), projectName: String(template.projectName || ""),
+    routeId: String(template.routeId || ""),
+    boxType: PLAN_TASK_BOX_TYPES.includes(template.boxType) ? template.boxType : "40HQ",
+    quantity,
+    taskItems: Array.from({ length: quantity }, (_, itemIndex) => {
+      const item = taskItems[itemIndex] || {};
+      return {
+        routeId: String(item.routeId ?? template.routeId ?? ""),
+        boxType: PLAN_TASK_BOX_TYPES.includes(item.boxType) ? item.boxType : PLAN_TASK_BOX_TYPES.includes(template.boxType) ? template.boxType : "40HQ",
+      };
+    }),
+  };
+}
+
+function loadPlanTaskTemplates() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PLAN_TASK_TEMPLATE_STORAGE_KEY) || "[]");
+    return Array.isArray(stored) ? stored.map(normalizePlanTaskTemplate).filter((item) => item.name) : [];
+  } catch (error) {
+    console.warn("计划任务模板读取失败。", error);
+    return [];
+  }
+}
+
+function savePlanTaskTemplates(templates) {
+  try {
+    localStorage.setItem(PLAN_TASK_TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
+    return true;
+  } catch (error) {
+    console.warn("计划任务模板保存失败。", error);
+    return false;
+  }
+}
+
+let planTaskTemplates = loadPlanTaskTemplates();
 let planTaskListItems = [];
 let planTaskListCollapsed = false;
+let editingPlanTaskId = "";
+let editingPlanTaskTemplateId = "";
+let planTaskTemplateItems = [];
+let returnToPlanTaskTemplateManager = false;
+let planTaskTemplateDefaultBoxType = "40HQ";
 
 function getPlanTaskDefaultTime() {
   const date = new Date();
@@ -4798,7 +5316,7 @@ function getPlanTaskDefaultTime() {
 }
 
 function getPlanTaskRouteOptions(selectedRouteId = "") {
-  return '<option value="">请选择固定线路</option>' + fixedRoutes
+  return '<option value="">不指定固定线路</option>' + fixedRoutes
     .filter((route) => route.routeState === "启用")
     .map((route) => `<option value="${route.id}"${route.id === selectedRouteId ? " selected" : ""}>${route.routeName}</option>`)
     .join("");
@@ -4806,6 +5324,150 @@ function getPlanTaskRouteOptions(selectedRouteId = "") {
 
 function getPlanTaskBoxOptions(selectedBoxType = "40HQ") {
   return PLAN_TASK_BOX_TYPES.map((boxType) => `<option value="${boxType}"${boxType === selectedBoxType ? " selected" : ""}>${boxType}</option>`).join("");
+}
+
+function getPlanTaskTemplateRouteOptions(selectedRouteId = "") {
+  return '<option value="">不指定固定线路</option>' + fixedRoutes
+    .filter((route) => route.routeState === "启用")
+    .map((route) => `<option value="${dashboardEscape(route.id)}"${route.id === selectedRouteId ? " selected" : ""}>${dashboardEscape(route.routeName)}</option>`)
+    .join("");
+}
+
+function renderPlanTaskTemplateItems() {
+  planTaskTemplateItemsBody.innerHTML = planTaskTemplateItems.map((item, index) => `<div class="plan-template-task-row" data-template-task-row="${index}">
+    <strong>任务 ${index + 1}</strong>
+    <label class="field"><span class="field-label">固定线路</span><select data-template-task-route aria-label="任务 ${index + 1} 固定线路">${getPlanTaskTemplateRouteOptions(item.routeId)}</select></label>
+    <label class="field"><span class="field-label">柜型</span><select data-template-task-box aria-label="任务 ${index + 1} 柜型">${getPlanTaskBoxOptions(item.boxType)}</select></label>
+    <button class="icon-btn plan-task-row-delete" data-template-task-delete type="button" aria-label="删除任务 ${index + 1}" title="删除任务"${planTaskTemplateItems.length <= 1 ? " disabled" : ""}><i data-lucide="trash-2" aria-hidden="true"></i></button>
+  </div>`).join("");
+  if (!planTaskTemplateItems.length) planTaskTemplateItemsBody.innerHTML = '<div class="plan-task-list-empty">生成默认子任务配置</div>';
+  window.lucide?.createIcons();
+}
+
+function resizePlanTaskTemplateItems(value) {
+  const quantity = Math.min(100, Math.max(1, Number(value) || 1));
+  const defaultRouteId = document.querySelector("#planTaskTemplateRoute").value;
+  const defaultBoxType = document.querySelector("#planTaskTemplateBoxType").value || "40HQ";
+  planTaskTemplateItems = Array.from({ length: quantity }, (_, index) => planTaskTemplateItems[index] || { routeId: defaultRouteId, boxType: defaultBoxType });
+  document.querySelector("#planTaskTemplateQuantity").value = String(quantity);
+  renderPlanTaskTemplateItems();
+}
+
+function refreshPlanTaskTemplateProjects(customerId = "", selectedProjectId = "") {
+  const projectSelect = document.querySelector("#planTaskTemplateProject");
+  const routeSelect = document.querySelector("#planTaskTemplateRoute");
+  const projects = routeAccountCatalog.filter((item) => !customerId || item.customerId === customerId);
+  projectSelect.innerHTML = '<option value="">请选择项目</option>' + projects.map((item) => `<option value="${dashboardEscape(item.projectId)}">${dashboardEscape(item.projectName)}</option>`).join("");
+  projectSelect.value = selectedProjectId;
+  refreshPlanTaskTemplateRoutes(customerId, selectedProjectId, routeSelect.value);
+}
+
+function refreshPlanTaskTemplateRoutes(customerId = "", projectId = "", selectedRouteId = "") {
+  const routeSelect = document.querySelector("#planTaskTemplateRoute");
+  routeSelect.innerHTML = '<option value="">不指定固定线路</option>' + fixedRoutes
+    .filter((route) => route.routeState === "启用" && (!customerId || route.customerId === customerId) && (!projectId || route.projectId === projectId))
+    .map((route) => `<option value="${dashboardEscape(route.id)}">${dashboardEscape(route.routeName)}</option>`).join("");
+  routeSelect.value = selectedRouteId;
+}
+
+function renderPlanTaskTemplateManager() {
+  const search = document.querySelector("#planTaskTemplateSearch").value.trim().toLowerCase();
+  const taskType = document.querySelector("#planTaskTemplateTypeFilter").value;
+  const templates = planTaskTemplates.filter((item) => {
+    const searchable = [item.name, item.customerName, item.projectName].join(" ").toLowerCase();
+    return (!search || searchable.includes(search)) && (!taskType || item.taskType === taskType);
+  }).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+  planTaskTemplateBody.innerHTML = templates.length ? templates.map((item) => {
+    const route = fixedRoutes.find((entry) => entry.id === item.routeId);
+    return `<tr>
+      <td><strong>${dashboardEscape(item.name)}</strong><small>${dashboardEscape(item.taskType)}</small></td>
+      <td>${dashboardEscape(item.customerName)}<small>${dashboardEscape(item.projectName)}</small></td>
+      <td>${dashboardEscape(route?.routeName || "不指定线路")}</td>
+      <td>${dashboardEscape(item.boxType)}<small>${item.quantity} 条子任务</small></td>
+      <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn primary-text" data-plan-template-action="use" data-plan-template-id="${dashboardEscape(item.id)}" type="button">使用该模板开始创建</button><button class="link-btn" data-plan-template-action="edit" data-plan-template-id="${dashboardEscape(item.id)}" type="button">编辑</button><button class="link-btn danger-link" data-plan-template-action="delete" data-plan-template-id="${dashboardEscape(item.id)}" type="button">删除</button></div></td>
+    </tr>`;
+  }).join("") : `<tr><td class="no-data-cell" colspan="5">${planTaskTemplates.length ? "没有符合条件的模板" : "还没有计划任务模板"}</td></tr>`;
+}
+
+function openPlanTaskTemplateManager() {
+  renderPlanTaskTemplateManager();
+  planTaskTemplateManagerDialog.showModal();
+  window.lucide?.createIcons();
+}
+
+function openPlanTaskTemplateEditor(template = null, sourceGroup = null) {
+  returnToPlanTaskTemplateManager = planTaskTemplateManagerDialog.open;
+  editingPlanTaskTemplateId = template?.id || "";
+  const customerSelect = document.querySelector("#planTaskTemplateCustomer");
+  customerSelect.innerHTML = '<option value="">请选择客户</option>' + getRouteCustomers().map((item) => `<option value="${dashboardEscape(item.customerId)}">${dashboardEscape(item.customerName)}</option>`).join("");
+  document.querySelector("#planTaskTemplateForm").reset();
+  document.querySelector("#planTaskTemplateTaskType").value = "提空装货";
+  document.querySelector("#planTaskTemplateBoxType").value = "40HQ";
+  planTaskTemplateDefaultBoxType = "40HQ";
+  document.querySelector("#planTaskTemplateQuantity").value = "1";
+  refreshPlanTaskTemplateProjects();
+  const source = template || (sourceGroup ? {
+    name: "", taskType: sourceGroup.first.taskType, customerName: sourceGroup.first.customerName,
+    customerId: fixedRoutes.find((item) => item.id === sourceGroup.first.routeId)?.customerId || routeAccountCatalog.find((item) => item.customerName === sourceGroup.first.customerName)?.customerId || "",
+    projectId: sourceGroup.first.projectId, projectName: sourceGroup.first.projectName,
+    routeId: sourceGroup.first.routeId || waybillRouteMap[sourceGroup.first.waybillNo] || "",
+    boxType: sourceGroup.first.boxType, quantity: sourceGroup.waybills.length,
+    taskItems: sourceGroup.waybills.map((waybill) => ({ routeId: waybill.routeId || waybillRouteMap[waybill.waybillNo] || "", boxType: waybill.boxType || sourceGroup.first.boxType || "40HQ" })),
+  } : null);
+  if (source) {
+    document.querySelector("#planTaskTemplateName").value = source.name || "";
+    document.querySelector("#planTaskTemplateTaskType").value = source.taskType || "提空装货";
+    customerSelect.value = source.customerId || "";
+    refreshPlanTaskTemplateProjects(source.customerId || "", source.projectId || "");
+    document.querySelector("#planTaskTemplateProject").value = source.projectId || "";
+    refreshPlanTaskTemplateRoutes(source.customerId || "", source.projectId || "", source.routeId || "");
+    document.querySelector("#planTaskTemplateBoxType").value = source.boxType || "40HQ";
+    planTaskTemplateDefaultBoxType = document.querySelector("#planTaskTemplateBoxType").value;
+    document.querySelector("#planTaskTemplateQuantity").value = String(source.quantity || 1);
+    planTaskTemplateItems = (source.taskItems || []).map((item) => ({ routeId: item.routeId || "", boxType: item.boxType || source.boxType || "40HQ" }));
+  } else {
+    planTaskTemplateItems = [{ routeId: "", boxType: "40HQ" }];
+  }
+  if (planTaskTemplateItems.length !== Number(document.querySelector("#planTaskTemplateQuantity").value)) resizePlanTaskTemplateItems(document.querySelector("#planTaskTemplateQuantity").value);
+  else renderPlanTaskTemplateItems();
+  document.querySelector("#planTaskTemplateEditorTitle").textContent = editingPlanTaskTemplateId ? "编辑计划任务模板" : "新建计划任务模板";
+  if (planTaskTemplateManagerDialog.open) planTaskTemplateManagerDialog.close();
+  planTaskTemplateEditorDialog.showModal();
+  window.lucide?.createIcons();
+}
+
+function closePlanTaskTemplateEditor() {
+  if (planTaskTemplateEditorDialog.open) planTaskTemplateEditorDialog.close();
+  planTaskTemplateForm.reset();
+  editingPlanTaskTemplateId = "";
+  planTaskTemplateItems = [];
+  if (returnToPlanTaskTemplateManager) openPlanTaskTemplateManager();
+  returnToPlanTaskTemplateManager = false;
+}
+
+function usePlanTaskTemplate(templateId) {
+  const template = planTaskTemplates.find((item) => item.id === templateId);
+  if (!template) return;
+  if (planTaskTemplateManagerDialog.open) planTaskTemplateManagerDialog.close();
+  openPlanTaskDialog("single");
+  const customerSelect = document.querySelector("#planCustomerSelect");
+  customerSelect.value = template.customerId;
+  refreshPlanTaskProjectOptions(template.customerId);
+  document.querySelector("#planProjectSelect").value = template.projectId;
+  refreshPlanTaskRouteByProject(template.customerId, template.projectId);
+  document.querySelector("#planRouteSelect").value = template.routeId;
+  document.querySelector("#planCustomerName").value = template.customerName;
+  document.querySelector("#planProjectName").value = template.projectName;
+  document.querySelector("#planBoxType").value = template.boxType;
+  document.querySelector("#planTaskQuantity").value = String(template.quantity);
+  document.querySelectorAll('.plan-task-type-card input').forEach((input) => {
+    input.checked = input.value === template.taskType;
+    input.closest(".plan-task-type-card").classList.toggle("selected", input.checked);
+  });
+  planTaskListItems = template.taskItems.map((item) => ({ routeId: item.routeId, boxType: item.boxType, boxNo1: "", sealNo1: "", boxNo2: "", sealNo2: "" }));
+  renderPlanTaskList();
+  document.querySelector("#planTaskFormTip").textContent = `已套用模板「${template.name}」；请填写本次执行时间和箱号/铅封号`;
+  window.lucide?.createIcons();
 }
 
 function renderPlanTaskList() {
@@ -4821,6 +5483,10 @@ function renderPlanTaskList() {
         <div class="plan-task-row-index"><strong>任务 ${index + 1}</strong><small>计划子任务</small></div>
         <label class="field"><span class="field-label">固定线路</span><select data-plan-task-row-route aria-label="任务 ${index + 1} 固定线路">${getPlanTaskRouteOptions(item.routeId)}</select></label>
         <label class="field"><span class="field-label">柜型</span><select data-plan-task-row-box aria-label="任务 ${index + 1} 柜型">${getPlanTaskBoxOptions(item.boxType)}</select></label>
+        <label class="field"><span class="field-label">箱号 1</span><input data-plan-task-box-no-1 value="${dashboardEscape(item.boxNo1 || "")}" aria-label="任务 ${index + 1} 箱号 1" /></label>
+        <label class="field"><span class="field-label">铅封号 1</span><input data-plan-task-seal-no-1 value="${dashboardEscape(item.sealNo1 || "")}" aria-label="任务 ${index + 1} 铅封号 1" /></label>
+        <label class="field"><span class="field-label">箱号 2</span><input data-plan-task-box-no-2 value="${dashboardEscape(item.boxNo2 || "")}" aria-label="任务 ${index + 1} 箱号 2" /></label>
+        <label class="field"><span class="field-label">铅封号 2</span><input data-plan-task-seal-no-2 value="${dashboardEscape(item.sealNo2 || "")}" aria-label="任务 ${index + 1} 铅封号 2" /></label>
         <button class="icon-btn plan-task-row-delete" data-plan-task-delete type="button" aria-label="删除任务 ${index + 1}" title="删除任务"${planTaskListItems.length <= 1 ? " disabled" : ""}><i data-lucide="trash-2" aria-hidden="true"></i></button>
       </div>`).join("")
     : '<div class="plan-task-list-empty">输入任务数量后生成任务清单</div>';
@@ -4846,7 +5512,7 @@ function refreshPlanTaskRouteOptions() {
   if (!routeSelect) return;
   if (customerSelect) customerSelect.innerHTML = '<option value="">请选择客户</option>' + getRouteCustomers().map((item) => `<option value="${item.customerId}">${item.customerName}</option>`).join("");
   if (projectSelect) projectSelect.innerHTML = '<option value="">请选择项目</option>';
-  routeSelect.innerHTML = '<option value="">请选择固定线路</option>';
+  routeSelect.innerHTML = '<option value="">不指定固定线路</option>';
 }
 
 function refreshPlanTaskProjectOptions(customerId = "") {
@@ -4855,26 +5521,31 @@ function refreshPlanTaskProjectOptions(customerId = "") {
   if (!projectSelect || !routeSelect) return;
   const projects = routeAccountCatalog.filter((item) => !customerId || item.customerId === customerId);
   projectSelect.innerHTML = '<option value="">请选择项目</option>' + projects.map((item) => `<option value="${item.projectId}">${item.projectName}</option>`).join("");
-  routeSelect.innerHTML = '<option value="">请选择固定线路</option>' + fixedRoutes.filter((route) => route.routeState === "启用" && (!customerId || route.customerId === customerId)).map((route) => `<option value="${route.id}" data-customer-id="${route.customerId}" data-project-id="${route.projectId}">${route.routeName}</option>`).join("");
+  routeSelect.innerHTML = '<option value="">不指定固定线路</option>' + fixedRoutes.filter((route) => route.routeState === "启用" && (!customerId || route.customerId === customerId)).map((route) => `<option value="${route.id}" data-customer-id="${route.customerId}" data-project-id="${route.projectId}">${route.routeName}</option>`).join("");
 }
 
 function refreshPlanTaskRouteByProject(customerId = "", projectId = "") {
   const routeSelect = document.querySelector("#planRouteSelect");
   if (!routeSelect) return;
-  routeSelect.innerHTML = '<option value="">请选择固定线路</option>' + fixedRoutes.filter((route) => route.routeState === "启用" && (!customerId || route.customerId === customerId) && (!projectId || route.projectId === projectId)).map((route) => `<option value="${route.id}">${route.routeName}</option>`).join("");
+  routeSelect.innerHTML = '<option value="">不指定固定线路</option>' + fixedRoutes.filter((route) => route.routeState === "启用" && (!customerId || route.customerId === customerId) && (!projectId || route.projectId === projectId)).map((route) => `<option value="${route.id}">${route.routeName}</option>`).join("");
 }
 
 function setPlanTaskMode(mode) {
   const isBatch = mode === "batch";
+  const isEdit = mode === "edit";
   planTaskForm.dataset.mode = mode;
   document.querySelectorAll("[data-plan-mode]").forEach((button) => button.classList.toggle("active", button.dataset.planMode === mode));
+  document.querySelectorAll("[data-plan-mode]").forEach((button) => { button.hidden = isEdit; });
   planTaskSingleMode.hidden = isBatch;
   planTaskBatchMode.hidden = !isBatch;
-  document.querySelector("#submitPlanTaskBtn").textContent = isBatch ? "导入并创建任务" : "创建计划任务";
-  document.querySelector("#planTaskFormTip").textContent = isBatch ? "导入成功后，每行任务都会进入待派发池" : "创建后自动生成计划编号并进入待派发池";
+  document.querySelector("#submitPlanTaskBtn").textContent = isBatch ? "导入并创建任务" : isEdit ? "保存计划修改" : "创建计划任务";
+  document.querySelector("#planTaskFormTip").textContent = isBatch ? "导入成功后，每行任务都会进入待派发池" : isEdit ? "仅待派发计划可编辑" : "创建后自动生成计划编号并进入待派发池";
+  planTaskDialog.dataset.breadcrumb = `计划与派单 / 计划与任务 / ${isEdit ? "编辑计划任务" : isBatch ? "批量导入计划任务" : "新建计划任务"}`;
+  planTaskDialog.querySelector(".vehicle-dialog-header strong").textContent = isEdit ? "编辑计划任务" : "新建计划任务";
 }
 
 function openPlanTaskDialog(mode = "single") {
+  editingPlanTaskId = "";
   planTaskForm.reset();
   planTaskListItems = [];
   planTaskListCollapsed = false;
@@ -4888,11 +5559,48 @@ function openPlanTaskDialog(mode = "single") {
   planTaskDialog.showModal();
 }
 
+function openEditPlanTaskDialog(planTaskId) {
+  const group = getPlanTaskGroups(waybills).find((item) => item.id === planTaskId);
+  if (!group?.canEdit) return;
+  editingPlanTaskId = group.id;
+  planTaskForm.reset();
+  planTaskListCollapsed = false;
+  refreshPlanTaskRouteOptions();
+  const first = group.first;
+  const firstRoute = fixedRoutes.find((item) => item.id === (first.routeId || waybillRouteMap[first.waybillNo]));
+  const customerId = firstRoute?.customerId || routeAccountCatalog.find((item) => item.customerName === first.customerName)?.customerId || "";
+  document.querySelector("#planCustomerSelect").value = customerId;
+  refreshPlanTaskProjectOptions(customerId);
+  document.querySelector("#planProjectSelect").value = first.projectId || "";
+  refreshPlanTaskRouteByProject(customerId, first.projectId || "");
+  const routeId = first.routeId || waybillRouteMap[first.waybillNo] || "";
+  document.querySelector("#planRouteSelect").value = routeId;
+  document.querySelector("#planCustomerName").value = first.customerName || "";
+  document.querySelector("#planProjectName").value = first.projectName || "";
+  document.querySelector("#planExecutionTime").value = normalizePlanTaskExecutionTime(first.executionTime || first.orderDate);
+  document.querySelectorAll('.plan-task-type-card input').forEach((input) => { input.checked = input.value === (first.taskType || "提空装货"); input.closest(".plan-task-type-card").classList.toggle("selected", input.checked); });
+  document.querySelector("#planTaskQuantity").value = String(group.waybills.length);
+  planTaskListItems = group.waybills.map((waybill) => ({
+    routeId: waybill.routeId || waybillRouteMap[waybill.waybillNo] || "", boxType: waybill.boxType || "40HQ",
+    boxNo1: waybill.boxNo1 === "-" ? "" : waybill.boxNo1 || "", sealNo1: waybill.sealNo1 === "-" ? "" : waybill.sealNo1 || "",
+    boxNo2: waybill.boxNo2 === "-" ? "" : waybill.boxNo2 || "", sealNo2: waybill.sealNo2 === "-" ? "" : waybill.sealNo2 || "",
+  }));
+  planTaskBatchInput.value = "";
+  renderPlanTaskList();
+  setPlanTaskMode("edit");
+  planTaskDialog.showModal();
+}
+
 function closePlanTaskDialog() {
   if (planTaskDialog.open) planTaskDialog.close();
   planTaskForm.reset();
   planTaskBatchInput.value = "";
   planTaskListItems = [];
+  editingPlanTaskId = "";
+  planTaskForm.dataset.mode = "single";
+  document.querySelectorAll("[data-plan-mode]").forEach((button) => { button.hidden = false; });
+  planTaskDialog.querySelector(".vehicle-dialog-header strong").textContent = "新建计划任务";
+  planTaskDialog.dataset.breadcrumb = "计划与派单 / 计划与任务 / 新建计划任务";
 }
 
 function parsePlanTaskCsvLine(line) {
@@ -4921,7 +5629,7 @@ function parsePlanTaskCsv(text) {
   const lines = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (!lines.length) return [];
   const first = parsePlanTaskCsvLine(lines[0]);
-  const hasHeader = first.some((value) => ["执行时间", "线路", "柜型", "客户名称", "项目名称", "任务类型", "自动派发", "派单方式", "提前量", "运单数量"].includes(value));
+  const hasHeader = first.some((value) => ["执行时间", "线路", "柜型", "客户名称", "项目名称", "任务类型", "自动派发", "派单方式", "提前量", "运单数量", "箱号1", "铅封号1", "箱号2", "铅封号2"].includes(value));
   const headers = hasHeader ? first : [];
   const rows = hasHeader ? lines.slice(1) : lines;
   return rows.map((line) => {
@@ -4939,6 +5647,10 @@ function parsePlanTaskCsv(text) {
       projectName: getValue(["项目名称"], 4),
       taskType: getValue(["任务类型"], 5) || "提空装货",
       quantity: getValue(["运单数量", "任务数量"], legacyDispatchColumns ? 8 : 6) || "1",
+      boxNo1: getValue(["箱号1", "箱号 1"], 7),
+      sealNo1: getValue(["铅封号1", "铅封号 1"], 8),
+      boxNo2: getValue(["箱号2", "箱号 2"], 9),
+      sealNo2: getValue(["铅封号2", "铅封号 2"], 10),
     };
   });
 }
@@ -4955,6 +5667,17 @@ function normalizePlanTaskExecutionTime(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T08:00` : text.slice(0, 16);
 }
 
+function normalizePlanTaskContainerPairs(item = {}) {
+  const pairs = [
+    { boxNo: String(item.boxNo1 || "").trim(), sealNo: String(item.sealNo1 || "").trim() },
+    { boxNo: String(item.boxNo2 || "").trim(), sealNo: String(item.sealNo2 || "").trim() },
+  ].filter((pair) => pair.boxNo || pair.sealNo);
+  return {
+    boxNo1: pairs[0]?.boxNo || "", sealNo1: pairs[0]?.sealNo || "",
+    boxNo2: pairs[1]?.boxNo || "", sealNo2: pairs[1]?.sealNo || "", pairs,
+  };
+}
+
 function createPlanTaskRecords(rows) {
   const created = [];
   const errors = [];
@@ -4965,53 +5688,106 @@ function createPlanTaskRecords(rows) {
     const taskType = PLAN_TASK_TYPES.includes(row.taskType) ? row.taskType : "提空装货";
     const quantity = Math.min(100, Math.max(1, Number(row.quantity) || 1));
     const taskItems = Array.isArray(row.taskItems) && row.taskItems.length
-      ? row.taskItems.slice(0, 100).map((item) => ({ routeValue: item.routeValue || item.routeId, boxType: supportedBoxTypes.includes(item.boxType) ? item.boxType : (supportedBoxTypes.includes(row.boxType) ? row.boxType : "40HQ") }))
-      : Array.from({ length: quantity }, () => ({ routeValue: row.routeValue || row.routeId, boxType: supportedBoxTypes.includes(row.boxType) ? row.boxType : "40HQ" }));
+      ? row.taskItems.slice(0, 100).map((item) => ({
+        routeValue: item.routeValue ?? item.routeId ?? row.routeValue ?? row.routeId ?? "",
+        boxType: supportedBoxTypes.includes(item.boxType) ? item.boxType : (supportedBoxTypes.includes(row.boxType) ? row.boxType : "40HQ"),
+        boxNo1: String(item.boxNo1 ?? row.boxNo1 ?? "").trim(), sealNo1: String(item.sealNo1 ?? row.sealNo1 ?? "").trim(),
+        boxNo2: String(item.boxNo2 ?? row.boxNo2 ?? "").trim(), sealNo2: String(item.sealNo2 ?? row.sealNo2 ?? "").trim(),
+      }))
+      : Array.from({ length: quantity }, () => ({ routeValue: row.routeValue || row.routeId || "", boxType: supportedBoxTypes.includes(row.boxType) ? row.boxType : "40HQ", boxNo1: String(row.boxNo1 || "").trim(), sealNo1: String(row.sealNo1 || "").trim(), boxNo2: String(row.boxNo2 || "").trim(), sealNo2: String(row.sealNo2 || "").trim() }));
     const resolvedItems = taskItems.map((item) => ({ ...item, route: resolvePlanTaskRoute(item.routeValue) }));
-    if (!executionTime || !customerName || !resolvedItems.length || resolvedItems.some((item) => !item.route)) {
-      errors.push(`第 ${index + 1} 行缺少执行时间、线路或客户名称`);
+    if (!executionTime || !customerName || !resolvedItems.length || resolvedItems.some((item) => item.routeValue && !item.route)) {
+      errors.push(`第 ${index + 1} 行缺少执行时间或客户名称，或固定线路无法匹配`);
       return;
     }
     const orderDate = executionTime.slice(0, 10);
     const planTaskId = `PT-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`;
     const planTaskNo = `JH-${orderDate.replaceAll("-", "")}-${String(index + 1).padStart(3, "0")}`;
     const planQuantity = resolvedItems.length;
-    resolvedItems.forEach(({ route, boxType }, childIndex) => {
+    resolvedItems.forEach(({ route, boxType, boxNo1, sealNo1, boxNo2, sealNo2 }, childIndex) => {
       const waybillNo = getNextWaybillNo(orderDate);
-      const itemCustomerName = String(route.customerName || customerName).trim();
+      const itemCustomerName = String(route?.customerName || customerName).trim();
       const customer = window.CustomerManager?.getActiveCustomerByName(itemCustomerName);
       const account = typeof routeAccountCatalog !== "undefined"
-        ? getRouteAccount(route.customerId, route.projectId) || routeAccountCatalog.find((item) => item.customerId === customer?.customerNo || item.customerName === itemCustomerName)
+        ? (route ? getRouteAccount(route.customerId, route.projectId) : null) || routeAccountCatalog.find((item) => item.customerId === customer?.customerNo || item.customerName === itemCustomerName)
         : null;
-      const projectName = String(route.projectName || row.projectName || account?.projectName || "未分配项目").trim();
-      const projectId = route.projectId || account?.projectId || "";
-      const routeStops = typeof getRouteStops === "function" ? getRouteStops(route) : [
-        { value: route.origin || "待维护" },
-        { value: route.origin || "待维护" },
-        { value: route.destination || "待维护" },
-        { value: route.destination || "待维护" },
+      const projectName = String(route?.projectName || row.projectName || account?.projectName || "未分配项目").trim();
+      const projectId = route?.projectId || row.projectId || account?.projectId || "";
+      const routeStops = typeof getRouteStops === "function" ? getRouteStops(route || {}) : [
+        { value: route?.origin || "待维护" },
+        { value: route?.origin || "待维护" },
+        { value: route?.destination || "待维护" },
+        { value: route?.destination || "待维护" },
       ];
-      const containers = [{ boxNo: "", sealNo: "", boxType, pickupPoint: routeStops[0].value, returnPoint: routeStops[3].value }];
+      const compacted = normalizePlanTaskContainerPairs({ boxNo1, sealNo1, boxNo2, sealNo2 });
+      const containers = compacted.pairs.map((item) => ({ ...item, boxType, pickupPoint: routeStops[0].value, returnPoint: routeStops[3].value }));
       const newWaybill = {
         waybillNo, planTaskId, planTaskNo, planQuantity, childSequence: childIndex + 1, orderDate, executionTime, taskType, projectId, projectName,
         autoDispatch: false, dispatchAdvanceMinutes: 0,
-        routeId: route.id, customerId: customer?.customerNo || route.customerId || account?.customerId || "-", customerName: itemCustomerName,
-        billNo: "-", loadAddress: `${routeStops[1].value} / ${routeStops[2].value}`, dispatchNo: `PC-${waybillNo.slice(-8)}`,
-        dispatchDate: "-", containers, boxNo1: "-", sealNo1: "-", boxNo2: "-", sealNo2: "-", boxType,
-        boxQuantity: 1, auditState: "草拟", needReceipt: "否", receivedReceipt: "否", receiptDate: "",
-        remark: `${taskType}计划任务 · ${childIndex + 1}/${planQuantity}`, freight: route.baseFreight, receivable: route.estimatedRevenue, entryDate: orderDate,
-        profit: Number(route.estimatedRevenue) - Number(route.baseFreight), payable: route.baseFreight, carrier: "-",
+        routeId: route?.id || "", customerId: customer?.customerNo || route?.customerId || account?.customerId || row.customerId || "-", customerName: itemCustomerName,
+        billNo: "-", loadAddress: route ? `${routeStops[1].value} / ${routeStops[2].value}` : "", dispatchNo: `PC-${waybillNo.slice(-8)}`,
+        dispatchDate: "-", containers, boxNo1: compacted.boxNo1, sealNo1: compacted.sealNo1, boxNo2: compacted.boxNo2, sealNo2: compacted.sealNo2, boxType,
+        boxQuantity: Math.max(1, compacted.pairs.length), auditState: "草拟", needReceipt: "否", receivedReceipt: "否", receiptDate: "",
+        remark: `${taskType}计划任务 · ${childIndex + 1}/${planQuantity}`, freight: Number(route?.baseFreight) || 0, receivable: Number(route?.estimatedRevenue) || 0, entryDate: orderDate,
+        profit: (Number(route?.estimatedRevenue) || 0) - (Number(route?.baseFreight) || 0), payable: Number(route?.baseFreight) || 0, carrier: "-",
         returnPoint: routeStops[3].value, pickupPoint1: routeStops[0].value, pickupPoint2: "",
         plateNo: "", driverId: "", driverName: "", arrived: false, arrivalDate: [], receivableFees: [], payableFees: [],
       };
       waybills.unshift(newWaybill);
-      waybillRouteMap[waybillNo] = route.id;
+      if (route) waybillRouteMap[waybillNo] = route.id;
       createPendingDispatch(newWaybill, route);
       created.push(newWaybill);
     });
   });
   if (created.length) saveWaybills();
   return { created, errors };
+}
+
+function updatePlanTaskRecords(planTaskId, values, taskItems) {
+  const group = getPlanTaskGroups(waybills).find((item) => item.id === planTaskId);
+  if (!group?.canEdit || taskItems.length !== group.waybills.length) return false;
+  const executionTime = normalizePlanTaskExecutionTime(values.executionTime);
+  if (!executionTime || !String(values.customerName || "").trim()) return false;
+  const orderDate = executionTime.slice(0, 10);
+  group.waybills.forEach((waybill, index) => {
+    const item = taskItems[index];
+    const route = resolvePlanTaskRoute(item.routeValue);
+    const previousRouteId = waybill.routeId || waybillRouteMap[waybill.waybillNo] || "";
+    const customerName = route?.customerName || String(values.customerName).trim();
+    const customer = window.CustomerManager?.getActiveCustomerByName(customerName);
+    const account = route ? getRouteAccount(route.customerId, route.projectId) : routeAccountCatalog.find((entry) => entry.customerId === values.customerId);
+    const projectName = route?.projectName || String(values.projectName || account?.projectName || "未分配项目").trim();
+    const slots = normalizePlanTaskContainerPairs(item);
+    const routeStops = getRouteStops(route || {});
+    const baseFreight = Number(route?.baseFreight) || 0;
+    const estimatedRevenue = Number(route?.estimatedRevenue) || 0;
+    Object.assign(waybill, {
+      executionTime, orderDate, taskType: values.taskType, customerId: customer?.customerNo || route?.customerId || values.customerId || "-",
+      customerName, projectId: route?.projectId || values.projectId || account?.projectId || "",
+      projectName, routeId: route?.id || "",
+      loadAddress: route ? `${routeStops[1].value} / ${routeStops[2].value}` : "",
+      boxType: item.boxType, boxNo1: slots.boxNo1, sealNo1: slots.sealNo1, boxNo2: slots.boxNo2, sealNo2: slots.sealNo2,
+      containers: slots.pairs.map((pair) => ({ ...pair, boxType: item.boxType, pickupPoint: routeStops[0].value, returnPoint: routeStops[3].value })),
+      boxQuantity: Math.max(1, slots.pairs.length), freight: route ? baseFreight : waybill.freight,
+      receivable: route ? estimatedRevenue : waybill.receivable, payable: route ? baseFreight : waybill.payable,
+      profit: route ? estimatedRevenue - baseFreight : waybill.profit,
+    });
+    if (route) waybillRouteMap[waybill.waybillNo] = route.id;
+    else delete waybillRouteMap[waybill.waybillNo];
+    const dispatch = dispatches.find((entry) => entry.waybillNo === waybill.waybillNo);
+    if (dispatch) Object.assign(dispatch, {
+      orderDate, executionTime, taskType: values.taskType, customerId: waybill.customerId,
+      customerName: waybill.customerName, projectId: waybill.projectId, projectName: waybill.projectName,
+      routeId: waybill.routeId, routeName: route?.routeName || "未指定线路", origin: route?.origin || "",
+      destination: route?.destination || "-", loadAddress: waybill.loadAddress,
+      boxes: formatWaybillBoxes(waybill), estimatedRevenue: route ? estimatedRevenue : waybill.receivable,
+      routeMileageSnapshot: route ? getRouteMileageSnapshot(route) : null,
+    });
+    if (previousRouteId !== waybill.routeId && !route) delete waybillRouteMap[waybill.waybillNo];
+  });
+  saveWaybills();
+  saveDispatches();
+  return true;
 }
 
 function refreshAfterPlanTaskCreate(created) {
@@ -5040,7 +5816,8 @@ function renderPlanTaskDetailPage(planTaskId) {
   const assignedProgress = group.waybills.length ? Math.round(assignedCount / group.waybills.length * 100) : 0;
   planTaskDetailPageSubtitle.textContent = `${group.taskNo} / ${first.customerName || "-"} / ${first.projectName || "-"}`;
   const boxTypes = [...new Set(group.waybills.map((waybill) => waybill.boxType).filter(Boolean))].join("、") || "-";
-  planTaskDetailPageContent.innerHTML = `<section class="plan-detail-section"><div class="plan-detail-section-heading"><strong>计划信息</strong><span>${safe(group.status)}</span></div><div class="plan-detail-info-grid"><div><span>计划编号</span><strong>${safe(group.taskNo)}</strong></div><div><span>客户</span><strong>${safe(first.customerName || route?.customerName || "-")}</strong></div><div><span>项目</span><strong>${safe(first.projectName || route?.projectName || "-")}</strong></div><div><span>任务类型</span><strong>${safe(first.taskType || "-")}</strong></div><div><span>执行时间</span><strong>${safe(String(first.executionTime || `${first.orderDate || "-"} 08:00`).replace("T", " "))}</strong></div><div><span>运输线路</span><strong>${safe(route?.routeName || first.routeId || "-")}</strong></div><div><span>计划数量</span><strong>${group.waybills.length} 项任务</strong></div><div><span>柜型</span><strong>${safe(boxTypes)}</strong></div></div>${route ? `<div class="plan-detail-route"><span>线路节点</span>${renderRouteStops(route, "plan-route-stops")}</div>` : ""}</section><section class="plan-detail-section plan-detail-dispatches"><div class="plan-detail-section-heading"><div><strong>派单情况</strong><small>${assignedCount} / ${group.waybills.length} 项已派单</small></div><div class="plan-detail-progress"><span><i style="width:${assignedProgress}%"></i></span><b>${assignedProgress}%</b></div></div><div class="detail-list-table"><table><thead><tr><th>任务编号</th><th>派单方式</th><th>司机 / 车辆</th><th>派单状态</th><th>当前节点</th><th>派单时间</th></tr></thead><tbody>${group.waybills.map((waybill, index) => { const dispatch = dispatchByWaybill.get(waybill.waybillNo); const taskLabel = group.waybills.length > 1 ? `${group.taskNo}-${String(index + 1).padStart(2, "0")}` : waybill.waybillNo; return `<tr><td><strong>${safe(taskLabel)}</strong></td><td>${safe(modeLabel(dispatch))}</td><td>${safe(dispatch?.driverName || "待分配")} / ${safe(dispatch?.vehicleId || "-")}</td><td><span class="dispatch-status ${getDispatchStatusClass(dispatch?.status || "待派单")}">${safe(dispatch?.status || "待派单")}</span></td><td>${safe(dispatch?.currentNode || "待派单")}</td><td>${safe(dispatch?.dispatchTime || "-")}</td></tr>`; }).join("")}</tbody></table></div></section>`;
+  planTaskDetailPageContent.innerHTML = `<section class="plan-detail-section"><div class="plan-detail-section-heading"><strong>计划信息</strong><span>${safe(group.status)}</span><button class="btn quiet" data-save-plan-template="${safe(group.id)}" type="button"><i data-lucide="layout-template" aria-hidden="true"></i>另存为模板</button>${group.canEdit ? `<button class="btn quiet" data-edit-plan="${safe(group.id)}" type="button"><i data-lucide="pencil" aria-hidden="true"></i>编辑计划</button>` : ""}</div><div class="plan-detail-info-grid"><div><span>计划编号</span><strong>${safe(group.taskNo)}</strong></div><div><span>客户</span><strong>${safe(first.customerName || route?.customerName || "-")}</strong></div><div><span>项目</span><strong>${safe(first.projectName || route?.projectName || "-")}</strong></div><div><span>任务类型</span><strong>${safe(first.taskType || "-")}</strong></div><div><span>执行时间</span><strong>${safe(String(first.executionTime || `${first.orderDate || "-"} 08:00`).replace("T", " "))}</strong></div><div><span>运输线路</span><strong>${safe(route?.routeName || first.routeId || "未指定线路")}</strong></div><div><span>计划数量</span><strong>${group.waybills.length} 项任务</strong></div><div><span>柜型</span><strong>${safe(boxTypes)}</strong></div></div>${route ? `<div class="plan-detail-route"><span>线路节点</span>${renderRouteStops(route, "plan-route-stops")}</div>` : ""}<div class="detail-list-table"><table><thead><tr><th>子任务</th><th>固定线路</th><th>箱号 1</th><th>铅封号 1</th><th>箱号 2</th><th>铅封号 2</th></tr></thead><tbody>${group.waybills.map((waybill, index) => `<tr><td>任务 ${index + 1}</td><td>${safe(fixedRoutes.find((item) => item.id === waybill.routeId)?.routeName || "未指定线路")}</td><td>${safe(waybill.boxNo1 && waybill.boxNo1 !== "-" ? waybill.boxNo1 : "-")}</td><td>${safe(waybill.sealNo1 && waybill.sealNo1 !== "-" ? waybill.sealNo1 : "-")}</td><td>${safe(waybill.boxNo2 && waybill.boxNo2 !== "-" ? waybill.boxNo2 : "-")}</td><td>${safe(waybill.sealNo2 && waybill.sealNo2 !== "-" ? waybill.sealNo2 : "-")}</td></tr>`).join("")}</tbody></table></div></section><section class="plan-detail-section plan-detail-dispatches"><div class="plan-detail-section-heading"><div><strong>派单情况</strong><small>${assignedCount} / ${group.waybills.length} 项已派单</small></div><div class="plan-detail-progress"><span><i style="width:${assignedProgress}%"></i></span><b>${assignedProgress}%</b></div></div><div class="detail-list-table"><table><thead><tr><th>任务编号</th><th>派单方式</th><th>司机 / 车辆</th><th>派单状态</th><th>当前节点</th><th>派单时间</th></tr></thead><tbody>${group.waybills.map((waybill, index) => { const dispatch = dispatchByWaybill.get(waybill.waybillNo); const taskLabel = group.waybills.length > 1 ? `${group.taskNo}-${String(index + 1).padStart(2, "0")}` : waybill.waybillNo; return `<tr><td><strong>${safe(taskLabel)}</strong></td><td>${safe(modeLabel(dispatch))}</td><td>${safe(dispatch?.driverName || "待分配")} / ${safe(dispatch?.vehicleId || "-")}</td><td><span class="dispatch-status ${getDispatchStatusClass(dispatch?.status || "待派单")}">${safe(dispatch?.status || "待派单")}</span></td><td>${safe(dispatch?.currentNode || "待派单")}</td><td>${safe(dispatch?.dispatchTime || "-")}</td></tr>`; }).join("")}</tbody></table></div></section>`;
+  window.lucide?.createIcons();
 }
 
 function openPlanDispatchDetail(planTaskId) {
@@ -5085,6 +5862,98 @@ function cancelPlan(planTaskId) {
 
 addBtn.addEventListener("click", () => openPlanTaskDialog("single"));
 batchPlanTaskBtn.addEventListener("click", () => openPlanTaskDialog("batch"));
+document.querySelector("#planTaskTemplatesBtn")?.addEventListener("click", openPlanTaskTemplateManager);
+document.querySelector("#closePlanTaskTemplateManagerBtn")?.addEventListener("click", () => planTaskTemplateManagerDialog.close());
+document.querySelector("#createPlanTaskTemplateBtn")?.addEventListener("click", () => openPlanTaskTemplateEditor());
+document.querySelector("#planTaskTemplateSearch")?.addEventListener("input", renderPlanTaskTemplateManager);
+document.querySelector("#planTaskTemplateTypeFilter")?.addEventListener("change", renderPlanTaskTemplateManager);
+document.querySelector("#closePlanTaskTemplateEditorBtn")?.addEventListener("click", closePlanTaskTemplateEditor);
+document.querySelector("#cancelPlanTaskTemplateEditorBtn")?.addEventListener("click", closePlanTaskTemplateEditor);
+planTaskTemplateEditorDialog?.addEventListener("cancel", (event) => { event.preventDefault(); closePlanTaskTemplateEditor(); });
+document.querySelector("#planTaskTemplateCustomer")?.addEventListener("change", (event) => refreshPlanTaskTemplateProjects(event.target.value));
+document.querySelector("#planTaskTemplateProject")?.addEventListener("change", (event) => refreshPlanTaskTemplateRoutes(document.querySelector("#planTaskTemplateCustomer").value, event.target.value));
+document.querySelector("#planTaskTemplateRoute")?.addEventListener("change", () => {
+  const routeId = document.querySelector("#planTaskTemplateRoute").value;
+  planTaskTemplateItems = planTaskTemplateItems.map((item) => item.routeId ? item : { ...item, routeId });
+  renderPlanTaskTemplateItems();
+});
+document.querySelector("#planTaskTemplateBoxType")?.addEventListener("change", (event) => {
+  planTaskTemplateItems = planTaskTemplateItems.map((item) => item.boxType === planTaskTemplateDefaultBoxType ? { ...item, boxType: event.target.value } : item);
+  planTaskTemplateDefaultBoxType = event.target.value;
+  renderPlanTaskTemplateItems();
+});
+document.querySelector("#generatePlanTaskTemplateItemsBtn")?.addEventListener("click", () => resizePlanTaskTemplateItems(document.querySelector("#planTaskTemplateQuantity").value));
+document.querySelector("#planTaskTemplateQuantity")?.addEventListener("change", (event) => resizePlanTaskTemplateItems(event.target.value));
+planTaskTemplateItemsBody?.addEventListener("change", (event) => {
+  const row = event.target.closest("[data-template-task-row]");
+  if (!row) return;
+  const item = planTaskTemplateItems[Number(row.dataset.templateTaskRow)];
+  if (!item) return;
+  if (event.target.matches("[data-template-task-route]")) item.routeId = event.target.value;
+  if (event.target.matches("[data-template-task-box]")) item.boxType = event.target.value;
+});
+planTaskTemplateItemsBody?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-template-task-delete]");
+  if (!button || planTaskTemplateItems.length <= 1) return;
+  planTaskTemplateItems.splice(Number(button.closest("[data-template-task-row]").dataset.templateTaskRow), 1);
+  resizePlanTaskTemplateItems(planTaskTemplateItems.length);
+});
+planTaskTemplateBody?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-plan-template-action]");
+  if (!button) return;
+  const template = planTaskTemplates.find((item) => item.id === button.dataset.planTemplateId);
+  if (!template) return;
+  if (button.dataset.planTemplateAction === "use") usePlanTaskTemplate(template.id);
+  if (button.dataset.planTemplateAction === "edit") openPlanTaskTemplateEditor(template);
+  if (button.dataset.planTemplateAction === "delete") {
+    askApplicationConfirm(`确定删除模板“${template.name}”吗？已创建的计划任务不会受到影响。`, { label: "确认删除模板", danger: true }, () => {
+      planTaskTemplates = planTaskTemplates.filter((item) => item.id !== template.id);
+      if (!savePlanTaskTemplates(planTaskTemplates)) {
+        planTaskTemplates.push(template);
+        showApplicationAlert("模板删除失败，请检查浏览器存储空间后重试。");
+      }
+      renderPlanTaskTemplateManager();
+    });
+  }
+});
+planTaskTemplateForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (planTaskTemplateItems.length !== Number(document.querySelector("#planTaskTemplateQuantity").value)) {
+    showApplicationAlert("请先生成对应数量的子任务配置。");
+    return;
+  }
+  const customerId = document.querySelector("#planTaskTemplateCustomer").value;
+  const projectId = document.querySelector("#planTaskTemplateProject").value;
+  const account = routeAccountCatalog.find((item) => item.customerId === customerId && item.projectId === projectId);
+  if (!account) {
+    showApplicationAlert("请选择有效的客户和项目。");
+    return;
+  }
+  const id = editingPlanTaskTemplateId || (window.crypto?.randomUUID?.() || `PTT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const template = normalizePlanTaskTemplate({
+    id,
+    name: document.querySelector("#planTaskTemplateName").value,
+    taskType: document.querySelector("#planTaskTemplateTaskType").value,
+    customerId,
+    customerName: account.customerName,
+    projectId,
+    projectName: account.projectName,
+    routeId: document.querySelector("#planTaskTemplateRoute").value,
+    boxType: document.querySelector("#planTaskTemplateBoxType").value,
+    quantity: document.querySelector("#planTaskTemplateQuantity").value,
+    taskItems: planTaskTemplateItems,
+  });
+  const previousTemplates = planTaskTemplates;
+  planTaskTemplates = editingPlanTaskTemplateId
+    ? planTaskTemplates.map((item) => item.id === id ? template : item)
+    : [...planTaskTemplates, template];
+  if (!savePlanTaskTemplates(planTaskTemplates)) {
+    planTaskTemplates = previousTemplates;
+    showApplicationAlert("模板保存失败，请检查浏览器存储空间后重试。");
+    return;
+  }
+  closePlanTaskTemplateEditor();
+});
 document.querySelectorAll("[data-plan-mode]").forEach((button) => button.addEventListener("click", () => setPlanTaskMode(button.dataset.planMode)));
 document.querySelector("#planCustomerSelect")?.addEventListener("change", (event) => {
   refreshPlanTaskProjectOptions(event.target.value);
@@ -5123,6 +5992,10 @@ document.querySelector("#planTaskList")?.addEventListener("change", (event) => {
   if (!planTaskListItems[index]) return;
   if (event.target.matches("[data-plan-task-row-route]")) planTaskListItems[index].routeId = event.target.value;
   if (event.target.matches("[data-plan-task-row-box]")) planTaskListItems[index].boxType = event.target.value;
+  if (event.target.matches("[data-plan-task-box-no-1]")) planTaskListItems[index].boxNo1 = event.target.value.trim();
+  if (event.target.matches("[data-plan-task-seal-no-1]")) planTaskListItems[index].sealNo1 = event.target.value.trim();
+  if (event.target.matches("[data-plan-task-box-no-2]")) planTaskListItems[index].boxNo2 = event.target.value.trim();
+  if (event.target.matches("[data-plan-task-seal-no-2]")) planTaskListItems[index].sealNo2 = event.target.value.trim();
 });
 document.querySelector("#planTaskList")?.addEventListener("click", (event) => {
   const deleteButton = event.target.closest("[data-plan-task-delete]");
@@ -5148,7 +6021,7 @@ document.querySelector("#planTaskCsvFile").addEventListener("change", (event) =>
   reader.readAsText(file, "UTF-8");
 });
 document.querySelector("#downloadPlanTaskTemplateBtn").addEventListener("click", () => {
-  const csv = "执行时间,线路,柜型,客户名称,项目名称,任务类型,运单数量\n2026-09-28 08:00,XL-HM-BYD,40HQ,华贸,比亚迪,提空装货,3\n";
+  const csv = "执行时间,线路,柜型,客户名称,项目名称,任务类型,运单数量,箱号1,铅封号1,箱号2,铅封号2\n2026-09-28 08:00,,40HQ,华贸,比亚迪,提空装货,3,,,,\n";
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
   link.download = "计划任务导入模板.csv";
@@ -5162,24 +6035,39 @@ planTaskForm.addEventListener("submit", (event) => {
   if (planTaskForm.dataset.mode === "batch") {
     rows = parsePlanTaskCsv(formData.get("batchInput"));
   } else {
-    const quantity = Math.min(100, Math.max(1, Number(formData.get("quantity")) || 1));
-    if (planTaskListItems.length !== quantity) {
-      window.alert("请先点击“生成派单任务”生成任务清单");
+    const isEdit = planTaskForm.dataset.mode === "edit";
+    const quantity = isEdit ? planTaskListItems.length : Math.min(100, Math.max(1, Number(formData.get("quantity")) || 1));
+    if (!isEdit && planTaskListItems.length !== quantity) {
+      showApplicationAlert("请先点击“生成派单任务”生成任务清单");
       return;
     }
     const taskItems = planTaskListItems.length === quantity
-      ? planTaskListItems.map((item) => ({ routeId: item.routeId || formData.get("routeId"), boxType: item.boxType || formData.get("boxType") }))
+      ? planTaskListItems.map((item) => ({ routeId: item.routeId, boxType: item.boxType || formData.get("boxType"), boxNo1: item.boxNo1, sealNo1: item.sealNo1, boxNo2: item.boxNo2, sealNo2: item.sealNo2 }))
       : Array.from({ length: quantity }, () => ({ routeId: formData.get("routeId"), boxType: formData.get("boxType") }));
-    rows = [{ executionTime: formData.get("executionTime"), routeId: formData.get("routeId"), boxType: formData.get("boxType"), customerName: formData.get("customerName"), projectName: formData.get("projectName"), taskType: formData.get("taskType"), quantity, taskItems }];
+    const values = { executionTime: formData.get("executionTime"), routeId: formData.get("routeId"), projectId: formData.get("projectId"), customerId: formData.get("customerId"), boxType: formData.get("boxType"), customerName: formData.get("customerName"), projectName: formData.get("projectName"), taskType: formData.get("taskType"), quantity, taskItems };
+    if (isEdit) {
+      if (!updatePlanTaskRecords(editingPlanTaskId, values, taskItems)) {
+        showApplicationAlert("计划已无法编辑，请刷新后重试");
+        return;
+      }
+      const planTaskId = editingPlanTaskId;
+      closePlanTaskDialog();
+      renderRows(filterRows(new FormData(queryForm)));
+      renderDispatchPage(getFilteredDispatches());
+      renderDashboard();
+      renderPlanTaskDetailPage(planTaskId);
+      return;
+    }
+    rows = [{ ...values, taskItems }];
   }
   const result = createPlanTaskRecords(rows);
   if (!result.created.length) {
-    window.alert(result.errors.join("\n") || "请先填写计划任务信息");
+    showApplicationAlert(result.errors.join("\n") || "请先填写计划任务信息");
     return;
   }
   closePlanTaskDialog();
   refreshAfterPlanTaskCreate(result.created);
-  if (result.errors.length) window.alert(`已创建 ${result.created.length} 条任务，另有 ${result.errors.length} 行未导入：\n${result.errors.join("\n")}`);
+  if (result.errors.length) showApplicationAlert(`已创建 ${result.created.length} 条任务，另有 ${result.errors.length} 行未导入：\n${result.errors.join("\n")}`);
 });
 document.querySelector("#closePlanTaskBtn").addEventListener("click", closePlanTaskDialog);
 document.querySelector("#cancelPlanTaskBtn").addEventListener("click", closePlanTaskDialog);
@@ -5303,6 +6191,11 @@ queryForm.addEventListener("submit", (event) => {
 });
 
 tableBody.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-edit-plan]");
+  if (editButton) {
+    openEditPlanTaskDialog(editButton.dataset.editPlan);
+    return;
+  }
   const cancelButton = event.target.closest("[data-cancel-plan]");
   if (cancelButton) {
     requestCancelPlan(cancelButton.dataset.cancelPlan);
@@ -5310,6 +6203,17 @@ tableBody.addEventListener("click", (event) => {
   }
   const dispatchButton = event.target.closest("[data-view-plan-dispatch]");
   if (dispatchButton) openPlanDispatchDetail(dispatchButton.dataset.viewPlanDispatch);
+});
+
+planTaskDetailPageContent?.addEventListener("click", (event) => {
+  const templateButton = event.target.closest("[data-save-plan-template]");
+  if (templateButton) {
+    const group = getPlanTaskGroups(waybills).find((item) => item.id === templateButton.dataset.savePlanTemplate);
+    if (group) openPlanTaskTemplateEditor(null, group);
+    return;
+  }
+  const editButton = event.target.closest("[data-edit-plan]");
+  if (editButton) openEditPlanTaskDialog(editButton.dataset.editPlan);
 });
 
 planTaskDetailBackBtn?.addEventListener("click", () => switchPage("waybill"));
@@ -5420,15 +6324,19 @@ document.querySelector("#driverExpenseInvertPageBtn")?.addEventListener("click",
 });
 document.querySelector("#driverExpenseApproveSelectedBtn")?.addEventListener("click", () => {
   const ids = [...selectedDriverExpenseIds];
-  if (!ids.length || !window.confirm(`确认通过已选择的 ${ids.length} 条费用上报吗？`)) return;
-  const count = applyDriverExpenseReview(ids, "approved");
-  document.querySelector("#driverExpenseResultText").textContent = `已批量通过 ${count} 条费用上报`;
+  if (!ids.length) return;
+  askApplicationConfirm(`确认通过已选择的 ${ids.length} 条费用上报吗？`, { label: `通过 ${ids.length} 条费用`, danger: false }, () => {
+    const count = applyDriverExpenseReview(ids, "approved");
+    document.querySelector("#driverExpenseResultText").textContent = `已批量通过 ${count} 条费用上报`;
+  });
 });
 document.querySelector("#driverExpenseApproveAllBtn")?.addEventListener("click", () => {
   const ids = getFilteredDriverExpenseRows().filter((item) => item.status === "pending").map((item) => item.id);
-  if (!ids.length || !window.confirm(`确认通过当前筛选结果中的全部 ${ids.length} 条待审核费用吗？`)) return;
-  const count = applyDriverExpenseReview(ids, "approved");
-  document.querySelector("#driverExpenseResultText").textContent = `当前筛选结果已全部通过，共处理 ${count} 条`;
+  if (!ids.length) return;
+  askApplicationConfirm(`确认通过当前筛选结果中的全部 ${ids.length} 条待审核费用吗？`, { label: `通过全部 ${ids.length} 条`, danger: false }, () => {
+    const count = applyDriverExpenseReview(ids, "approved");
+    document.querySelector("#driverExpenseResultText").textContent = `当前筛选结果已全部通过，共处理 ${count} 条`;
+  });
 });
 driverExpenseBody?.addEventListener("change", (event) => {
   const checkbox = event.target.closest(".driver-expense-checkbox");
@@ -5442,9 +6350,10 @@ driverExpenseBody?.addEventListener("click", (event) => {
   if (!button) return;
   const id = button.dataset.driverExpenseId;
   if (button.dataset.driverExpenseAction === "approve") {
-    if (!window.confirm(`确认通过费用上报 ${id} 吗？`)) return;
-    const count = applyDriverExpenseReview([id], "approved");
-    document.querySelector("#driverExpenseResultText").textContent = `已通过 ${count} 条费用上报`;
+    askApplicationConfirm(`确认通过费用上报 ${id} 吗？`, { label: "确认通过", danger: false }, () => {
+      const count = applyDriverExpenseReview([id], "approved");
+      document.querySelector("#driverExpenseResultText").textContent = `已通过 ${count} 条费用上报`;
+    });
     return;
   }
   openDriverExpenseReview(id, button.dataset.driverExpenseAction);
@@ -5544,6 +6453,28 @@ document.querySelector("#addVehicleBtn").addEventListener("click", () => {
   openVehicleForm("create");
 });
 
+document.querySelector("#addVehicleRepairBtn")?.addEventListener("click", () => openVehicleRepairDialog());
+document.querySelector("#closeVehicleRepairBtn")?.addEventListener("click", () => document.querySelector("#vehicleRepairDialog")?.close());
+document.querySelector("#cancelVehicleRepairBtn")?.addEventListener("click", () => document.querySelector("#vehicleRepairDialog")?.close());
+vehicleRepairForm?.addEventListener("submit", submitVehicleRepairForm);
+vehicleRepairQueryForm?.addEventListener("submit", (event) => { event.preventDefault(); renderVehicleRepairPage(); });
+vehicleRepairQueryForm?.addEventListener("reset", () => setTimeout(renderVehicleRepairPage));
+document.querySelector("#exportVehicleRepairsBtn")?.addEventListener("click", exportVehicleRepairReport);
+document.querySelector("#vehicleRepairPage")?.addEventListener("click", (event) => {
+  const evidence = event.target.closest("[data-repair-evidence]");
+  if (evidence) {
+    window.DispatchStore.getPhoto(evidence.dataset.repairEvidence).then((blob) => {
+      if (!blob) { showApplicationAlert("凭证文件不存在。"); return; }
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }).catch(() => showApplicationAlert("凭证读取失败。"));
+    return;
+  }
+  const edit = event.target.closest("[data-edit-repair]");
+  if (edit) openVehicleRepairDialog("", edit.dataset.editRepair);
+});
+
 document.querySelector("#closeVehicleFormBtn").addEventListener("click", () => {
   closeVehicleForm();
 });
@@ -5556,6 +6487,7 @@ vehicleForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const data = getVehicleFormData();
   const existingVehicle = vehicles.find((item) => item.plateNo === editingVehiclePlate);
+  if (existingVehicle && window.VehicleRepair.hasOpenRepair(vehicleRepairRecords, existingVehicle.plateNo)) data.vehicleState = "维修中";
   const duplicateVehicle = vehicles.find((item) => item.plateNo === data.plateNo && item !== existingVehicle);
 
   if (duplicateVehicle) {
@@ -5593,6 +6525,14 @@ document.querySelector("#vehicleBody").addEventListener("click", (event) => {
   const detailButton = event.target.closest("[data-detail-plate]");
   const editButton = event.target.closest("[data-edit-plate]");
   const deleteButton = event.target.closest("[data-delete-plate]");
+  const repairButton = event.target.closest("[data-repair-plate]");
+  const viewRepairButton = event.target.closest("[data-view-vehicle-repair]");
+  if (repairButton) openVehicleRepairDialog(repairButton.dataset.repairPlate);
+  if (viewRepairButton) {
+    switchPage("vehicle-repairs");
+    vehicleRepairQueryForm.elements.plateNo.value = viewRepairButton.dataset.viewVehicleRepair;
+    renderVehicleRepairPage();
+  }
   if (detailButton) openVehicleDetail(detailButton.dataset.detailPlate);
   if (editButton) openVehicleForm("edit", editButton.dataset.editPlate);
   if (deleteButton) requestDeleteVehicle(deleteButton.dataset.deletePlate);
@@ -5716,7 +6656,7 @@ document.querySelector("#messageAlertBtn").addEventListener("click", () => {
     .filter((item) => item.dueInfo.key !== "normal")
     .map((item) => `${item.vehicle.plateNo}：${item.dueInfo.label}`);
 
-  window.alert(`车辆到期提醒\n${pending.join("\n") || "暂无待提醒车辆"}`);
+  showApplicationAlert(`车辆到期提醒\n${pending.join("\n") || "暂无待提醒车辆"}`);
 });
 
 trailerQueryForm.addEventListener("submit", (event) => {
@@ -5884,11 +6824,11 @@ driverPageJump.addEventListener("change", () => {
 driverMoreBtn.addEventListener("click", () => driverMoreMenu.classList.toggle("open"));
 document.querySelector("#exportDriverBtn").addEventListener("click", () => {
   driverMoreMenu.classList.remove("open");
-  window.alert(`已准备导出 ${getFilteredDrivers().length} 条司机档案。`);
+  showApplicationAlert(`已准备导出 ${getFilteredDrivers().length} 条司机档案。`);
 });
 document.querySelector("#batchDriverStatusBtn").addEventListener("click", () => {
   driverMoreMenu.classList.remove("open");
-  window.alert(selectedDriverIds.size ? `已选择 ${selectedDriverIds.size} 名司机。` : "请先勾选司机档案。");
+  showApplicationAlert(selectedDriverIds.size ? `已选择 ${selectedDriverIds.size} 名司机。` : "请先勾选司机档案。");
 });
 
 document.querySelector("#cancelDeleteDriverBtn").addEventListener("click", closeDeleteDriverDialog);
@@ -6056,11 +6996,11 @@ routePageJump.addEventListener("change", () => {
 routeMoreBtn.addEventListener("click", () => routeMoreMenu.classList.toggle("open"));
 document.querySelector("#exportRouteBtn").addEventListener("click", () => {
   routeMoreMenu.classList.remove("open");
-  window.alert(`已准备导出 ${getFilteredRoutes().length} 条固定线路。`);
+  showApplicationAlert(`已准备导出 ${getFilteredRoutes().length} 条固定线路。`);
 });
 document.querySelector("#batchRouteStateBtn").addEventListener("click", () => {
   routeMoreMenu.classList.remove("open");
-  window.alert(selectedRouteIds.size ? `已选择 ${selectedRouteIds.size} 条线路。` : "请先勾选线路档案。");
+  showApplicationAlert(selectedRouteIds.size ? `已选择 ${selectedRouteIds.size} 条线路。` : "请先勾选线路档案。");
 });
 
 document.querySelector("#cancelDeleteRouteBtn").addEventListener("click", closeDeleteRouteDialog);
@@ -6178,7 +7118,11 @@ dispatchForm.addEventListener("submit", (event) => {
       return route && route.mileage !== "" && Number.isFinite(mileage) && mileage >= 0 ? mileage : null;
     })();
   const driverIsAvailable = driver && (editingDispatch?.driverId === driver.id || availableOwnDrivers().some((item) => item.id === driver.id));
-  const vehicleIsAvailable = vehicle && (editingDispatch?.vehicleId === vehicle.plateNo || !vehicle.vehicleState || vehicle.vehicleState === "在用");
+  const vehicleIsAvailable = vehicle && (!vehicle.vehicleState || vehicle.vehicleState === "在用");
+  if (vehicle && vehicle.vehicleState === "维修中") {
+    showApplicationAlert(`车辆 ${vehicle.plateNo} 维修中，暂不可派单，请选择其他车辆。`);
+    return;
+  }
   if (!waybill || !driver || !vehicle || !route || !driverIsAvailable || !vehicleIsAvailable) return;
   const dispatchTime = window.DispatchStore.nowText();
 
@@ -6199,14 +7143,33 @@ dispatchForm.addEventListener("submit", (event) => {
     editingDispatch.planTaskId = waybill.planTaskId || editingDispatch.planTaskId;
     editingDispatch.planTaskNo = waybill.planTaskNo || waybill.planTaskId || editingDispatch.planTaskNo;
     editingDispatch.taskType = waybill.taskType || editingDispatch.taskType || "提空装货";
+    if (wasPendingDispatch || !Array.isArray(editingDispatch.photoRequirements)) {
+      editingDispatch.photoRequirements = window.PhotoRequirementConfig?.forTaskType?.(window.DispatchTaskNodes?.resolve?.(editingDispatch.taskType) || editingDispatch.taskType) || [];
+    }
     editingDispatch.projectId = project?.projectId || waybill.projectId || "";
     editingDispatch.projectName = project?.projectName || waybill.projectName || "未分配项目";
     editingDispatch.routeId = route.id;
     editingDispatch.routeName = route.routeName;
-    editingDispatch.origin = route.origin || waybill.loadAddress || "-";
-    editingDispatch.destination = route.destination || "-";
-    editingDispatch.loadAddress = waybill.loadAddress || route.loadingPoint || route.origin || "";
+    editingDispatch.origin = route.pickupPoint || route.origin || waybill.loadAddress || "-";
+    editingDispatch.destination = route.unloadingPoint || route.loadingPoint || route.destination || "-";
+    editingDispatch.loadAddress = route.dropoffPoint || waybill.returnPoint || route.destination || "";
     editingDispatch.boxes = formatWaybillBoxes(waybill);
+    const dispatchBoxValue = (name, fallback = "") => dispatchForm.elements[name]?.value?.trim() || fallback;
+    editingDispatch.boxType = dispatchBoxValue("boxType", waybill.boxType || "40HQ");
+    editingDispatch.boxNo1 = dispatchBoxValue("boxNo1", waybill.boxNo1 || "-") || "-";
+    editingDispatch.sealNo1 = dispatchBoxValue("sealNo1", waybill.sealNo1 || "-") || "-";
+    editingDispatch.boxNo2 = dispatchBoxValue("boxNo2", waybill.boxNo2 || "-") || "-";
+    editingDispatch.sealNo2 = dispatchBoxValue("sealNo2", waybill.sealNo2 || "-") || "-";
+    waybill.boxType = editingDispatch.boxType;
+    waybill.boxNo1 = editingDispatch.boxNo1;
+    waybill.sealNo1 = editingDispatch.sealNo1;
+    waybill.boxNo2 = editingDispatch.boxNo2;
+    waybill.sealNo2 = editingDispatch.sealNo2;
+    waybill.containers = [
+      { boxNo: editingDispatch.boxNo1, sealNo: editingDispatch.sealNo1, boxType: editingDispatch.boxType, pickupPoint: waybill.pickupPoint1, returnPoint: waybill.returnPoint },
+      ...(editingDispatch.boxNo2 !== "-" || editingDispatch.sealNo2 !== "-" ? [{ boxNo: editingDispatch.boxNo2, sealNo: editingDispatch.sealNo2, boxType: editingDispatch.boxType, pickupPoint: waybill.pickupPoint2, returnPoint: waybill.returnPoint }] : []),
+    ];
+    editingDispatch.boxes = formatWaybillBoxes({ ...waybill, boxType: editingDispatch.boxType, boxNo1: editingDispatch.boxNo1, sealNo1: editingDispatch.sealNo1, boxNo2: editingDispatch.boxNo2, sealNo2: editingDispatch.sealNo2 });
     editingDispatch.estimatedRevenue = Number(route.estimatedRevenue) || 0;
     editingDispatch.commission = calculateRouteCommission(route);
     editingDispatch.vehicleType = dispatchVehicleType;
@@ -6215,6 +7178,9 @@ dispatchForm.addEventListener("submit", (event) => {
     editingDispatch.driverName = driver.name;
     editingDispatch.phone = driver.phone;
     editingDispatch.vehicleId = vehicle.plateNo;
+    editingDispatch.consignee = readField("consignee").trim();
+    editingDispatch.arrivalTime = readField("arrivalTime").trim();
+    editingDispatch.arrivalLocation = readField("arrivalLocation").trim();
     editingDispatch.note = readField("note").trim();
     editingDispatch.pushed = true;
     editingDispatch.timeline = Array.isArray(editingDispatch.timeline) ? editingDispatch.timeline : [];
@@ -6256,14 +7222,15 @@ dispatchForm.addEventListener("submit", (event) => {
     planTaskId: waybill.planTaskId,
     planTaskNo: waybill.planTaskNo || waybill.planTaskId || waybill.waybillNo,
     taskType: waybill.taskType || "提空装货",
+    photoRequirements: window.PhotoRequirementConfig?.forTaskType?.(window.DispatchTaskNodes?.resolve?.(waybill.taskType || "提空装货") || waybill.taskType || "提空装货") || [],
     projectId: project?.projectId || waybill.projectId || route.projectId || "",
     projectName: project?.projectName || waybill.projectName || route.projectName || "未分配项目",
     orderDate: waybill.orderDate,
     routeId: route.id,
     routeName: route.routeName,
-    origin: route.origin,
-    destination: route.destination,
-    loadAddress: waybill.loadAddress || route.loadingPoint || route.origin,
+    origin: route.pickupPoint || route.origin,
+    destination: route.unloadingPoint || route.loadingPoint || route.destination,
+    loadAddress: route.dropoffPoint || waybill.returnPoint || route.destination,
     dispatchTime,
     driverId: driver.id,
     driverName: driver.name,
@@ -6274,8 +7241,16 @@ dispatchForm.addEventListener("submit", (event) => {
     status: "已派单",
     currentNode: "待提货",
     boxes: formatWaybillBoxes(waybill),
+    boxType: readField("boxType", waybill.boxType || "40HQ").trim(),
+    boxNo1: readField("boxNo1", waybill.boxNo1 || "-").trim() || "-",
+    sealNo1: readField("sealNo1", waybill.sealNo1 || "-").trim() || "-",
+    boxNo2: readField("boxNo2", waybill.boxNo2 || "-").trim() || "-",
+    sealNo2: readField("sealNo2", waybill.sealNo2 || "-").trim() || "-",
     estimatedRevenue: route.estimatedRevenue,
     commission: calculateRouteCommission(route),
+    consignee: readField("consignee").trim(),
+    arrivalTime: readField("arrivalTime").trim(),
+    arrivalLocation: readField("arrivalLocation").trim(),
     note: readField("note").trim(),
     routeMileageSnapshot,
     pushed: true,
@@ -6393,11 +7368,11 @@ capacityBody.addEventListener("click", (event) => {
 dispatchMoreBtn.addEventListener("click", () => dispatchMoreMenu.classList.toggle("open"));
 document.querySelector("#exportDispatchBtn").addEventListener("click", () => {
   dispatchMoreMenu.classList.remove("open");
-  window.alert(`已准备导出 ${getFilteredDispatches().length} 条派单台账。`);
+  showApplicationAlert(`已准备导出 ${getFilteredDispatches().length} 条派单台账。`);
 });
 document.querySelector("#batchDispatchStatusBtn").addEventListener("click", () => {
   dispatchMoreMenu.classList.remove("open");
-  window.alert(selectedDispatchIds.size ? `已选择 ${selectedDispatchIds.size} 条派单。` : "请先勾选派单记录。");
+  showApplicationAlert(selectedDispatchIds.size ? `已选择 ${selectedDispatchIds.size} 条派单。` : "请先勾选派单记录。");
 });
 
 document.querySelector("#closeDispatchDetailBtn").addEventListener("click", () => {
@@ -6452,6 +7427,11 @@ window.addEventListener("storage", (event) => {
       if (Array.isArray(snapshot.dispatches)) { dispatches.splice(0, dispatches.length, ...snapshot.dispatches); }
       if (Array.isArray(snapshot.fixedRoutes)) { fixedRoutes.splice(0, fixedRoutes.length, ...snapshot.fixedRoutes); }
       if (Array.isArray(snapshot.vehicles)) { vehicles.splice(0, vehicles.length, ...snapshot.vehicles); }
+      if (Array.isArray(snapshot.vehicleRepairs)) vehicleRepairRecords = snapshot.vehicleRepairs.map(window.VehicleRepair.normalizeRecord);
+      vehicleRepairRecords.filter((record) => window.VehicleRepair.OPEN_STATUSES.has(record.status)).forEach((record) => {
+        const vehicle = vehicles.find((item) => item.plateNo === record.plateNo);
+        if (vehicle) vehicle.vehicleState = "维修中";
+      });
       if (Array.isArray(snapshot.trailers)) { trailers.splice(0, trailers.length, ...snapshot.trailers); }
       if (Array.isArray(snapshot.drivers)) {
         const defaultsById = new Map(drivers.map((driver) => [driver.id, driver]));
@@ -6470,9 +7450,23 @@ window.addEventListener("storage", (event) => {
       if (activePageName === "dispatch-detail") renderDispatchDetailPage(currentDispatchDetailId);
       renderCapacityPage(getFilteredCapacityRecords());
       renderDriverExpensePage();
+      renderVehicleRepairPage();
       renderDashboard();
+      publishAdminDataSnapshot();
     }
     return;
+  }
+  if (event.key === window.VehicleRepair?.STORAGE_KEY) {
+    vehicleRepairRecords = window.VehicleRepair.load();
+    vehicleRepairRecords.filter((record) => window.VehicleRepair.OPEN_STATUSES.has(record.status)).forEach((record) => {
+      const vehicle = vehicles.find((item) => item.plateNo === record.plateNo);
+      if (vehicle) vehicle.vehicleState = "维修中";
+    });
+    renderVehicleRepairPage();
+    renderVehiclePage(getFilteredVehicles(), getWarningDays());
+    renderCapacityPage(getFilteredCapacityRecords());
+    window.DispatchManagement?.render();
+    window.AutoDispatchManager?.refresh();
   }
   if (event.key === DRIVER_CERTIFICATION_STORAGE_KEY) {
     loadDriverCertifications();
@@ -6507,7 +7501,20 @@ window.addEventListener("message", (event) => {
   const message = event.data;
   if (!message || typeof message !== "object") return;
   if (message.type === "dispatch-sync-request") {
-    event.source?.postMessage({ type: "dispatch-sync-data", dispatches }, "*");
+    driverExpenseClientWindow = event.source || driverExpenseClientWindow;
+    if (Array.isArray(message.expenses)) {
+      mergeDriverExpenseRecords(message.expenses);
+      saveDriverExpenseRecords();
+      renderDriverExpensePage();
+    }
+    event.source?.postMessage({ type: "dispatch-sync-data", dispatches, expenses: driverExpenseRecords }, "*");
+  }
+  if (message.type === "driver-expense-update" && Array.isArray(message.expenses)) {
+    driverExpenseClientWindow = event.source || driverExpenseClientWindow;
+    mergeDriverExpenseRecords(message.expenses);
+    saveDriverExpenseRecords();
+    renderDriverExpensePage();
+    event.source?.postMessage({ type: "driver-expense-sync-data", expenses: driverExpenseRecords }, "*");
   }
   if (message.type === "dispatch-update" && Array.isArray(message.dispatches)) {
     window.DispatchStore.replace(dispatches, message.dispatches);
@@ -6518,7 +7525,7 @@ window.addEventListener("message", (event) => {
     renderDriverPage(getFilteredDrivers());
     renderDashboard();
     window.AutoDispatchManager?.refresh();
-    event.source?.postMessage({ type: "dispatch-sync-data", dispatches }, "*");
+    event.source?.postMessage({ type: "dispatch-sync-data", dispatches, expenses: driverExpenseRecords }, "*");
   }
 });
 
@@ -6560,7 +7567,7 @@ if (reminderTemplateQueryForm && reminderTemplateForm && reminderTemplateDialog 
     const recipients = [...reminderTemplateForm.querySelectorAll("input[name='recipients']:checked")].map((input) => input.value);
     const channels = [...reminderTemplateForm.querySelectorAll("input[name='channels']:checked")].map((input) => input.value);
     if (!recipients.length || !channels.length) {
-      window.alert("请至少选择一名接收对象和一种消息渠道。");
+      showApplicationAlert("请至少选择一名接收对象和一种消息渠道。");
       return;
     }
     const existing = reminderTemplates.find((item) => item.id === reminderTemplateEditingId);
@@ -6609,6 +7616,171 @@ if (reminderTemplateQueryForm && reminderTemplateForm && reminderTemplateDialog 
     reminderTemplateForm.dataset.preview = "false";
     reminderTemplateForm.querySelectorAll("input, select, textarea").forEach((input) => { input.disabled = false; });
     reminderTemplateForm.querySelector("button[type='submit']").textContent = "保存模板";
+  });
+}
+
+const announcementQueryForm = document.querySelector("#announcementQueryForm");
+const announcementForm = document.querySelector("#announcementForm");
+const announcementDialog = document.querySelector("#announcementDialog");
+const announcementBody = document.querySelector("#announcementBody");
+if (announcementQueryForm && announcementForm && announcementDialog && announcementBody) {
+  announcementQueryForm.addEventListener("submit", (event) => { event.preventDefault(); announcementCurrentPage = 1; renderAnnouncementPage(getAnnouncementFiltered()); });
+  document.querySelector("#announcementClearBtn").addEventListener("click", () => { announcementQueryForm.reset(); announcementCurrentPage = 1; renderAnnouncementPage(getAnnouncementFiltered()); });
+  document.querySelector("#addAnnouncementBtn").addEventListener("click", () => openAnnouncementDialog());
+  document.querySelector("#closeAnnouncementBtn").addEventListener("click", closeAnnouncementDialog);
+  document.querySelector("#cancelAnnouncementBtn").addEventListener("click", closeAnnouncementDialog);
+  announcementForm.addEventListener("input", () => {
+    document.querySelector("#announcementPreviewTitle").textContent = announcementForm.elements.title.value.trim() || "公告标题";
+    document.querySelector("#announcementPreviewContent").textContent = announcementForm.elements.content.value.trim() || "公告内容将在这里显示。";
+  });
+  announcementForm.querySelectorAll("input[name='scope']").forEach((input) => input.addEventListener("change", () => setAnnouncementScope(input.value)));
+  document.querySelector("#announcementDriverType").addEventListener("change", renderAnnouncementDriverPicker);
+  document.querySelector("#announcementDriverList").addEventListener("change", (event) => {
+    const input = event.target.closest("input[data-announcement-driver]");
+    if (!input) return;
+    if (input.checked) announcementSelectedDriverIds.add(input.dataset.announcementDriver);
+    else announcementSelectedDriverIds.delete(input.dataset.announcementDriver);
+    document.querySelector("#announcementSelectedDriverText").textContent = `已选 ${announcementSelectedDriverIds.size} 名司机`;
+  });
+  document.querySelector("#announcementSelectVisibleDrivers").addEventListener("click", () => {
+    getAnnouncementVisibleDrivers().forEach((driver) => announcementSelectedDriverIds.add(driver.id));
+    renderAnnouncementDriverPicker();
+  });
+  announcementForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const formData = new FormData(announcementForm);
+    const scope = String(formData.get("scope") || "all");
+    const targetDriverIds = scope === "all" ? drivers.map((driver) => driver.id) : [...announcementSelectedDriverIds];
+    if (scope === "partial" && !targetDriverIds.length) { showApplicationAlert("请选择至少一名接收公告的司机。"); return; }
+    const title = String(formData.get("title") || "").trim();
+    const content = String(formData.get("content") || "").trim();
+    if (!title || !content) { showApplicationAlert("请填写公告标题和消息内容。"); return; }
+    const now = new Date();
+    const publishedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const attachment = window.AttachmentPicker?.getValue(announcementForm.elements.attachment) || "";
+    announcements.unshift({ id: `AN-${String(Date.now()).slice(-6)}`, title, type: String(formData.get("type") || "其他"), content, scope: scope === "all" ? "全部司机" : `部分司机 · ${targetDriverIds.length} 人`, targetDriverIds, attachment, status: "已发布", publishedAt, published: true });
+    saveAnnouncements();
+    closeAnnouncementDialog();
+    announcementCurrentPage = 1;
+    renderAnnouncementPage(getAnnouncementFiltered());
+    showApplicationAlert(`公告已发布，已向 ${scope === "all" ? `全部 ${targetDriverIds.length}` : targetDriverIds.length} 名司机发送消息。`);
+  });
+  announcementBody.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-announcement-action='preview']");
+    if (button) openAnnouncementDialog(button.dataset.announcementId);
+  });
+  document.querySelector("#announcementPageSize").addEventListener("change", () => { announcementCurrentPage = 1; renderAnnouncementPage(getAnnouncementFiltered()); });
+  document.querySelector("#announcementPrevPage").addEventListener("click", () => { announcementCurrentPage -= 1; renderAnnouncementPage(getAnnouncementFiltered()); });
+  document.querySelector("#announcementNextPage").addEventListener("click", () => { announcementCurrentPage += 1; renderAnnouncementPage(getAnnouncementFiltered()); });
+  document.querySelector("#announcementPageJump").addEventListener("change", () => { announcementCurrentPage = Number(document.querySelector("#announcementPageJump").value) || 1; renderAnnouncementPage(getAnnouncementFiltered()); });
+  announcementDialog.addEventListener("close", () => {
+    announcementForm.querySelectorAll("input, select, textarea").forEach((input) => { input.disabled = false; });
+    announcementForm.querySelector("button[type='submit']").hidden = false;
+    announcementForm.reset();
+  });
+}
+
+let photoRequirementConfig = window.PhotoRequirementConfig.load();
+let selectedPhotoRequirementTaskType = Object.keys(window.DispatchTaskNodes.sequences)[0];
+let editingPhotoRequirementId = "";
+let deletingPhotoRequirementId = "";
+
+function renderPhotoRequirementConfigPage() {
+  const tabs = document.querySelector("#photoRequirementTaskTypes");
+  const body = document.querySelector("#photoRequirementBody");
+  if (!tabs || !body) return;
+  const taskTypes = Object.keys(window.DispatchTaskNodes.sequences);
+  if (!taskTypes.includes(selectedPhotoRequirementTaskType)) selectedPhotoRequirementTaskType = taskTypes[0];
+  tabs.innerHTML = taskTypes.map((taskType) => `<button class="photo-requirement-tab ${taskType === selectedPhotoRequirementTaskType ? "active" : ""}" aria-pressed="${taskType === selectedPhotoRequirementTaskType}" type="button" data-photo-task-type="${dashboardEscape(taskType)}">${dashboardEscape(taskType)}</button>`).join("");
+  const requirements = photoRequirementConfig[selectedPhotoRequirementTaskType] || [];
+  const total = requirements.reduce((sum, requirement) => sum + Number(requirement.quantity || 0), 0);
+  document.querySelector("#photoRequirementListTitle").textContent = `${selectedPhotoRequirementTaskType}拍照要求`;
+  document.querySelector("#photoRequirementSummary").textContent = `${requirements.length} 项 · 共需 ${total} 张`;
+  body.innerHTML = requirements.length ? requirements.map((requirement) => `<tr>
+    <td><strong class="photo-requirement-name">${dashboardEscape(requirement.name)}</strong></td>
+    <td><span class="photo-requirement-description">${dashboardEscape(requirement.description)}</span></td>
+    <td><span class="photo-requirement-quantity">${Number(requirement.quantity)} 张</span></td>
+    <td class="fixed-action-column"><div class="table-actions"><button class="link-btn" data-photo-requirement-action="edit" data-photo-requirement-id="${dashboardEscape(requirement.id)}" type="button">编辑</button><button class="link-btn danger-link" data-photo-requirement-action="delete" data-photo-requirement-id="${dashboardEscape(requirement.id)}" type="button">删除</button></div></td>
+  </tr>`).join("") : `<tr><td class="photo-requirement-empty" colspan="4"><strong>该任务类型暂无拍照要求</strong><span>新增后，后续派出的运单将同步此要求。</span></td></tr>`;
+  window.lucide?.createIcons();
+}
+
+function openPhotoRequirementDialog(requirementId = "") {
+  const form = document.querySelector("#photoRequirementForm");
+  const requirement = (photoRequirementConfig[selectedPhotoRequirementTaskType] || []).find((item) => item.id === requirementId);
+  editingPhotoRequirementId = requirement?.id || "";
+  form.reset();
+  form.elements.name.value = requirement?.name || "";
+  form.elements.description.value = requirement?.description || "";
+  form.elements.quantity.value = String(requirement?.quantity || 1);
+  document.querySelector("#photoRequirementFormTitle").textContent = requirement ? "编辑拍照要求" : "新增拍照要求";
+  document.querySelector("#photoRequirementFormTaskType").textContent = selectedPhotoRequirementTaskType;
+  document.querySelector("#photoRequirementDialog").showModal();
+  window.lucide?.createIcons();
+}
+
+function closePhotoRequirementDialog() {
+  const dialog = document.querySelector("#photoRequirementDialog");
+  if (dialog.open) dialog.close();
+  editingPhotoRequirementId = "";
+}
+
+const photoRequirementTaskTypes = document.querySelector("#photoRequirementTaskTypes");
+const photoRequirementBody = document.querySelector("#photoRequirementBody");
+const photoRequirementDialog = document.querySelector("#photoRequirementDialog");
+const photoRequirementForm = document.querySelector("#photoRequirementForm");
+const deletePhotoRequirementDialog = document.querySelector("#deletePhotoRequirementDialog");
+if (photoRequirementTaskTypes && photoRequirementBody && photoRequirementDialog && photoRequirementForm) {
+  photoRequirementTaskTypes.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-photo-task-type]");
+    if (!button) return;
+    selectedPhotoRequirementTaskType = button.dataset.photoTaskType;
+    renderPhotoRequirementConfigPage();
+  });
+  document.querySelector("#addPhotoRequirementBtn").addEventListener("click", () => openPhotoRequirementDialog());
+  document.querySelector("#closePhotoRequirementBtn").addEventListener("click", closePhotoRequirementDialog);
+  document.querySelector("#cancelPhotoRequirementBtn").addEventListener("click", closePhotoRequirementDialog);
+  photoRequirementDialog.addEventListener("cancel", (event) => { event.preventDefault(); closePhotoRequirementDialog(); });
+  photoRequirementForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const formData = new FormData(photoRequirementForm);
+    const name = String(formData.get("name") || "").trim();
+    const description = String(formData.get("description") || "").trim();
+    const quantity = Number(formData.get("quantity"));
+    if (!name || !description || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) return;
+    const requirements = photoRequirementConfig[selectedPhotoRequirementTaskType] || (photoRequirementConfig[selectedPhotoRequirementTaskType] = []);
+    const existing = requirements.find((item) => item.id === editingPhotoRequirementId);
+    const requirement = { id: existing?.id || `PR-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, description, quantity };
+    if (existing) Object.assign(existing, requirement); else requirements.push(requirement);
+    photoRequirementConfig = window.PhotoRequirementConfig.save(photoRequirementConfig);
+    closePhotoRequirementDialog();
+    renderPhotoRequirementConfigPage();
+  });
+  photoRequirementBody.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-photo-requirement-action]");
+    if (!button) return;
+    const requirement = (photoRequirementConfig[selectedPhotoRequirementTaskType] || []).find((item) => item.id === button.dataset.photoRequirementId);
+    if (!requirement) return;
+    if (button.dataset.photoRequirementAction === "edit") { openPhotoRequirementDialog(requirement.id); return; }
+    deletingPhotoRequirementId = requirement.id;
+    document.querySelector("#deletePhotoRequirementText").textContent = `确认删除“${requirement.name}”吗？已派运单保留派单时的要求。`;
+    deletePhotoRequirementDialog.showModal();
+  });
+  document.querySelector("#cancelDeletePhotoRequirementBtn").addEventListener("click", () => { deletePhotoRequirementDialog.close(); deletingPhotoRequirementId = ""; });
+  deletePhotoRequirementDialog.addEventListener("cancel", (event) => { event.preventDefault(); deletePhotoRequirementDialog.close(); deletingPhotoRequirementId = ""; });
+  document.querySelector("#confirmDeletePhotoRequirementBtn").addEventListener("click", () => {
+    if (deletingPhotoRequirementId) {
+      photoRequirementConfig[selectedPhotoRequirementTaskType] = (photoRequirementConfig[selectedPhotoRequirementTaskType] || []).filter((item) => item.id !== deletingPhotoRequirementId);
+      photoRequirementConfig = window.PhotoRequirementConfig.save(photoRequirementConfig);
+      renderPhotoRequirementConfigPage();
+    }
+    deletePhotoRequirementDialog.close();
+    deletingPhotoRequirementId = "";
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key !== window.PhotoRequirementConfig.STORAGE_KEY) return;
+    photoRequirementConfig = window.PhotoRequirementConfig.load();
+    renderPhotoRequirementConfigPage();
   });
 }
 

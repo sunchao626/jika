@@ -6,6 +6,7 @@ const path = require("node:path");
 const root = __dirname;
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const script = fs.readFileSync(path.join(root, "auto-dispatch.js"), "utf8");
+const sharedRules = fs.readFileSync(path.join(root, "dispatch-rules.js"), "utf8");
 
 test("自动派单规则说明包含过滤、打分和兜底规则", () => {
   assert.match(html, /查看规则说明/);
@@ -36,4 +37,8 @@ test("自动派单规则配置覆盖全部硬规则和软规则", () => {
   }
   assert.match(script, /collectRuleControls/);
   assert.match(script, /ruleConfig/);
+  assert.match(html, /dispatch-rules\.js[\s\S]*app\.js/);
+  assert.match(script, /DispatchRuleRegistry\?\.scoreMatch/);
+  assert.match(sharedRules, /线路专属车辆/);
+  assert.match(sharedRules, /司机熟悉线路/);
 });

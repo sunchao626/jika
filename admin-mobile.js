@@ -30,7 +30,7 @@ const moduleCatalog = {
     ],
   },
   "dispatch-management": {
-    title: "派单管理", eyebrow: "计划与派单", icon: "list-checks", primary: "进入调度工作台",
+    title: "任务派单", eyebrow: "计划与派单", icon: "list-checks", primary: "进入调度工作台",
     filters: ["全部", "待匹配", "已匹配", "异常"], listFieldLimit: 6,
     items: [],
   },
@@ -84,7 +84,7 @@ const moduleCatalog = {
     ],
   },
   plan: {
-    title: "计划管理", eyebrow: "计划与派单", icon: "clipboard-list", primary: "新建计划任务",
+    title: "计划与任务", eyebrow: "计划与派单", icon: "clipboard-list", primary: "新建计划任务",
     filters: ["全部", "待派发", "进行中", "已完成", "异常"], listFieldLimit: 6, items: [],
   },
   capacity: {
@@ -113,8 +113,8 @@ const mobileFormDefinitions = {
         { name: "routeName", label: "线路名称", required: true, full: true, placeholder: "请输入线路名称" },
         { name: "customerId", label: "客户", type: "select", required: true, options: [] },
         { name: "projectId", label: "项目", type: "select", required: true, options: [] },
-        { name: "origin", label: "起运地", required: true, placeholder: "请输入起运地" },
-        { name: "destination", label: "目的地", required: true, placeholder: "请输入目的地" },
+        { name: "origin", label: "提箱地", required: true, placeholder: "请输入提箱地" },
+        { name: "destination", label: "装卸地", required: true, placeholder: "请输入装卸地" },
         { name: "pickupPoint", label: "提箱点", required: true, placeholder: "请输入提箱点" },
         { name: "loadingPoint", label: "装货地", required: true, placeholder: "请输入装货地" },
         { name: "unloadingPoint", label: "卸货地", required: true, placeholder: "请输入卸货地" },
@@ -261,7 +261,22 @@ const mobileFormDefinitions = {
 };
 
 const state = { currentView: "workbench", currentModule: "", moduleFilter: "全部", messageFilter: "all", search: "", detailItem: null, entryModule: "", entryEditId: "", entryOriginalId: "", entryOriginalRaw: null };
+const reportPlanRecords = [
+  { customerId: "KH-HM", customerName: "华贸", projectId: "PR-HM-BYD", projectName: "比亚迪", routeId: "XL-001", planned: 2, completed: 0, monthAmount: 78650, totalAmount: 962400 },
+  { customerId: "KH-LG", customerName: "陆港多联", projectId: "PR-LG-TH", projectName: "提箱装货", routeId: "XL-002", planned: 1, completed: 0, monthAmount: 96480, totalAmount: 1285600 },
+  { customerId: "KH-ZT", customerName: "中铁联集项目", projectId: "PR-ZT-X387", projectName: "X387", routeId: "XL-003", planned: 1, completed: 1, monthAmount: 61200, totalAmount: 884700 },
+  { customerId: "KH-ZT", customerName: "中铁联集项目", projectId: "PR-ZT-X8588", projectName: "X8588", routeId: "XL-004", planned: 1, completed: 0, monthAmount: 50160, totalAmount: 710000 },
+];
+const reportRanges = { yesterday: { label: "昨日", days: 1, endOffset: -1 }, today: { label: "今日", days: 1, endOffset: 0 }, last7: { label: "近7天", days: 7, endOffset: 0 }, month: { label: "近一月", days: 30, endOffset: 0 } };
+const reportNodeSequences = {
+  "提空装货": ["已提空", "空箱在途", "到达仓库", "完成装货", "重箱在途", "重箱进站", "完成落重"],
+  "提重送货": ["已提重", "重箱在途", "到达仓库", "完成卸货", "空箱在途", "空箱进站", "完成落空"],
+  "排空箱（A→B）": ["已提空", "空箱在途", "完成落空"],
+  "排重箱（A→B）": ["已提重", "重箱在途", "箱进站", "完成落重"],
+};
+const reportState = { amountDimension: "customer", capacityFilter: null };
 const $ = (selector) => document.querySelector(selector);
+let entryPreviousFocus = null;
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const h = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 
@@ -352,7 +367,7 @@ function loadSharedCatalog() {
   if (routes.length) moduleCatalog.route.items = routes.map((route) => ({
     id: route.id, title: route.routeName, subtitle: `${route.routeCode || route.id} · ${route.origin || ""} → ${route.destination || ""}`,
     status: route.routeState || "启用", statusClass: sharedStatusClass(route.routeState),
-    fields: [["线路编号", route.routeCode || route.id], ["客户 / 项目", `${route.customerName || route.customerId || "-"} / ${route.projectName || route.projectId || "-"}`], ["起运地 → 目的地", `${route.origin || "-"} → ${route.destination || "-"}`], ["里程", route.mileage === "" || route.mileage == null ? "待维护" : `${route.mileage} KM`], ["预估收入", `¥${route.estimatedRevenue || 0}`], ["提成方式", route.commissionType === "rate" ? "按收入比例提成" : "固定金额提成"]], note: route.remark || "", raw: route,
+    fields: [["线路编号", route.routeCode || route.id], ["客户 / 项目", `${route.customerName || route.customerId || "-"} / ${route.projectName || route.projectId || "-"}`], ["提箱地 → 装卸地", `${route.origin || "-"} → ${route.destination || "-"}`], ["里程", route.mileage === "" || route.mileage == null ? "待维护" : `${route.mileage} KM`], ["预估收入", `¥${route.estimatedRevenue || 0}`], ["提成方式", route.commissionType === "rate" ? "按收入比例提成" : "固定金额提成"]], note: route.remark || "", raw: route,
   }));
   if (waybills.length) moduleCatalog.waybill.items = waybills.map((waybill) => {
     const route = routes.find((item) => item.id === waybill.routeId);
@@ -534,16 +549,30 @@ function dispatchEntryMarkup() {
   const projects = [...new Map((window.AdminDataBridge?.read?.()?.routeAccounts || []).map((item) => [item.projectId, item])).values()];
   const projectOptions = [["", "请选择项目"], ...projects.map((item) => [item.projectId, item.projectName || item.projectId])];
   const trailerOptions = [["", "未绑定挂车"], ...moduleCatalog.trailer.items.filter((item) => item.status === "在用").map((item) => [item.id, `${item.title} · ${item.subtitle}`])];
-  return `${formIntro("send", "先选择已有运单，再分配司机与车辆；提交后推送至司机移动端。")}
+  return `${formIntro("send", "先选择已有运单，再维护箱封号、运力及到达信息；保存后同步司机移动端。")}
     <section class="mobile-form-section"><header class="mobile-form-section-heading"><span>01</span><div><strong>选择任务</strong><small>运单、项目和固定线路</small></div></header><div class="mobile-form-grid">${fieldMarkup({ name: "waybillId", label: "运单号", type: "select", required: true, full: true, options: waybillOptions })}${fieldMarkup({ name: "projectId", label: "项目", type: "select", options: projectOptions })}${fieldMarkup({ name: "routeId", label: "固定线路", type: "select", required: true, options: routeOptions })}</div>
-      <div class="readonly-summary" id="mobileDispatchSummary"><div><span>固定线路</span><strong data-summary="route"></strong></div><div><span>起运地</span><strong data-summary="origin"></strong></div><div><span>目的地</span><strong data-summary="destination"></strong></div><div><span>装卸地址</span><strong data-summary="address"></strong></div><div><span>箱信息</span><strong data-summary="boxes"></strong></div><div><span>预估收入</span><strong data-summary="revenue"></strong></div><div><span>司机提成</span><strong data-summary="commission"></strong></div></div>
+      <div class="readonly-summary" id="mobileDispatchSummary"><div><span>固定线路</span><strong data-summary="route"></strong></div><div><span>提箱地</span><strong data-summary="origin"></strong></div><div><span>装卸地</span><strong data-summary="destination"></strong></div><div><span>还箱地</span><strong data-summary="address"></strong></div><div><span>箱信息</span><strong data-summary="boxes"></strong></div><div><span>预估收入</span><strong data-summary="revenue"></strong></div><div><span>司机提成</span><strong data-summary="commission"></strong></div></div>
     </section>
-    <section class="mobile-form-section"><header class="mobile-form-section-heading"><span>02</span><div><strong>调度安排</strong><small>选择司机、车辆和挂车</small></div></header><div class="mobile-form-grid">
+    <section class="mobile-form-section"><header class="mobile-form-section-heading"><span>02</span><div><strong>箱信息</strong><small>每个集装箱对应填写自己的铅封号</small></div></header><div class="mobile-form-grid mobile-dispatch-box-grid">
+      ${fieldMarkup({ name: "boxType", label: "箱型", type: "select", required: true, options: ["40HQ", "40GP", "20GP", "45HQ"] })}
+      <fieldset class="mobile-container-group"><legend>集装箱 1</legend><div class="mobile-container-fields">
+        ${fieldMarkup({ name: "boxNo1", label: "箱号", placeholder: "请输入集装箱号" })}
+        ${fieldMarkup({ name: "sealNo1", label: "对应铅封号", placeholder: "请输入该箱铅封号" })}
+      </div></fieldset>
+      <fieldset class="mobile-container-group"><legend>集装箱 2</legend><div class="mobile-container-fields">
+        ${fieldMarkup({ name: "boxNo2", label: "箱号", placeholder: "无第二个箱时留空" })}
+        ${fieldMarkup({ name: "sealNo2", label: "对应铅封号", placeholder: "请输入该箱铅封号" })}
+      </div></fieldset>
+    </div></section>
+    <section class="mobile-form-section"><header class="mobile-form-section-heading"><span>03</span><div><strong>调度安排</strong><small>选择司机、车辆和挂车</small></div></header><div class="mobile-form-grid">
       ${fieldMarkup({ name: "driverId", label: "司机", type: "select", required: true, disabled: true, options: [["", "请选择司机"], ...moduleCatalog.driver.items.filter((item) => item.status !== "停用").map((item) => [item.id, item.title])] })}
       ${fieldMarkup({ name: "vehicleId", label: "车辆", type: "select", required: true, disabled: true, options: [["", "请选择车辆"], ...moduleCatalog.vehicle.items.filter((item) => item.status === "在用").map((item) => [item.id, item.id])] })}
       ${fieldMarkup({ name: "trailerId", label: "挂车", type: "select", options: trailerOptions })}
       ${fieldMarkup({ name: "vehicleType", label: "车辆动力类型", type: "select", options: ["燃油车", "LNG", "新能源车"] })}
-      ${fieldMarkup({ name: "note", label: "派单备注", full: true, type: "textarea" })}
+      ${fieldMarkup({ name: "consignee", label: "收货人" })}
+      ${fieldMarkup({ name: "arrivalTime", label: "到达时间", type: "datetime-local" })}
+      ${fieldMarkup({ name: "arrivalLocation", label: "到达地点" })}
+      ${fieldMarkup({ name: "note", label: "备注", full: true, type: "textarea" })}
     </div></section>`;
 }
 
@@ -569,7 +598,219 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
   clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => toast.classList.remove("show"), 1900);
+  showToast.timer = setTimeout(() => toast.classList.remove("show"), 2500);
+}
+
+function reportShiftDate(dateText, days) {
+  const date = new Date(`${dateText}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function reportRange() {
+  const key = $("#reportDateRange").value || "today";
+  const profile = reportRanges[key] || reportRanges.today;
+  const end = reportShiftDate(localDate(), profile.endOffset);
+  return { ...profile, start: reportShiftDate(end, 1 - profile.days), end };
+}
+
+function reportRawData() {
+  const snapshot = window.AdminDataBridge?.read?.() || {};
+  const fromCatalog = (name) => moduleCatalog[name].items.map((item) => item.raw).filter((item) => item && !(name === "dispatch" && String(item.id || "").startsWith("PD-M-")));
+  const fallbackDispatches = moduleCatalog.dispatch.items.filter((item) => /^PD-100[1-5]$/.test(item.id)).map((item) => {
+    const routeById = { "PD-1001": "XL-001", "PD-1002": "XL-002", "PD-1003": "XL-003", "PD-1005": "XL-001" };
+    const routeId = routeById[item.id];
+    const route = moduleCatalog.route.items.find((entry) => entry.id === routeId);
+    const raw = item.raw || dispatchRawForItem(item);
+    return {
+      ...raw, id: item.id, routeId, routeName: route?.title || item.title, orderDate: item.id === "PD-1003" ? "2026-09-15" : "2026-09-16",
+      taskType: item.id === "PD-1002" ? "提重送货" : item.id === "PD-1003" ? "排空箱（A→B）" : "提空装货",
+      customerId: ({ "PD-1001": "KH-HM", "PD-1002": "KH-LG", "PD-1003": "KH-ZT", "PD-1005": "KH-HM" })[item.id],
+      projectId: ({ "PD-1001": "PR-HM-BYD", "PD-1002": "PR-LG-TH", "PD-1003": "PR-ZT-X387", "PD-1005": "PR-HM-BYD" })[item.id],
+      dispatchMode: item.id === "PD-1002" ? "manual" : item.id === "PD-1001" ? "auto" : "pending",
+    };
+  });
+  const fallbackVehicles = moduleCatalog.vehicle.items.map((item) => item.raw || ({ plateNo: item.id, vehicleState: item.status, remark: item.note }));
+  const fallbackDrivers = moduleCatalog.driver.items.map((item) => item.raw || ({ id: item.id, name: item.title, driverState: item.status }));
+  return {
+    routes: Array.isArray(snapshot.fixedRoutes) && snapshot.fixedRoutes.length ? snapshot.fixedRoutes : fromCatalog("route"),
+    waybills: Array.isArray(snapshot.waybills) && snapshot.waybills.length ? snapshot.waybills : fromCatalog("waybill"),
+    dispatches: Array.isArray(snapshot.dispatches) && snapshot.dispatches.length ? snapshot.dispatches : fallbackDispatches,
+    vehicles: Array.isArray(snapshot.vehicles) && snapshot.vehicles.length ? snapshot.vehicles : fromCatalog("vehicle").length ? fromCatalog("vehicle") : fallbackVehicles,
+    drivers: Array.isArray(snapshot.drivers) && snapshot.drivers.length ? snapshot.drivers : fromCatalog("driver").length ? fromCatalog("driver") : fallbackDrivers,
+  };
+}
+
+function reportPopulateFilters() {
+  const customer = $("#reportCustomer");
+  const project = $("#reportProject");
+  const route = $("#reportRoute");
+  const keep = (select, options, placeholder) => {
+    const current = select.value;
+    select.innerHTML = `<option value="">${placeholder}</option>${options.map((item) => `<option value="${h(item.value)}">${h(item.label)}</option>`).join("")}`;
+    if (options.some((item) => item.value === current)) select.value = current;
+  };
+  const customers = [...new Map(reportPlanRecords.map((item) => [item.customerId, { value: item.customerId, label: item.customerName }])).values()];
+  keep(customer, customers, "全部客户");
+  const projectRows = reportPlanRecords.filter((item) => !customer.value || item.customerId === customer.value);
+  keep(project, [...new Map(projectRows.map((item) => [item.projectId, { value: item.projectId, label: item.projectName }])).values()], "全部项目");
+  const routeRows = projectRows.filter((item) => !project.value || item.projectId === project.value);
+  const routes = reportRawData().routes;
+  keep(route, routeRows.map((item) => ({ value: item.routeId, label: routes.find((candidate) => candidate.id === item.routeId)?.routeName || item.routeId })), "全部线路");
+}
+
+function reportPlanRows(range = reportRange()) {
+  return reportPlanRecords.filter((item) =>
+    (!$("#reportCustomer").value || item.customerId === $("#reportCustomer").value) &&
+    (!$("#reportProject").value || item.projectId === $("#reportProject").value) &&
+    (!$("#reportRoute").value || item.routeId === $("#reportRoute").value)
+  ).map((item) => ({ ...item, planned: item.planned * range.days, completed: item.completed * range.days }));
+}
+
+function reportDispatchDate(dispatch) {
+  const source = String(dispatch.orderDate || dispatch.dispatchTime || dispatch.timeline?.[0]?.time || "").slice(0, 10);
+  if (!source) return "";
+  if (/^PD-100[1-5]$/.test(dispatch.id || "")) {
+    const days = Math.round((new Date(`${source}T12:00:00`) - new Date("2026-09-16T12:00:00")) / 86400000);
+    return reportShiftDate(localDate(), days);
+  }
+  return source;
+}
+
+function reportTaskRows(data, range) {
+  return data.dispatches.filter((dispatch) => {
+    const date = reportDispatchDate(dispatch);
+    if (!date || date < range.start || date > range.end || ["取消", "作废"].includes(dispatch.status)) return false;
+    const plan = reportPlanRecords.find((item) => item.routeId === dispatch.routeId && (!dispatch.customerId || item.customerId === dispatch.customerId)) || reportPlanRecords.find((item) => item.routeId === dispatch.routeId);
+    return (!$("#reportCustomer").value || plan?.customerId === $("#reportCustomer").value) &&
+      (!$("#reportProject").value || plan?.projectId === $("#reportProject").value) &&
+      (!$("#reportRoute").value || dispatch.routeId === $("#reportRoute").value);
+  });
+}
+
+function reportTaskMeta(dispatch, data) {
+  const waybill = data.waybills.find((item) => item.waybillNo === dispatch.waybillNo);
+  const isSupported = (value) => Object.prototype.hasOwnProperty.call(reportNodeSequences, value);
+  const taskType = isSupported(dispatch.taskType) ? dispatch.taskType : isSupported(waybill?.taskType) ? waybill.taskType : "提空装货";
+  const nodes = reportNodeSequences[taskType];
+  const current = String(dispatch.currentNode || "").trim();
+  let index = dispatch.status === "已完成" || ["已送达", "完成", "完成落重", "完成落空"].includes(current) ? nodes.length - 1 : nodes.indexOf(current);
+  const timelineIndex = [...(dispatch.timeline || [])].reverse().map((item) => nodes.indexOf(String(item.node || "").trim())).find((value) => value >= 0);
+  if (index < 0 && ["在途", "进站", "落箱"].includes(current) && timelineIndex >= 0) {
+    const lastNode = nodes[timelineIndex];
+    const samePhase = current === "在途" ? lastNode.includes("在途") : current === "进站" ? lastNode.includes("进站") : lastNode.includes("落") || lastNode.includes("完成");
+    if (samePhase) index = timelineIndex;
+    else if (timelineIndex + 1 < nodes.length) index = timelineIndex + 1;
+  }
+  if (index < 0) index = ({ 待派单: -1, 待提货: -1, 已提货: 0, 已提箱: 0, 在途: Math.min(1, nodes.length - 1), 装卸: Math.min(3, nodes.length - 1), 进站: Math.min(5, nodes.length - 1), 落箱: nodes.length - 1 })[current] ?? -1;
+  const completedCount = Math.max(0, Math.min(nodes.length, index + 1));
+  const progress = Math.round(completedCount / nodes.length * 100);
+  const threshold = Number($("#reportThreshold").value) || 70;
+  return { nodes, index, progress, stage: index >= 0 ? nodes[index] : "待开始", nearComplete: progress >= threshold && progress < 100, exception: dispatch.status === "已派单" && current === "待提货" };
+}
+
+function reportCapacityGroups(data, range) {
+  const active = (dispatch) => {
+    const date = reportDispatchDate(dispatch);
+    return date >= range.start && date <= range.end && ["已派单", "运输中"].includes(dispatch.status);
+  };
+  const vehicleState = (vehicle) => {
+    if (vehicle.vehicleState === "维修中") return "维修";
+    if (vehicle.vehicleState !== "在用") return /复检|维修/.test(vehicle.remark || "") ? "维修" : "停用";
+    return data.dispatches.some((dispatch) => dispatch.vehicleId === vehicle.plateNo && active(dispatch)) ? "在途" : "空闲";
+  };
+  const driverState = (driver) => {
+    if (driver.driverState === "停用") return "休假";
+    if (data.dispatches.some((dispatch) => dispatch.driverId === driver.id && active(dispatch))) return "在途";
+    return driver.driverState === "空闲" ? "空闲" : "出勤";
+  };
+  return {
+    vehicles: ["空闲", "在途", "维修", "停用"].map((status) => [status, data.vehicles.filter((item) => vehicleState(item) === status).length, ({ 空闲: "#35a578", 在途: "#3889bd", 维修: "#d69a46", 停用: "#99a3ae" })[status], data.vehicles.filter((item) => vehicleState(item) === status).map((item) => item.plateNo)]),
+    drivers: ["出勤", "休假", "在途", "空闲"].map((status) => [status, data.drivers.filter((item) => driverState(item) === status).length, ({ 出勤: "#259ca7", 休假: "#99a3ae", 在途: "#3889bd", 空闲: "#35a578" })[status], data.drivers.filter((item) => driverState(item) === status).map((item) => item.id)]),
+  };
+}
+
+function reportMoney(value) {
+  return `¥${Number(value || 0).toLocaleString("zh-CN", { maximumFractionDigits: 0 })}`;
+}
+
+function renderReportStatus(key, scope, items) {
+  const total = items.reduce((sum, item) => sum + item[1], 0);
+  $(`#report${key}Total`).textContent = `${total}${key === "Vehicle" ? " 台" : " 名"}`;
+  $(`#report${key}Bar`).innerHTML = items.map(([, count, color]) => `<i style="width:${total ? count / total * 100 : 0}%;background:${color}"></i>`).join("");
+  $(`#report${key}Status`).innerHTML = items.map(([label, count, color, ids]) => {
+    const active = reportState.capacityFilter?.scope === scope && reportState.capacityFilter.status === label;
+    return `<button class="report-status-item ${active ? "active" : ""}" data-report-capacity-scope="${scope}" data-report-capacity-status="${h(label)}" aria-pressed="${active}" type="button"><i style="--status-color:${color}"></i><span>${h(label)}</span><strong>${count}</strong></button>`;
+  }).join("");
+}
+
+function renderReports() {
+  if (!$("#reportsView")) return;
+  const thresholdSelect = $("#reportThreshold");
+  if (!thresholdSelect.dataset.ready) {
+    const saved = localStorage.getItem("container-logistics-dashboard-near-complete") || "70";
+    if ([...thresholdSelect.options].some((option) => option.value === saved)) thresholdSelect.value = saved;
+    thresholdSelect.dataset.ready = "true";
+  }
+  reportPopulateFilters();
+  const range = reportRange();
+  const data = reportRawData();
+  const planRows = reportPlanRows(range);
+  const tasks = reportTaskRows(data, range);
+  const planned = planRows.reduce((sum, item) => sum + item.planned, 0);
+  const completedPlans = planRows.reduce((sum, item) => sum + item.completed, 0);
+  const completionRate = planned ? Math.round(completedPlans / planned * 100) : 0;
+  const completed = tasks.filter((item) => item.status === "已完成").length;
+  const pending = tasks.filter((item) => item.status === "待派单").length;
+  const moving = tasks.filter((item) => item.status === "运输中").length;
+  const assigned = tasks.filter((item) => item.status !== "待派单");
+  const automatic = assigned.filter((item) => item.dispatchMode === "auto").length;
+  const manual = assigned.filter((item) => item.dispatchMode === "manual").length;
+  let metas = tasks.map((dispatch) => ({ dispatch, meta: reportTaskMeta(dispatch, data) }));
+  const exceptions = metas.filter(({ meta }) => meta.exception).length;
+  const allAmount = planRows.map((item) => {
+    const route = data.routes.find((candidate) => candidate.id === item.routeId);
+    return { ...item, routeName: route?.routeName || item.routeId, amount: item.planned * Number(route?.estimatedRevenue || 0) };
+  });
+  const amount = allAmount.reduce((sum, item) => sum + item.amount, 0);
+  const monthAmount = allAmount.reduce((sum, item) => sum + item.monthAmount, 0);
+  const totalAmount = allAmount.reduce((sum, item) => sum + item.totalAmount, 0);
+  const amountGroups = new Map();
+  allAmount.forEach((item) => {
+    const name = reportState.amountDimension === "customer" ? item.customerName : item.routeName;
+    amountGroups.set(name, (amountGroups.get(name) || 0) + item.amount);
+  });
+  const amountEntries = [...amountGroups.entries()].sort((a, b) => b[1] - a[1]);
+  const maxAmount = Math.max(...amountEntries.map((item) => item[1]), 1);
+
+  $("#reportScopeLabel").textContent = `${range.label}运营全局`;
+  $("#reportTaskTitle").textContent = `${range.label}任务`;
+  $("#reportTaskSummary").textContent = `${range.start.slice(5)} 至 ${range.end.slice(5)} · ${tasks.length} 条任务进入调度`;
+  $("#reportCompletionRate").textContent = `${completionRate}%`;
+  $("#reportCompletionBar").style.width = `${completionRate}%`;
+  $("#reportCompletionNote").textContent = `已完成 ${completedPlans} / ${planned}`;
+  $("#reportTaskMetrics").innerHTML = [
+    ["计划数", planned, range.label], ["已派单", assigned.length, `自动 ${automatic} / 手动 ${manual}`], ["进行中", moving, "节点执行中"],
+    ["待派发", pending, "等待运力"], ["异常任务", exceptions, "需要处理"], ["已完成", completed, `${range.label}完成`],
+  ].map(([label, value, note]) => `<div class="report-task-metric"><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`).join("");
+  $("#reportAmountTotals").innerHTML = [[`${range.label}预估`, amount], ["本月金额", monthAmount], ["累计金额", totalAmount]].map(([label, value]) => `<div class="report-amount-total"><span>${label}</span><strong>${reportMoney(value)}</strong></div>`).join("");
+  $("#reportAmountDistribution").innerHTML = amountEntries.length ? amountEntries.map(([name, value]) => `<div class="report-bar-row"><span title="${h(name)}">${h(name)}</span><span class="report-bar-track"><i style="width:${Math.round(value / maxAmount * 100)}%"></i></span><strong>${reportMoney(value)}</strong></div>`).join("") : `<div class="report-empty">暂无金额数据</div>`;
+  const capacity = reportCapacityGroups(data, range);
+  renderReportStatus("Vehicle", "vehicle", capacity.vehicles);
+  renderReportStatus("Driver", "driver", capacity.drivers);
+  if (reportState.capacityFilter) {
+    const matchingIds = (reportState.capacityFilter.scope === "vehicle" ? capacity.vehicles : capacity.drivers).find((item) => item[0] === reportState.capacityFilter.status)?.[3] || [];
+    metas = metas.filter(({ dispatch }) => matchingIds.includes(reportState.capacityFilter.scope === "vehicle" ? dispatch.vehicleId : dispatch.driverId));
+  }
+  $("#reportOperatingDate").textContent = range.start === range.end ? range.end.slice(5) : `${range.start.slice(5)} 至 ${range.end.slice(5)}`;
+  $("#reportDispatchList").innerHTML = metas.length ? metas.sort((a, b) => Number(b.meta.nearComplete) - Number(a.meta.nearComplete) || b.meta.progress - a.meta.progress || Number(b.meta.exception) - Number(a.meta.exception)).map(({ dispatch, meta }) => `<article class="report-dispatch-item ${meta.exception ? "exception" : ""}"><div class="report-dispatch-top"><strong>${h(dispatch.waybillNo || dispatch.id)} · ${h(dispatch.routeName || "未指定线路")}</strong><span class="report-dispatch-state">${meta.exception ? "异常" : h(meta.stage)}</span></div><div class="report-dispatch-meta"><span>${h(dispatch.driverName || "待分配")} · ${h(dispatch.vehicleId || "车辆待分配")}</span><span>${meta.progress}%${meta.nearComplete ? " · 快完成" : ""}</span></div><div class="report-dispatch-progress"><i style="width:${meta.progress}%"></i></div></article>`).join("") : `<div class="report-empty">当前筛选下无执行中任务</div>`;
+  $("#reportPlanList").innerHTML = planRows.length ? planRows.map((item) => {
+    const route = data.routes.find((candidate) => candidate.id === item.routeId);
+    const rate = item.planned ? Math.round(item.completed / item.planned * 100) : 0;
+    return `<div class="report-plan-row"><span class="report-plan-owner"><strong>${h(item.customerName)}</strong><small>${h(item.projectName)}</small></span><span class="report-plan-route" title="${h(route?.routeName || item.routeId)}">${h(route?.routeName || item.routeId)}</span><span class="report-plan-result"><strong>${item.completed}/${item.planned}</strong><small>${rate}%</small></span></div>`;
+  }).join("") : `<div class="report-empty">暂无计划数据，请调整客户、项目或线路筛选</div>`;
+  $("#reportUpdatedAt").textContent = `更新于 ${new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date())}`;
+  refreshIcons();
 }
 
 function switchView(view) {
@@ -579,9 +820,10 @@ function switchView(view) {
   $$(".manager-view").forEach((item) => item.classList.toggle("active", item.id === `${view}View`));
   $$("#managerBottomNav button").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
   $("#managerDrawerButton").hidden = view !== "workbench";
-  $("#managerTitle").textContent = { workbench: "工作台", messages: "消息", profile: "我的" }[view];
-  $("#headerEyebrow").textContent = view === "workbench" ? "集卡物流管理端" : view === "messages" ? "任务与预警通知" : "运营中心账号";
+  $("#managerTitle").textContent = { workbench: "工作台", reports: "数据报表", messages: "消息", profile: "我的" }[view];
+  $("#headerEyebrow").textContent = view === "workbench" ? "集卡物流管理端" : view === "reports" ? "运营数据概览" : view === "messages" ? "任务与预警通知" : "运营中心账号";
   if (view === "messages") renderMessages();
+  if (view === "reports") renderReports();
   $("#moduleView").classList.remove("open");
   $("#managerDetailView").classList.remove("open");
   $("#managerEntryView").classList.remove("open");
@@ -607,9 +849,11 @@ function closeManagerDrawer() {
 
 function renderWorkbench() {
   const pendingCount = moduleCatalog.dispatch.items.filter((item) => item.status === "待派单").length;
+  const expiredCount = moduleCatalog.reminder.items.filter((item) => item.status === "已过期").length;
+  const alertCount = expiredCount + messages.filter((item) => item.unread && item.type === "warning").length;
   $("#focusList").innerHTML = `
     <button class="focus-row" data-open-module="dispatch-management" type="button"><span class="focus-symbol"><i data-lucide="circle-alert"></i></span><span><strong>${pendingCount} 条任务等待派单</strong><small>优先完成司机和车辆匹配</small></span><em>开始派单</em></button>
-    <button class="focus-row" data-open-module="reminder" type="button"><span class="focus-symbol blue"><i data-lucide="shield-alert"></i></span><span><strong>2 项车辆证件预警</strong><small>包含 1 项已过期记录</small></span><em>查看</em></button>`;
+    <button class="focus-row" data-open-module="reminder" type="button"><span class="focus-symbol blue"><i data-lucide="shield-alert"></i></span><span><strong>${alertCount} 项车辆证件预警</strong><small>包含 ${expiredCount} 项已过期记录</small></span><em>查看</em></button>`;
   refreshIcons();
 }
 
@@ -625,7 +869,7 @@ function renderModule() {
   if (!meta) return;
   const query = state.search.trim().toLowerCase();
   const items = meta.items.filter((item) => moduleStatusMatches(item, state.moduleFilter) && (!query || JSON.stringify(item).toLowerCase().includes(query)));
-  $("#moduleFilters").innerHTML = meta.filters.map((filter) => `<button class="${filter === state.moduleFilter ? "active" : ""}" data-module-filter="${h(filter)}" type="button">${h(filter)}</button>`).join("");
+  $("#moduleFilters").innerHTML = meta.filters.map((filter) => { const active = filter === state.moduleFilter; return `<button class="filter-chip ${active ? "active" : ""}" data-module-filter="${h(filter)}" aria-pressed="${active}" type="button">${h(filter)}</button>`; }).join("");
   $("#moduleSummary").innerHTML = `<span>当前结果</span><strong>${items.length} 条</strong>`;
   $("#moduleList").innerHTML = items.length ? items.map((item) => `
     <article class="manager-list-card">
@@ -691,11 +935,23 @@ function updateDispatchSummary() {
   if (waybill && !form.elements.projectId.value) form.elements.projectId.value = waybill.raw?.projectId || routeRaw.projectId || "";
   const field = (label) => waybill?.fields.find(([name]) => name === label)?.[1] || "";
   const values = {
-    route: waybill?.subtitle || "", origin: routeRaw.origin || "", destination: routeRaw.destination || "",
-    address: field("装卸地址"), boxes: waybill?.raw?.containers?.map((item) => `${item.containerType} ${item.containerNo}`).join("、") || field("箱型"),
+    route: waybill?.subtitle || "", origin: routeRaw.pickupPoint || routeRaw.origin || "", destination: routeRaw.unloadingPoint || routeRaw.loadingPoint || routeRaw.destination || "",
+    address: routeRaw.dropoffPoint || waybill?.raw?.returnPoint || routeRaw.destination || routeRaw.loadingPoint || "", boxes: waybill?.raw?.containers?.map((item) => `${item.containerType || item.boxType || ""} ${item.containerNo || item.boxNo || ""}`.trim()).filter(Boolean).join("、") || field("箱型"),
     revenue: routeRaw.estimatedRevenue ? `¥${routeRaw.estimatedRevenue}` : "", commission: routeRaw.commissionValue ? `¥${routeRaw.commissionValue}` : "",
   };
   $$("#mobileDispatchSummary [data-summary]").forEach((node) => { node.textContent = values[node.dataset.summary] || ""; });
+  const raw = waybill?.raw || {};
+  const boxValues = {
+    boxType: String(raw.boxType || raw.containers?.[0]?.containerType || "40HQ").replace(/\*\d+$/, ""),
+    boxNo1: raw.boxNo1 || raw.containers?.[0]?.containerNo || raw.containers?.[0]?.boxNo || "",
+    sealNo1: raw.sealNo1 || raw.containers?.[0]?.sealNo || "",
+    boxNo2: raw.boxNo2 || raw.containers?.[1]?.containerNo || raw.containers?.[1]?.boxNo || "",
+    sealNo2: raw.sealNo2 || raw.containers?.[1]?.sealNo || "",
+  };
+  Object.entries(boxValues).forEach(([name, value]) => {
+    const control = form.elements[name];
+    if (control && !control.value) control.value = value;
+  });
 }
 
 function updateDispatchVehicle() {
@@ -784,6 +1040,7 @@ function openEntry(moduleName, recordId = "") {
     showToast("该模块无需新增建档");
     return;
   }
+  entryPreviousFocus = document.activeElement;
   state.entryModule = moduleName;
   state.entryEditId = recordId;
   const meta = moduleCatalog[moduleName];
@@ -819,7 +1076,7 @@ function openEntry(moduleName, recordId = "") {
         }
         return;
       }
-      control.value = value;
+      control.value = control.type === "datetime-local" ? String(value).replace(" ", "T").slice(0, 16) : value;
     });
     $("#entryTitle").textContent = `编辑${meta.title.replace("管理", "")}`;
   }
@@ -862,19 +1119,24 @@ function openEntry(moduleName, recordId = "") {
     } catch (error) { /* use form defaults */ }
   }
   $("#managerEntryView").classList.add("open");
+  $(".manager-shell").classList.add("entry-open");
   $("#managerEntryView").setAttribute("aria-hidden", "false");
   $(".manager-shell").classList.add("subpage-open");
   setupEntryBehavior(moduleName);
   refreshIcons();
+  requestAnimationFrame(() => $("#managerEntryContent input:not([type=hidden]):not([disabled]), #managerEntryContent select:not([disabled]), #managerEntryContent textarea:not([disabled])")?.focus());
 }
 
 function closeEntry() {
   $("#managerEntryView").classList.remove("open");
+  $(".manager-shell").classList.remove("entry-open");
   $("#managerEntryView").setAttribute("aria-hidden", "true");
   state.entryModule = "";
   state.entryEditId = "";
   state.entryOriginalId = "";
   state.entryOriginalRaw = null;
+  if (entryPreviousFocus?.isConnected) entryPreviousFocus.focus();
+  entryPreviousFocus = null;
 }
 
 function populateMobileProjectOptions(customerId = "", selectedProjectId = "") {
@@ -961,7 +1223,7 @@ const planWaybillFieldLabels = {
   waybillNo: "运单号", planTaskId: "计划任务ID", planTaskNo: "计划任务编号", planQuantity: "计划数量", childSequence: "子任务序号",
   orderDate: "接单日期", executionTime: "执行时间", taskType: "任务类型", projectId: "项目ID", projectName: "项目名称",
   autoDispatch: "自动派发", dispatchAdvanceMinutes: "派发提前量（分钟）", routeId: "线路ID", customerId: "客户编号", customerName: "客户名称",
-  billNo: "提单号", loadAddress: "装卸地址", dispatchNo: "派车号", dispatchDate: "派车日期", boxType: "柜型", boxQuantity: "箱量",
+  billNo: "提单号", loadAddress: "还箱地", dispatchNo: "派车号", dispatchDate: "派车日期", boxType: "柜型", boxQuantity: "箱量",
   auditState: "审核状态", needReceipt: "需要回单", receivedReceipt: "已收回单", receiptDate: "回单日期", remark: "备注",
   freight: "运费", receivable: "应收金额", entryDate: "录入日期", profit: "预计利润", payable: "应付金额", carrier: "承运单位",
   returnPoint: "落箱 / 还箱点", pickupPoint1: "提箱点", pickupPoint2: "第二提箱点", plateNo: "车牌号", driverId: "司机编号", driverName: "司机姓名",
@@ -997,7 +1259,7 @@ function renderPlanDetail(item) {
   const childSections = rows.map((waybill) => {
     const dispatch = dispatchByWaybill.get(waybill.waybillNo);
     const waybillFields = Object.entries(waybill).map(([key, value]) => [planWaybillFieldLabels[key] || key, value]);
-    const dispatchFields = dispatch ? Object.entries(dispatch).map(([key, value]) => [({ status: "派单状态", currentNode: "当前节点", dispatchMode: "派单方式", dispatchTime: "派单时间", driverName: "司机姓名", vehicleId: "车牌号", trailerId: "挂车号", origin: "起运地", destination: "目的地", note: "派单备注", timeline: "运输节点记录" })[key] || key, value]) : [["派单状态", "待派单"]];
+    const dispatchFields = dispatch ? Object.entries(dispatch).map(([key, value]) => [({ status: "派单状态", currentNode: "当前节点", dispatchMode: "派单方式", dispatchTime: "派单时间", driverName: "司机姓名", vehicleId: "车牌号", trailerId: "挂车号", origin: "提箱地", destination: "装卸地", loadAddress: "还箱地", consignee: "收货人", arrivalTime: "到达时间", arrivalLocation: "到达地点", note: "备注", timeline: "运输节点记录" })[key] || key, value]) : [["派单状态", "待派单"]];
     return `<section class="detail-section"><h3>子任务 ${h(waybill.childSequence || "")} · ${h(waybill.waybillNo || "-")}</h3>${planDetailRows(waybillFields)}<h3>派单与执行信息</h3>${planDetailRows(dispatchFields)}</section>`;
   }).join("");
   $("#managerDetailContent").innerHTML = `
@@ -1014,7 +1276,7 @@ function renderRouteDetail(item) {
   const commissionAmount = route.commissionType === "rate" ? Number(route.estimatedRevenue || 0) * Number(route.commissionValue || 0) / 100 : Number(route.commissionValue || 0);
   const fields = [
     ["线路ID", route.id || item.id], ["线路编号", route.routeCode || route.id || item.id], ["线路名称", route.routeName || item.title], ["客户编号", route.customerId], ["客户名称", route.customerName],
-    ["项目编号", route.projectId], ["项目名称", route.projectName], ["起运地", route.origin], ["目的地", route.destination],
+    ["项目编号", route.projectId], ["项目名称", route.projectName], ["提箱地", route.origin], ["装卸地", route.destination],
     ["提箱点", route.pickupPoint], ["装货地", route.loadingPoint], ["卸货地", route.unloadingPoint], ["落箱点", route.dropoffPoint],
     ["途经点", route.viaPoints], ["里程（KM）", route.mileage], ["线路状态", route.routeState], ["单次预估收入（元）", route.estimatedRevenue],
     ["线路基础运价（元）", route.baseFreight], ["提成方式", commissionType], ["提成规则值", commissionValue],
@@ -1028,10 +1290,10 @@ function renderRouteDetail(item) {
 const dispatchFieldLabels = {
   id: "派单编号", waybillNo: "运单号", dispatchMode: "派单方式", orderDate: "接单日期", planTaskId: "计划任务ID", planTaskNo: "计划任务编号",
   taskType: "任务类型", customerId: "客户编号", customerName: "客户名称", projectId: "项目编号", projectName: "项目名称", routeId: "线路编号",
-  routeName: "线路名称", origin: "起运地", destination: "目的地", loadAddress: "装卸地址", dispatchTime: "派单时间", driverId: "司机编号",
+  routeName: "线路名称", origin: "提箱地", destination: "装卸地", loadAddress: "还箱地", consignee: "收货人", arrivalTime: "到达时间", arrivalLocation: "到达地点", dispatchTime: "派单时间", driverId: "司机编号",
   driverName: "司机姓名", phone: "联系电话", vehicleId: "车牌号", vehicleType: "车辆类型", trailerId: "挂车编号", status: "派单状态",
   currentNode: "当前节点", boxes: "箱信息", estimatedRevenue: "预估收入", commission: "司机提成", routeMileageSnapshot: "线路里程快照", pushed: "已推送",
-  note: "派单备注", timeline: "运输节点", photoAttachments: "节点附件", photos: "现场图片",
+  note: "备注", timeline: "运输节点", photoAttachments: "节点附件", photos: "现场图片",
 };
 
 function dispatchDetailRows(raw, excluded = []) {
@@ -1060,7 +1322,7 @@ function renderDispatchDetail(item) {
     ["车辆类型", dispatch.vehicleType], ["挂车", dispatch.trailerId || "未绑定"], ["预估收入", dispatch.estimatedRevenue == null ? "-" : `¥${dispatch.estimatedRevenue}`],
     ["司机提成", dispatch.commission == null ? "-" : `¥${dispatch.commission}`], ["线路里程快照", dispatch.routeMileageSnapshot == null ? "-" : `${dispatch.routeMileageSnapshot} KM`],
   ];
-  const routeFields = [["线路编号", dispatch.routeId || task.routeId], ["线路名称", dispatch.routeName || waybill?.subtitle], ["起运地", dispatch.origin], ["目的地", dispatch.destination], ["装卸地址", dispatch.loadAddress || task.loadAddress], ["箱信息", dispatch.boxes || task.boxType], ["派单备注", dispatch.note]];
+  const routeFields = [["线路编号", dispatch.routeId || task.routeId], ["线路名称", dispatch.routeName || waybill?.subtitle], ["提箱地", dispatch.origin], ["装卸地", dispatch.destination], ["还箱地", dispatch.loadAddress || task.returnPoint], ["收货人", dispatch.consignee], ["到达时间", dispatch.arrivalTime], ["到达地点", dispatch.arrivalLocation], ["箱信息", dispatch.boxes || task.boxType], ["备注", dispatch.note]];
   const coreKeys = ["id", "waybillNo", "planTaskNo", "planTaskId", "customerName", "projectName", "taskType", "dispatchMode", "status", "currentNode", "dispatchTime", "pushed", "driverName", "driverId", "phone", "vehicleId", "vehicleType", "trailerId", "estimatedRevenue", "commission", "routeMileageSnapshot", "routeId", "routeName", "origin", "destination", "loadAddress", "boxes", "note", "timeline"];
   const extras = dispatchDetailRows(dispatch, coreKeys);
   if (editable) setDetailEditAction("dispatch", dispatch.id || item.id, dispatch.status === "待派单" ? "分配司机和车辆" : "编辑派单");
@@ -1216,6 +1478,10 @@ function loadCreatedRecords() {
 
 function updateWorkbenchCounts() {
   const pendingDispatchCount = moduleCatalog.dispatch.items.filter((item) => item.status === "待派单").length;
+  const transitCount = moduleCatalog.dispatch.items.filter((item) => item.status === "运输中").length;
+  const idleVehicleCount = moduleCatalog.capacity.items.filter((item) => item.status === "闲置").length;
+  const alertCount = moduleCatalog.reminder.items.filter((item) => item.status === "已过期").length + messages.filter((item) => item.unread && item.type === "warning").length;
+  const unreadCount = messages.filter((item) => item.unread).length;
   const labels = {
     waybill: `${moduleCatalog.waybill.items.length} 条记录`, plan: `${moduleCatalog.plan.items.length} 个任务`, route: `${moduleCatalog.route.items.length} 条线路`, "dispatch-management": `${moduleCatalog["dispatch-management"].items.filter((item) => item.status === "待匹配").length} 条待匹配`,
     dispatch: `${pendingDispatchCount} 条待派单`,
@@ -1226,16 +1492,20 @@ function updateWorkbenchCounts() {
     const node = $(`#moduleGrid [data-open-module="${moduleName}"] small`);
     if (node) node.textContent = label;
   });
-  const pendingMetric = $('#workbenchView [data-open-module="dispatch"][data-filter="待派单"] strong');
-  if (pendingMetric) pendingMetric.textContent = pendingDispatchCount;
+  $("#workbenchPendingCount").textContent = pendingDispatchCount;
+  $("#workbenchTransitCount").textContent = transitCount;
+  $("#workbenchIdleCount").textContent = idleVehicleCount;
+  $("#workbenchAlertCount").textContent = alertCount;
+  const messageCount = $("#headerMessageButton span");
+  if (messageCount) { messageCount.textContent = unreadCount; messageCount.hidden = unreadCount === 0; }
   renderManagerDrawer();
 }
 
 function renderManagerDrawer() {
   const shortcuts = [
-    ["plan", "计划管理", "clipboard-list", "blue"],
+    ["plan", "计划与任务", "clipboard-list", "blue"],
     ["route", "固定线路管理", "route", "purple"],
-    ["dispatch-management", "派单管理", "list-checks", "cyan"],
+    ["dispatch-management", "任务派单", "list-checks", "cyan"],
     ["dispatch", "派单列表", "send", "cyan"],
     ["capacity", "运力管理", "gauge", "cyan"],
     ["vehicle", "车辆档案管理", "truck", "green"],
@@ -1269,9 +1539,16 @@ function buildDispatchRecord(values) {
   const dispatchTime = new Date().toLocaleString("zh-CN", { hour12: false });
   const wasPending = !state.entryEditId || (oldRaw.status || "待派单") === "待派单";
   const commission = routeRaw.commissionType === "rate" ? Number(routeRaw.estimatedRevenue || 0) * Number(routeRaw.commissionValue || 0) / 100 : Number(routeRaw.commissionValue || oldRaw.commission || 0);
-  const boxes = Array.isArray(task.containers) && task.containers.length
-    ? task.containers.map((entry) => [entry.boxNo || entry.containerNo, entry.boxType || entry.containerType].filter(Boolean).join(" / ")).join("、")
-    : oldRaw.boxes || task.boxType || "待装箱";
+  const valueOrFallback = (name, fallback) => Object.prototype.hasOwnProperty.call(values, name) ? values[name] : fallback;
+  const boxType = valueOrFallback("boxType", task.boxType || oldRaw.boxType || "40HQ");
+  const boxNo1 = valueOrFallback("boxNo1", task.boxNo1 || oldRaw.boxNo1 || "-") || "-";
+  const sealNo1 = valueOrFallback("sealNo1", task.sealNo1 || oldRaw.sealNo1 || "-") || "-";
+  const boxNo2 = valueOrFallback("boxNo2", task.boxNo2 || oldRaw.boxNo2 || "-") || "-";
+  const sealNo2 = valueOrFallback("sealNo2", task.sealNo2 || oldRaw.sealNo2 || "-") || "-";
+  const boxes = [
+    [boxNo1 === "-" ? "" : boxNo1, boxType].filter(Boolean).join(" / "),
+    ...(boxNo2 !== "-" || sealNo2 !== "-" ? [[boxNo2 === "-" ? "" : boxNo2, boxType].filter(Boolean).join(" / ")] : []),
+  ].filter(Boolean).join("、") || oldRaw.boxes || task.boxType || "待装箱";
   const id = oldRaw.id || `PD-M-${Date.now()}`;
   const timeline = Array.isArray(oldRaw.timeline) ? [...oldRaw.timeline] : [];
   timeline.push(wasPending
@@ -1283,14 +1560,22 @@ function buildDispatchRecord(values) {
     customerId: task.customerId || oldRaw.customerId, customerName: task.customerName || waybill?.title || oldRaw.customerName,
     projectId: values.projectId || task.projectId || routeRaw.projectId || oldRaw.projectId, projectName: project?.projectName || task.projectName || routeRaw.projectName || oldRaw.projectName,
     orderDate: task.orderDate || oldRaw.orderDate || localDate(), routeId: route?.id || oldRaw.routeId, routeName: route?.title || oldRaw.routeName || waybill?.subtitle,
-    origin: routeRaw.origin || oldRaw.origin, destination: routeRaw.destination || oldRaw.destination, loadAddress: task.loadAddress || routeRaw.loadingPoint || oldRaw.loadAddress,
+    origin: routeRaw.pickupPoint || routeRaw.origin || oldRaw.origin, destination: routeRaw.unloadingPoint || routeRaw.loadingPoint || routeRaw.destination || oldRaw.destination, loadAddress: routeRaw.dropoffPoint || task.returnPoint || oldRaw.loadAddress,
     dispatchTime: wasPending ? dispatchTime : oldRaw.dispatchTime || dispatchTime, driverId: driver?.id || values.driverId, driverName: driver?.title || driverRaw.name || oldRaw.driverName,
     phone: driverRaw.phone || oldRaw.phone, vehicleId: vehicle?.id || values.vehicleId, vehicleType: values.vehicleType || vehicleRaw.energyType || oldRaw.vehicleType || "燃油车",
     trailerId: values.trailerId || vehicleRaw.trailerId || oldRaw.trailerId || "", status: wasPending ? "已派单" : oldRaw.status || "已派单",
     currentNode: wasPending ? "待提货" : oldRaw.currentNode || "待提货", boxes, estimatedRevenue: Number(routeRaw.estimatedRevenue ?? oldRaw.estimatedRevenue ?? 0),
     commission, routeMileageSnapshot: routeRaw.mileage === "" || routeRaw.mileage == null ? oldRaw.routeMileageSnapshot ?? null : Number(routeRaw.mileage),
-    note: values.note || "", pushed: true, timeline,
+    boxType, boxNo1, sealNo1, boxNo2, sealNo2,
+    consignee: values.consignee || "", arrivalTime: values.arrivalTime || "", arrivalLocation: values.arrivalLocation || "", note: values.note || "", pushed: true, timeline,
   };
+  if (waybill?.raw) Object.assign(waybill.raw, {
+    boxType, boxNo1, sealNo1, boxNo2, sealNo2,
+    containers: [
+      { boxNo: boxNo1, containerNo: boxNo1, sealNo: sealNo1, boxType, containerType: boxType },
+      ...(boxNo2 !== "-" || sealNo2 !== "-" ? [{ boxNo: boxNo2, containerNo: boxNo2, sealNo: sealNo2, boxType, containerType: boxType }] : []),
+    ],
+  });
   if (waybill?.raw) Object.assign(waybill.raw, { dispatchDate: raw.dispatchTime.slice(0, 10), plateNo: raw.vehicleId, driverId: raw.driverId, driverName: raw.driverName, trailerId: raw.trailerId, routeMileageSnapshot: raw.routeMileageSnapshot });
   return {
     id, title: raw.routeName || "未指定线路", subtitle: raw.waybillNo, status: raw.status, statusClass: sharedStatusClass(raw.status),
@@ -1380,6 +1665,8 @@ function publishMobileRecord(moduleName, item) {
     snapshot.waybills = sharedWaybills.map((waybill) => waybill.waybillNo === raw.waybillNo ? {
       ...waybill, dispatchDate: String(raw.dispatchTime || "").slice(0, 10), plateNo: raw.vehicleId || "", driverId: raw.driverId || "",
       driverName: raw.driverName || "", trailerId: raw.trailerId || "", routeMileageSnapshot: raw.routeMileageSnapshot,
+      boxType: raw.boxType || waybill.boxType, boxNo1: raw.boxNo1 || waybill.boxNo1, sealNo1: raw.sealNo1 || waybill.sealNo1,
+      boxNo2: raw.boxNo2 || waybill.boxNo2, sealNo2: raw.sealNo2 || waybill.sealNo2,
     } : waybill);
   }
   if (moduleName === "vehicle") { raw.plateNo = raw.plateNo || item.id; const oldPlate = state.entryOriginalRaw?.plateNo; snapshot.vehicles = [raw, ...(snapshot.vehicles || []).filter((entry) => entry.plateNo !== raw.plateNo && entry.plateNo !== oldPlate)]; }
@@ -1423,7 +1710,6 @@ function saveEntry(event) {
   state.search = "";
   state.moduleFilter = "全部";
   renderModule();
-  updateWorkbenchCounts();
   if (moduleName === "dispatch") {
     rebuildDispatchManagementCatalog();
     rebuildCapacityCatalog(window.AdminDataBridge?.read?.()?.dispatches || moduleCatalog.dispatch.items.map((entry) => dispatchRawForItem(entry)));
@@ -1432,6 +1718,7 @@ function saveEntry(event) {
       openDetail(item);
     } else if (editing) openDetail(item);
   }
+  if (["vehicle", "driver"].includes(moduleName)) rebuildCapacityCatalog(window.AdminDataBridge?.read?.()?.dispatches || []);
   if (editing && ["route", "vehicle", "trailer", "driver", "customer"].includes(moduleName)) {
     if (state.currentModule === "capacity") {
       rebuildCapacityCatalog(window.AdminDataBridge?.read?.()?.dispatches || []);
@@ -1440,6 +1727,7 @@ function saveEntry(event) {
       openDetail(capacityItem || item);
     } else openDetail(item);
   }
+  updateWorkbenchCounts();
   showToast(moduleName === "dispatch" ? (dispatchWasPending ? "派单成功，已推送至司机移动端" : "派单修改已保存并同步") : `${moduleCatalog[moduleName].title}已保存`);
 }
 
@@ -1463,6 +1751,37 @@ function openAutoControl() {
 $("#managerBottomNav").addEventListener("click", (event) => {
   const button = event.target.closest("[data-view]");
   if (button) switchView(button.dataset.view);
+});
+
+$("#reportsView").addEventListener("change", (event) => {
+  reportState.capacityFilter = null;
+  if (event.target.id === "reportThreshold") localStorage.setItem("container-logistics-dashboard-near-complete", event.target.value);
+  if (event.target.id === "reportCustomer") {
+    $("#reportProject").value = "";
+    $("#reportRoute").value = "";
+  } else if (event.target.id === "reportProject") {
+    $("#reportRoute").value = "";
+  }
+  renderReports();
+});
+$("#reportRefreshButton").addEventListener("click", () => { renderReports(); showToast("报表数据已刷新"); });
+$("#reportsView").addEventListener("click", (event) => {
+  const capacityButton = event.target.closest("[data-report-capacity-scope]");
+  if (capacityButton) {
+    const next = { scope: capacityButton.dataset.reportCapacityScope, status: capacityButton.dataset.reportCapacityStatus };
+    reportState.capacityFilter = reportState.capacityFilter?.scope === next.scope && reportState.capacityFilter.status === next.status ? null : next;
+    renderReports();
+    return;
+  }
+  const button = event.target.closest("[data-report-amount]");
+  if (!button) return;
+  reportState.amountDimension = button.dataset.reportAmount;
+  $$("#reportsView [data-report-amount]").forEach((item) => {
+    const active = item === button;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-pressed", String(active));
+  });
+  renderReports();
 });
 
 document.addEventListener("click", (event) => {
@@ -1520,13 +1839,26 @@ $("#managerDrawerButton").addEventListener("click", openManagerDrawer);
 $("#managerDrawerClose").addEventListener("click", closeManagerDrawer);
 $("#managerDrawerOverlay").addEventListener("click", closeManagerDrawer);
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeManagerDrawer();
+  const entryOpen = $("#managerEntryView").classList.contains("open");
+  if (event.key === "Escape") {
+    if (entryOpen) closeEntry();
+    else closeManagerDrawer();
+    return;
+  }
+  if (event.key !== "Tab" || !entryOpen) return;
+  const focusable = [...$("#managerEntryView").querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter((item) => item.getClientRects().length);
+  if (!focusable.length) { event.preventDefault(); $("#managerEntryView").focus(); return; }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && (document.activeElement === first || !$("#managerEntryView").contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
 window.addEventListener("storage", (event) => {
   if (event.key !== window.AdminDataBridge?.STORAGE_KEY) return;
   loadSharedCatalog();
   updateWorkbenchCounts();
   renderWorkbench();
+  if (state.currentView === "reports") renderReports();
   if (state.currentModule) renderModule();
 });
 $("#manageModulesButton").addEventListener("click", () => $("#moduleGrid").scrollIntoView({ behavior: "smooth", block: "center" }));
@@ -1548,6 +1880,7 @@ $("#detailActionButton").addEventListener("click", (event) => {
   else showToast("更多业务操作");
 });
 $("#entryBackButton").addEventListener("click", closeEntry);
+$("#managerEntryView").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEntry(); });
 $("#entryCancelButton").addEventListener("click", closeEntry);
 $("#managerEntryForm").addEventListener("submit", saveEntry);
 
@@ -1626,7 +1959,7 @@ $("#messageList").addEventListener("click", (event) => {
   if (message.module === "auto") openAutoControl(); else openModule(message.module);
   renderMessages();
 });
-$("#readAllButton").addEventListener("click", () => { messages.forEach((item) => { item.unread = false; }); renderMessages(); renderManagerDrawer(); showToast("消息已全部标记为已读"); });
+$("#readAllButton").addEventListener("click", () => { messages.forEach((item) => { item.unread = false; }); renderMessages(); renderManagerDrawer(); renderWorkbench(); updateWorkbenchCounts(); showToast("消息已全部标记为已读"); });
 
 loadSharedCatalog();
 loadCreatedRecords();
@@ -1636,3 +1969,4 @@ updateWorkbenchCounts();
 renderWorkbench();
 renderMessages();
 refreshIcons();
+window.setInterval(() => { if (state.currentView === "reports") renderReports(); }, 15000);

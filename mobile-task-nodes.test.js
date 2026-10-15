@@ -13,7 +13,7 @@ assert.ok(constantsStart >= 0 && constantsEnd > constantsStart, "task node seque
 assert.ok(helpersStart >= 0 && helpersEnd > helpersStart, "task node helpers must exist");
 
 const context = vm.createContext({
-  window: {},
+  window: { PhotoRequirementConfig: { forTaskType: () => [{ quantity: 10 }] } },
   waybillMeta: {},
   h: (value) => String(value),
   dispatchCategory: (dispatch) => {
@@ -97,7 +97,7 @@ assert.doesNotMatch(source.slice(source.indexOf("function renderTaskNodeOverview
 assert.match(styles, /\.task-progress-track i,[\s\S]*\.detail-progress-track i/);
 assert.match(styles, /\.detail-node-list/);
 assert.match(source, /PD-1011[\s\S]*提空装货[\s\S]*PD-1012[\s\S]*排空箱（A→B）[\s\S]*PD-1013[\s\S]*排重箱（A→B）[\s\S]*PD-1014[\s\S]*提重送货/);
-assert.equal(context.photoRequirementsForNode({ taskType: "提重送货" }, "空箱进站").length, 5);
+assert.equal(context.photoRequirementsForDispatch({ taskType: "提重送货" }).reduce((sum, item) => sum + item.quantity, 0), 10);
 assert.match(source, /if \(requestedNode && requestedNode !== node\) return/);
 assert.match(source, /async function openPhotoViewer\(/);
 assert.match(source, /data-view-photo data-photo-id/);

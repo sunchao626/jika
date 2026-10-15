@@ -1,0 +1,165 @@
+:root {
+  color-scheme: light;
+  --primary: #4779ed;
+  --primary-hover: #3868d9;
+  --primary-dark: var(--primary-hover);
+  --primary-soft: #edf3ff;
+  --accent: #f59a3d;
+  --accent-hover: #e78524;
+  --success: #20a86b;
+  --warning: #c6791e;
+  --danger: #d75563;
+  --info: #356fc2;
+  --text: #172033;
+  --ink: var(--text);
+  --muted: #66748a;
+  --line: #e5eaf1;
+  --line-strong: #d9e0eb;
+  --page: #f4f6fa;
+  --surface: #fff;
+  --card: var(--surface);
+  --surface-soft: #f8fafc;
+  --radius-control: 5px;
+  --radius-card: 8px;
+  --radius-overlay: 16px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --shadow-card: 0 2px 6px rgba(29, 43, 72, .04), 0 8px 20px rgba(29, 43, 72, .04);
+  --shadow-float: 0 16px 40px rgba(29, 43, 72, .16);
+  --shadow: var(--shadow-card);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --status-pending-bg: #fff4e5;
+  --status-pending-fg: #a95e13;
+  --status-active-bg: #edf3ff;
+  --status-active-fg: #356fc2;
+  --status-complete-bg: #eaf9f1;
+  --status-complete-fg: #218454;
+  --status-cancel-bg: #f1f3f6;
+  --status-cancel-fg: #788497;
+}
+
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid rgba(71, 121, 237, .68);
+  outline-offset: 2px;
+}
+
+.manager-hero { background: var(--primary); box-shadow: 0 12px 28px rgba(71, 121, 237, .2); }
+.manager-shell { background: linear-gradient(180deg, #f2f6fc 0%, #f8fafc 48%, #f1f5fa 100%); }
+.manager-shell::before { background: linear-gradient(135deg, rgba(255,255,255,.74), rgba(237,243,255,.38)); }
+.manager-header { background: rgba(248, 250, 252, .88); }
+.phone-shell { background: linear-gradient(180deg, #f2f6fc 0%, #f8fafc 48%, #f1f5fa 100%); }
+.phone-shell::before { background: linear-gradient(135deg, rgba(255,255,255,.72), rgba(237,243,255,.32)); }
+.mobile-header { background: rgba(248, 250, 252, .88); }
+.manager-drawer-logo,
+.assistant-avatar,
+.drawer-avatar,
+.avatar { background: linear-gradient(145deg, var(--primary), var(--primary-hover)); box-shadow: 0 8px 18px rgba(71, 121, 237, .2); }
+.manager-bottom-nav button.active > span,
+.bottom-nav button.active .nav-symbol { box-shadow: 0 6px 14px rgba(71, 121, 237, .22); }
+.manager-avatar,
+.entry-save,
+.detail-hero,
+.detail-edit-button,
+.auto-control,
+.order-progress-action { box-shadow: 0 8px 18px rgba(71, 121, 237, .2); }
+.header-icon,
+.subpage-action { box-shadow: 0 6px 18px rgba(29, 43, 72, .08); }
+.drawer-stat.active::after { background: var(--primary); }
+.certification-upload,
+.upload-box,
+.driver-option .avatar-mini { border-color: #d5e2f7; background: var(--primary-soft); }
+:is(input, a, .mobile-field textarea, .sheet-field textarea):focus-visible,
+.mobile-field textarea:focus,
+.sheet-field textarea:focus { outline-color: rgba(71, 121, 237, .68); border-color: var(--primary); box-shadow: 0 0 0 3px rgba(71, 121, 237, .12); }
+.entry-view { background: linear-gradient(180deg, #f4f7fc 0%, #f8fafc 100%); }
+
+.dispatch-status.pending,
+.status-badge.pending,
+.status-tag.warning { border-color: #f1d5b6; background: var(--status-pending-bg); color: var(--status-pending-fg); }
+.dispatch-status.assigned,
+.dispatch-status.moving,
+.status-badge.active { border-color: #d5e2fb; background: var(--status-active-bg); color: var(--status-active-fg); }
+.dispatch-status.completed,
+.status-badge.completed,
+.status-tag.success { border-color: #ccebd9; background: var(--status-complete-bg); color: var(--status-complete-fg); }
+.dispatch-status.cancelled,
+.status-badge.cancelled,
+.status-tag.muted { border-color: #e2e6ec; background: var(--status-cancel-bg); color: var(--status-cancel-fg); }
+.status-tag.danger { color: var(--danger); }
+
+.metric-card { font-variant-numeric: tabular-nums; transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }
+.metric-card .metric-value { font-size: 22px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.metric-card .metric-label { display: block; line-height: 1.35; }
+.metric-card .metric-support { display: block; margin-top: 4px; line-height: 1.35; }
+.metric-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.table-card,
+.dispatch-stat.metric-card,
+.dispatch-management-stat.metric-card,
+.user-access-panel { border-radius: var(--radius-card); }
+.hero-metrics button.metric-card { min-width: 0; }
+.hero-metrics button.metric-card:focus-visible,
+.drawer-stat.metric-card:focus-visible { outline-offset: -3px; }
+
+.order-status-tabs,
+.module-filter-row { display: flex; gap: 8px; overflow-x: auto; border: 0; padding-bottom: 4px; scrollbar-width: none; }
+.order-status-tabs::-webkit-scrollbar,
+.module-filter-row::-webkit-scrollbar { display: none; }
+.order-status-tabs button.filter-chip,
+.module-filter-row button.filter-chip { position: relative; min-width: max-content; height: 34px; flex: 0 0 auto; border: 1px solid var(--line-strong); border-radius: 999px; padding: 0 13px; color: var(--muted); background: var(--surface); box-shadow: none; font-size: 12px; font-weight: 600; }
+.order-status-tabs button.filter-chip.active,
+.module-filter-row button.filter-chip.active { border-color: var(--primary); color: #fff; background: var(--primary); box-shadow: 0 2px 7px rgba(71, 121, 237, .18); }
+.order-status-tabs button.filter-chip.active::after { display: none; }
+.order-status-tabs button.filter-chip:focus-visible,
+.module-filter-row button.filter-chip:focus-visible { outline-offset: 2px; }
+
+.toast,
+.manager-toast { right: 24px; bottom: calc(88px + var(--safe-bottom)); left: 24px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 12px 15px; background: rgba(23, 32, 51, .94); box-shadow: 0 8px 24px rgba(23, 32, 51, .18); font-size: 12px; }
+.user-action-feedback,
+.user-access-feedback { position: fixed; z-index: 100; right: 24px; bottom: 24px; max-width: min(440px, calc(100vw - 32px)); border: 1px solid var(--line); border-left: 3px solid var(--primary); border-radius: var(--radius-card); padding: 12px 16px; color: var(--text); background: var(--surface); box-shadow: var(--shadow-float); font-size: 12px; }
+.app-notice-dialog p { max-height: min(48dvh, 420px); overflow-y: auto; text-align: left; white-space: pre-line; }
+
+@media (max-width: 720px) {
+  :root { --radius-card: 14px; }
+  .workbench-block,
+  .manager-hero,
+  .manager-list-card,
+  .task-card,
+  .dispatch-card,
+  .detail-hero,
+  .info-section { border-radius: var(--radius-card); }
+  .toast,
+  .manager-toast { right: 20px; bottom: calc(88px + var(--safe-bottom)); left: 20px; }
+  .user-action-feedback,
+  .user-access-feedback { right: 12px; bottom: calc(78px + var(--safe-bottom)); left: 12px; max-width: none; }
+  .entry-view { inset: 0; border-radius: 0; background: rgba(23, 32, 51, .42); backdrop-filter: blur(2px); }
+  .entry-view form { position: relative; flex: 0 1 min(92%, 760px); height: min(92%, 760px); max-height: 92%; align-self: flex-end; border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; background: var(--surface); box-shadow: 0 -16px 40px rgba(23, 32, 51, .18); }
+  .entry-view form::before { position: absolute; top: 8px; left: calc(50% - 19px); width: 38px; height: 4px; border-radius: 3px; background: #cbd4e1; content: ""; }
+  .entry-view .entry-header { padding-top: max(25px, env(safe-area-inset-top)); }
+  .entry-view .form-actions { padding-bottom: calc(14px + var(--safe-bottom)); }
+  dialog.admin-form-dialog[open],
+  dialog.vehicle-dialog[open].plan-template-editor-dialog,
+  dialog.vehicle-dialog[open].user-access-role-dialog,
+  dialog.vehicle-dialog[open].user-access-user-dialog,
+  dialog.vehicle-dialog[open].photo-requirement-dialog,
+  dialog.confirm-dialog[open],
+  dialog.dispatch-confirm-dialog[open],
+  dialog.dispatch-result-dialog[open] {
+    position: fixed;
+    inset: auto 0 0;
+    width: min(100vw, 720px) !important;
+    max-width: none;
+    max-height: min(92dvh, 900px);
+    margin: 0 auto;
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -16px 40px rgba(23, 32, 51, .18);
+  }
+  dialog.admin-form-dialog::backdrop,
+  dialog.confirm-dialog::backdrop,
+  dialog.dispatch-confirm-dialog::backdrop,
+  dialog.dispatch-result-dialog::backdrop { background: rgba(23, 32, 51, .42); backdrop-filter: blur(2px); }
+}
