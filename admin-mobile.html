@@ -109,10 +109,19 @@
         </section>
 
         <section class="manager-view profile-view" id="profileView" data-title="我的">
-          <section class="manager-profile"><div class="manager-avatar">调</div><div><h2>张调度</h2><p>运营中心 · 调度管理员</p><span>账号 ZD-1008</span></div><button type="button" data-profile-action="profile">编辑</button></section>
-          <section class="profile-stat"><div><strong>18</strong><span>今日操作</span></div><div><strong>96%</strong><span>派单及时率</span></div><div><strong>3</strong><span>待办事项</span></div></section>
-          <section class="profile-menu"><h2>管理设置</h2><button data-profile-action="role" type="button"><span class="profile-menu-icon blue"><i data-lucide="shield-check"></i></span><strong>权限与角色</strong><i data-lucide="chevron-right"></i></button><button data-profile-action="notification" type="button"><span class="profile-menu-icon orange"><i data-lucide="bell-cog"></i></span><strong>消息设置</strong><i data-lucide="chevron-right"></i></button><button data-profile-action="security" type="button"><span class="profile-menu-icon purple"><i data-lucide="lock-keyhole"></i></span><strong>账号安全</strong><i data-lucide="chevron-right"></i></button></section>
-          <section class="profile-menu"><h2>系统服务</h2><button data-profile-action="desktop" type="button"><span class="profile-menu-icon green"><i data-lucide="monitor"></i></span><strong>返回后台系统</strong><i data-lucide="external-link"></i></button><button data-profile-action="about" type="button"><span class="profile-menu-icon gray"><i data-lucide="circle-help"></i></span><strong>关于系统</strong><i data-lucide="chevron-right"></i></button></section>
+          <section class="manager-profile">
+            <div class="manager-avatar" id="managerProfileAvatar" aria-hidden="true">调</div>
+            <div class="manager-profile-copy"><h2 id="managerProfileName">张调度</h2><p id="managerProfileIdentity">运营中心 · 调度管理员</p><span id="managerProfileAccount">账号 ZD-1008</span></div>
+            <button type="button" data-profile-action="profile">编辑资料</button>
+          </section>
+          <section class="profile-stat" aria-label="个人工作摘要"><div><strong>18</strong><span>今日操作</span></div><div><strong>96%</strong><span>派单及时率</span></div><div><strong>3</strong><span>待办事项</span></div></section>
+          <section class="profile-menu">
+            <h2>账号与设置</h2>
+            <button data-profile-action="role" type="button"><span class="profile-menu-icon blue"><i data-lucide="shield-check"></i></span><span class="profile-menu-copy"><strong>角色权限</strong><small id="managerRoleSummary">调度管理员</small></span><i data-lucide="chevron-right"></i></button>
+            <button data-profile-action="notification" type="button"><span class="profile-menu-icon orange"><i data-lucide="bell-cog"></i></span><span class="profile-menu-copy"><strong>通知设置</strong><small id="managerNotificationSummary">任务与预警已开启</small></span><i data-lucide="chevron-right"></i></button>
+            <button data-profile-action="security" type="button"><span class="profile-menu-icon purple"><i data-lucide="lock-keyhole"></i></span><span class="profile-menu-copy"><strong>账号安全</strong><small id="managerSecuritySummary">状态正常</small></span><i data-lucide="chevron-right"></i></button>
+            <button data-profile-action="help" type="button"><span class="profile-menu-icon gray"><i data-lucide="circle-help"></i></span><span class="profile-menu-copy"><strong>帮助与反馈</strong><small>使用指南与问题反馈</small></span><i data-lucide="chevron-right"></i></button>
+          </section>
           <p class="manager-version">集卡物流管理端 · 1.0</p>
         </section>
 
@@ -137,6 +146,11 @@
             <div class="entry-scroll" id="managerEntryContent"></div>
             <footer class="entry-actions"><button class="entry-cancel" id="entryCancelButton" type="button">取消</button><button class="entry-save" id="entrySaveButton" type="submit">保存</button></footer>
           </form>
+        </section>
+
+        <section class="profile-subpage" id="managerProfileSubpage" aria-hidden="true">
+          <header class="subpage-header"><button class="subpage-back" id="profileSubpageBack" type="button" aria-label="返回我的"><i data-lucide="chevron-left"></i></button><div><span id="profileSubpageEyebrow">账号与设置</span><strong id="profileSubpageTitle">个人资料</strong></div><span aria-hidden="true"></span></header>
+          <div class="profile-subpage-content" id="profileSubpageContent"></div>
         </section>
       </main>
 

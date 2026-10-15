@@ -260,7 +260,12 @@ const mobileFormDefinitions = {
   },
 };
 
-const state = { currentView: "workbench", currentModule: "", moduleFilter: "全部", messageFilter: "all", search: "", detailItem: null, entryModule: "", entryEditId: "", entryOriginalId: "", entryOriginalRaw: null };
+const state = { currentView: "workbench", currentModule: "", moduleFilter: "全部", messageFilter: "all", search: "", detailItem: null, entryModule: "", entryEditId: "", entryOriginalId: "", entryOriginalRaw: null, profilePage: "" };
+const MANAGER_PROFILE_STORAGE_KEY = "container-logistics-manager-profile-v1";
+const MANAGER_NOTIFICATION_STORAGE_KEY = "container-logistics-manager-notifications-v1";
+const MANAGER_FEEDBACK_STORAGE_KEY = "container-logistics-manager-feedback-v1";
+const defaultManagerProfile = { name: "张调度", phone: "13866686688", department: "运营中心", role: "调度管理员", account: "ZD-1008", avatar: "" };
+const defaultManagerNotifications = { task: true, warning: true, system: false };
 const reportPlanRecords = [
   { customerId: "KH-HM", customerName: "华贸", projectId: "PR-HM-BYD", projectName: "比亚迪", routeId: "XL-001", planned: 2, completed: 0, monthAmount: 78650, totalAmount: 962400 },
   { customerId: "KH-LG", customerName: "陆港多联", projectId: "PR-LG-TH", projectName: "提箱装货", routeId: "XL-002", planned: 1, completed: 0, monthAmount: 96480, totalAmount: 1285600 },
@@ -277,8 +282,34 @@ const reportNodeSequences = {
 const reportState = { amountDimension: "customer", capacityFilter: null };
 const $ = (selector) => document.querySelector(selector);
 let entryPreviousFocus = null;
+let profilePreviousFocus = null;
+let profileEditDirty = false;
+let profileDraftAvatar = "";
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const h = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+
+function readManagerProfile() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(MANAGER_PROFILE_STORAGE_KEY) || "null");
+    if (!stored || typeof stored !== "object") return { ...defaultManagerProfile };
+    return {
+      ...defaultManagerProfile,
+      name: typeof stored.name === "string" && stored.name.trim() ? stored.name.trim().slice(0, 20) : defaultManagerProfile.name,
+      phone: /^1\d{10}$/.test(stored.phone || "") ? stored.phone : defaultManagerProfile.phone,
+      avatar: typeof stored.avatar === "string" && stored.avatar.startsWith("data:image/") ? stored.avatar : "",
+    };
+  } catch (error) { return { ...defaultManagerProfile }; }
+}
+
+function readManagerNotifications() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(MANAGER_NOTIFICATION_STORAGE_KEY) || "null");
+    return stored && typeof stored === "object" ? { ...defaultManagerNotifications, ...stored } : { ...defaultManagerNotifications };
+  } catch (error) { return { ...defaultManagerNotifications }; }
+}
+
+let managerProfile = readManagerProfile();
+let managerNotifications = readManagerNotifications();
 
 function localDate() {
   const date = new Date();
@@ -601,6 +632,155 @@ function showToast(message) {
   showToast.timer = setTimeout(() => toast.classList.remove("show"), 2500);
 }
 
+function maskManagerPhone(phone) {
+  return /^1\d{10}$/.test(phone || "") ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : "未绑定";
+}
+
+function setManagerAvatar(node, profile = managerProfile) {
+  if (!node) return;
+  node.textContent = profile.avatar ? "" : (profile.name.trim().slice(0, 1) || "管");
+  node.style.backgroundImage = profile.avatar ? `url(${JSON.stringify(profile.avatar)})` : "";
+}
+
+function notificationSummary() {
+  const enabled = Object.values(managerNotifications).filter(Boolean).length;
+  if (managerNotifications.task && managerNotifications.warning) return "任务与预警已开启";
+  return enabled ? `已开启 ${enabled} 项` : "通知已关闭";
+}
+
+function renderManagerProfile() {
+  $("#managerProfileName").textContent = managerProfile.name;
+  $("#managerProfileIdentity").textContent = `${managerProfile.department} · ${managerProfile.role}`;
+  $("#managerProfileAccount").textContent = `账号 ${managerProfile.account}`;
+  $("#managerRoleSummary").textContent = managerProfile.role;
+  $("#managerNotificationSummary").textContent = notificationSummary();
+  $("#managerSecuritySummary").textContent = `${maskManagerPhone(managerProfile.phone)} · 状态正常`;
+  setManagerAvatar($("#managerProfileAvatar"));
+}
+
+function profileEditorMarkup() {
+  return `<form class="profile-editor" id="managerProfileForm" novalidate>
+    <div class="profile-editor-body">
+      <section class="profile-avatar-editor">
+        <div class="profile-avatar-preview" id="profileAvatarPreview" aria-hidden="true"></div>
+        <div><strong>个人头像</strong><small>用于管理端个人身份识别</small><label class="profile-avatar-upload"><input id="profileAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" /><i data-lucide="camera"></i>更换头像</label></div>
+      </section>
+      <section class="profile-form-card">
+        <label class="profile-form-row"><span>姓名</span><input name="name" value="${h(managerProfile.name)}" maxlength="20" autocomplete="name" required /></label>
+        <label class="profile-form-row"><span>手机号</span><input name="phone" value="${h(managerProfile.phone)}" inputmode="numeric" maxlength="11" autocomplete="tel" required /></label>
+        <label class="profile-form-row"><span>账号编号</span><input value="${h(managerProfile.account)}" readonly aria-readonly="true" /></label>
+        <label class="profile-form-row"><span>所属部门</span><input value="${h(managerProfile.department)}" readonly aria-readonly="true" /></label>
+        <label class="profile-form-row"><span>当前角色</span><input value="${h(managerProfile.role)}" readonly aria-readonly="true" /></label>
+      </section>
+      <p class="profile-form-note"><i data-lucide="info"></i><span>部门和角色由系统管理员维护；更换手机号时需填写完整的 11 位号码。</span></p>
+    </div>
+    <footer class="profile-editor-actions"><button class="profile-editor-cancel" data-profile-cancel type="button">取消</button><button class="profile-editor-save" id="profileSaveButton" type="submit" disabled>保存修改</button></footer>
+  </form>`;
+}
+
+function rolePageMarkup() {
+  return `<section class="profile-page-intro"><span><i data-lucide="shield-check"></i></span><div><strong>${h(managerProfile.role)}</strong><small>当前角色由系统管理员分配，本人仅可查看</small></div></section>
+    <section class="profile-settings-card">
+      <div class="profile-setting-row"><span><i data-lucide="user-round-check"></i></span><span class="profile-setting-copy"><strong>当前角色</strong><small>决定可查看和办理的业务范围</small></span><em class="profile-setting-value">${h(managerProfile.role)}</em></div>
+      <div class="profile-setting-row"><span><i data-lucide="building-2"></i></span><span class="profile-setting-copy"><strong>所属部门</strong><small>当前账号所在组织</small></span><em class="profile-setting-value">${h(managerProfile.department)}</em></div>
+      <div class="profile-setting-row"><span><i data-lucide="badge-check"></i></span><span class="profile-setting-copy"><strong>账号编号</strong><small>系统内唯一身份标识</small></span><em class="profile-setting-value">${h(managerProfile.account)}</em></div>
+    </section>
+    <p class="profile-page-note">如需调整所属部门或角色权限，请联系有权限的系统管理员处理。</p>`;
+}
+
+function notificationPageMarkup() {
+  const row = (key, icon, title, note) => `<label class="profile-setting-row"><span><i data-lucide="${icon}"></i></span><span class="profile-setting-copy"><strong>${title}</strong><small>${note}</small></span><span class="profile-toggle"><input data-notification-setting="${key}" type="checkbox" ${managerNotifications[key] ? "checked" : ""} /><i aria-hidden="true"></i></span></label>`;
+  return `<section class="profile-page-intro"><span><i data-lucide="bell-cog"></i></span><div><strong>通知设置</strong><small>这里只管理接收偏好，消息内容仍在“消息”页查看</small></div></section>
+    <section class="profile-settings-card">
+      ${row("task", "list-checks", "任务通知", "派单、任务变更与执行进度")}
+      ${row("warning", "shield-alert", "预警通知", "证件到期与异常任务提醒")}
+      ${row("system", "info", "系统通知", "版本更新与服务公告")}
+    </section>
+    <p class="profile-page-note">关闭某类通知后，对应消息仍会保留在消息中心，不影响业务数据。</p>`;
+}
+
+function securityPageMarkup() {
+  return `<section class="profile-page-intro"><span><i data-lucide="lock-keyhole"></i></span><div><strong>账号状态正常</strong><small>当前账号未发现异常登录或安全风险</small></div></section>
+    <section class="profile-settings-card">
+      <div class="profile-setting-row"><span><i data-lucide="smartphone"></i></span><span class="profile-setting-copy"><strong>绑定手机号</strong><small>用于身份确认和重要提醒</small></span><em class="profile-setting-value">${h(maskManagerPhone(managerProfile.phone))}</em></div>
+      <div class="profile-setting-row"><span><i data-lucide="monitor-smartphone"></i></span><span class="profile-setting-copy"><strong>当前登录设备</strong><small>微信小程序 · 本机</small></span><em class="profile-setting-value">正常</em></div>
+      <div class="profile-setting-row"><span><i data-lucide="activity"></i></span><span class="profile-setting-copy"><strong>最近登录</strong><small>登录记录仅用于安全核验</small></span><em class="profile-setting-value">刚刚</em></div>
+    </section>
+    <button class="profile-page-button" data-profile-nested-action="profile" type="button">更新个人资料</button>`;
+}
+
+function helpPageMarkup() {
+  return `<section class="profile-page-intro"><span><i data-lucide="circle-help"></i></span><div><strong>帮助与反馈</strong><small>查看使用说明，或提交遇到的问题</small></div></section>
+    <section class="profile-settings-card">
+      <div class="profile-setting-row"><span><i data-lucide="book-open"></i></span><span class="profile-setting-copy"><strong>使用指南</strong><small>工作台、报表、消息和账号设置说明</small></span><em class="profile-setting-value">管理端 1.0</em></div>
+      <div class="profile-setting-row"><span><i data-lucide="file-lock-2"></i></span><span class="profile-setting-copy"><strong>隐私与协议</strong><small>账号数据仅用于业务协同</small></span><em class="profile-setting-value">已同意</em></div>
+    </section>
+    <form id="managerFeedbackForm" class="profile-feedback"><span>问题反馈</span><textarea name="feedback" maxlength="300" placeholder="请简要描述遇到的问题" required></textarea><button class="profile-page-button" type="submit">提交反馈</button></form>`;
+}
+
+function openProfileSubpage(action) {
+  const page = $("#managerProfileSubpage");
+  if (!page.classList.contains("open")) profilePreviousFocus = document.activeElement;
+  state.profilePage = action;
+  profileEditDirty = false;
+  profileDraftAvatar = managerProfile.avatar;
+  const meta = {
+    profile: ["个人资料", "编辑个人资料"], role: ["账号与设置", "角色权限"],
+    notification: ["账号与设置", "通知设置"], security: ["账号与设置", "账号安全"], help: ["系统服务", "帮助与反馈"],
+  }[action] || ["账号与设置", "个人资料"];
+  $("#profileSubpageEyebrow").textContent = meta[0];
+  $("#profileSubpageTitle").textContent = meta[1];
+  $("#profileSubpageContent").innerHTML = action === "profile" ? profileEditorMarkup() : action === "role" ? rolePageMarkup() : action === "notification" ? notificationPageMarkup() : action === "security" ? securityPageMarkup() : helpPageMarkup();
+  page.classList.add("open");
+  page.setAttribute("aria-hidden", "false");
+  $(".manager-shell").classList.add("subpage-open");
+  if (action === "profile") setManagerAvatar($("#profileAvatarPreview"), { ...managerProfile, avatar: profileDraftAvatar });
+  refreshIcons();
+  requestAnimationFrame(() => $("#profileSubpageBack")?.focus());
+}
+
+function closeProfileSubpage(force = false) {
+  if (!force && state.profilePage === "profile" && profileEditDirty && !window.confirm("个人资料尚未保存，确定放弃修改吗？")) return false;
+  const page = $("#managerProfileSubpage");
+  page.classList.remove("open");
+  page.setAttribute("aria-hidden", "true");
+  $(".manager-shell").classList.remove("subpage-open");
+  state.profilePage = "";
+  profileEditDirty = false;
+  const fallback = $("#profileView [data-profile-action=profile]");
+  (profilePreviousFocus?.isConnected ? profilePreviousFocus : fallback)?.focus();
+  profilePreviousFocus = null;
+  return true;
+}
+
+function syncProfileEditorState() {
+  const form = $("#managerProfileForm");
+  if (!form) return;
+  const name = form.elements.name.value.trim();
+  const phone = form.elements.phone.value;
+  profileEditDirty = name !== managerProfile.name || phone !== managerProfile.phone || profileDraftAvatar !== managerProfile.avatar;
+  $("#profileSaveButton").disabled = !profileEditDirty;
+  const previewProfile = { ...managerProfile, name: name || managerProfile.name, avatar: profileDraftAvatar };
+  setManagerAvatar($("#profileAvatarPreview"), previewProfile);
+}
+
+function saveManagerProfile(event) {
+  event.preventDefault();
+  const form = event.target;
+  const name = form.elements.name.value.trim();
+  const phone = form.elements.phone.value.replace(/\D/g, "");
+  if (!name) { form.elements.name.focus(); showToast("请填写姓名"); return; }
+  if (!/^1\d{10}$/.test(phone)) { form.elements.phone.focus(); showToast("请输入正确的 11 位手机号"); return; }
+  const nextProfile = { ...managerProfile, name, phone, avatar: profileDraftAvatar };
+  try { localStorage.setItem(MANAGER_PROFILE_STORAGE_KEY, JSON.stringify(nextProfile)); }
+  catch (error) { showToast("资料保存失败，请缩小头像后重试"); return; }
+  managerProfile = nextProfile;
+  renderManagerProfile();
+  profileEditDirty = false;
+  closeProfileSubpage(true);
+  showToast("个人资料已保存");
+}
+
 function reportShiftDate(dateText, days) {
   const date = new Date(`${dateText}T12:00:00`);
   date.setDate(date.getDate() + days);
@@ -816,6 +996,7 @@ function renderReports() {
 function switchView(view) {
   state.currentView = view;
   closeManagerDrawer();
+  if ($("#managerProfileSubpage").classList.contains("open")) closeProfileSubpage(true);
   $(".manager-shell").classList.remove("subpage-open");
   $$(".manager-view").forEach((item) => item.classList.toggle("active", item.id === `${view}View`));
   $$("#managerBottomNav button").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
@@ -828,6 +1009,8 @@ function switchView(view) {
   $("#managerDetailView").classList.remove("open");
   $("#managerEntryView").classList.remove("open");
   $("#managerEntryView").setAttribute("aria-hidden", "true");
+  $("#managerProfileSubpage").classList.remove("open");
+  $("#managerProfileSubpage").setAttribute("aria-hidden", "true");
 }
 
 function openManagerDrawer() {
@@ -1828,10 +2011,7 @@ document.addEventListener("click", (event) => {
     openModule(name);
     openEntry(name);
   }
-  if (profileAction) {
-    if (profileAction.dataset.profileAction === "desktop") window.location.href = "index.html";
-    else showToast({ profile: "个人资料编辑功能", role: "当前角色：调度管理员", notification: "消息设置已打开", security: "账号安全状态正常", about: "集卡物流管理端 1.0" }[profileAction.dataset.profileAction]);
-  }
+  if (profileAction) openProfileSubpage(profileAction.dataset.profileAction);
 });
 
 $("#headerMessageButton").addEventListener("click", () => switchView("messages"));
@@ -1840,8 +2020,10 @@ $("#managerDrawerClose").addEventListener("click", closeManagerDrawer);
 $("#managerDrawerOverlay").addEventListener("click", closeManagerDrawer);
 document.addEventListener("keydown", (event) => {
   const entryOpen = $("#managerEntryView").classList.contains("open");
+  const profileOpen = $("#managerProfileSubpage").classList.contains("open");
   if (event.key === "Escape") {
-    if (entryOpen) closeEntry();
+    if (profileOpen) closeProfileSubpage();
+    else if (entryOpen) closeEntry();
     else closeManagerDrawer();
     return;
   }
@@ -1854,6 +2036,16 @@ document.addEventListener("keydown", (event) => {
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
 window.addEventListener("storage", (event) => {
+  if (event.key === MANAGER_PROFILE_STORAGE_KEY) {
+    managerProfile = readManagerProfile();
+    renderManagerProfile();
+    return;
+  }
+  if (event.key === MANAGER_NOTIFICATION_STORAGE_KEY) {
+    managerNotifications = readManagerNotifications();
+    renderManagerProfile();
+    return;
+  }
   if (event.key !== window.AdminDataBridge?.STORAGE_KEY) return;
   loadSharedCatalog();
   updateWorkbenchCounts();
@@ -1883,6 +2075,59 @@ $("#entryBackButton").addEventListener("click", closeEntry);
 $("#managerEntryView").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEntry(); });
 $("#entryCancelButton").addEventListener("click", closeEntry);
 $("#managerEntryForm").addEventListener("submit", saveEntry);
+$("#profileSubpageBack").addEventListener("click", () => closeProfileSubpage());
+
+$("#profileSubpageContent").addEventListener("click", (event) => {
+  if (event.target.closest("[data-profile-cancel]")) { closeProfileSubpage(); return; }
+  const nestedAction = event.target.closest("[data-profile-nested-action]");
+  if (nestedAction) openProfileSubpage(nestedAction.dataset.profileNestedAction);
+});
+
+$("#profileSubpageContent").addEventListener("input", (event) => {
+  if (!event.target.closest("#managerProfileForm")) return;
+  if (event.target.name === "phone") event.target.value = event.target.value.replace(/\D/g, "").slice(0, 11);
+  syncProfileEditorState();
+});
+
+$("#profileSubpageContent").addEventListener("change", (event) => {
+  if (event.target.matches("[data-notification-setting]")) {
+    managerNotifications[event.target.dataset.notificationSetting] = event.target.checked;
+    localStorage.setItem(MANAGER_NOTIFICATION_STORAGE_KEY, JSON.stringify(managerNotifications));
+    renderManagerProfile();
+    showToast("通知设置已保存");
+    return;
+  }
+  if (event.target.id !== "profileAvatarInput") return;
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/") || file.size > 2 * 1024 * 1024) {
+    event.target.value = "";
+    showToast("请选择不超过 2 MB 的图片");
+    return;
+  }
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    profileDraftAvatar = typeof reader.result === "string" ? reader.result : "";
+    syncProfileEditorState();
+  });
+  reader.readAsDataURL(file);
+});
+
+$("#profileSubpageContent").addEventListener("submit", (event) => {
+  if (event.target.id === "managerProfileForm") { saveManagerProfile(event); return; }
+  if (event.target.id !== "managerFeedbackForm") return;
+  event.preventDefault();
+  const feedback = event.target.elements.feedback.value.trim();
+  if (!feedback) { event.target.elements.feedback.focus(); return; }
+  let records = [];
+  try { records = JSON.parse(localStorage.getItem(MANAGER_FEEDBACK_STORAGE_KEY) || "[]"); }
+  catch (error) { records = []; }
+  const next = Array.isArray(records) ? records : [];
+  next.push({ content: feedback, createdAt: new Date().toISOString() });
+  localStorage.setItem(MANAGER_FEEDBACK_STORAGE_KEY, JSON.stringify(next.slice(-20)));
+  event.target.reset();
+  showToast("反馈已记录");
+});
 
 $("#managerEntryContent").addEventListener("click", (event) => {
   const addButton = event.target.closest("[data-add-repeat]");
@@ -1968,5 +2213,6 @@ rebuildDispatchManagementCatalog();
 updateWorkbenchCounts();
 renderWorkbench();
 renderMessages();
+renderManagerProfile();
 refreshIcons();
 window.setInterval(() => { if (state.currentView === "reports") renderReports(); }, 15000);

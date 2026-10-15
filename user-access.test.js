@@ -24,6 +24,7 @@ const api = context.window.UserAccess;
 
 test("user and role management is linked from system settings", () => {
   assert.match(html, /data-page="user-access"[^>]*>用户与权限/);
+  assert.match(source, /\{ group: "系统配置", id: "customers", name: "客户管理"/);
   assert.match(app, /"user-access": \{ title: "用户与权限", kicker: "系统配置 \/ 用户与权限", view: "userAccess" \}/);
   assert.match(html, /id="userAccessPermissionBody"/);
   assert.match(html, /id="userAccessScopePicker"/);

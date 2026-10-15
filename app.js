@@ -373,7 +373,7 @@ const pageMeta = {
   "finance-reports": { title: "运输成本台账", kicker: "财务管理 / 运输成本台账", view: "finance" },
   "driver-expenses": { title: "司机费用上报", kicker: "财务管理 / 司机费用上报", view: "driverExpenses" },
   "vehicle-repairs": { title: "车辆维修管理", kicker: "车辆管理 / 维修台账", view: "vehicleRepairs" },
-  "customer-archives": { title: "客户管理", kicker: "基础资料 / 客户档案", view: "customer" },
+  "customer-archives": { title: "客户管理", kicker: "系统配置 / 客户管理", view: "customer" },
   "reminder-templates": { title: "消息提醒模板", kicker: "系统配置 / 消息提醒", view: "reminderTemplates" },
   announcements: { title: "公告管理", kicker: "系统配置 / 公告管理", view: "announcements" },
   vehicle: {

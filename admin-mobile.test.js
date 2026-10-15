@@ -16,6 +16,20 @@ for (const reportSection of ["运输金额", "运力状态", "实时运力任务
 for (const reportFilter of ["reportDateRange", "reportCustomer", "reportProject", "reportRoute", "reportThreshold"]) assert.ok(html.includes(`id="${reportFilter}"`), `数据报表缺少筛选 ${reportFilter}`);
 assert.match(html, /data-report-amount="customer"[\s\S]*data-report-amount="route"/);
 assert.match(css, /\.manager-bottom-nav\s*\{[^}]*grid-template-columns:\s*repeat\(4,1fr\)/);
+assert.match(html, /id="profileView"[\s\S]*今日操作[\s\S]*派单及时率[\s\S]*待办事项/);
+for (const profileAction of ["profile", "role", "notification", "security", "help"]) {
+  assert.match(html, new RegExp(`data-profile-action="${profileAction}"`), `我的页面缺少 ${profileAction} 入口`);
+}
+assert.doesNotMatch(html, /返回后台系统|data-profile-action="desktop"/, "小程序管理端不应提供返回后台系统入口");
+assert.match(html, /id="managerProfileSubpage"[\s\S]*id="profileSubpageContent"/);
+assert.match(css, /\.profile-view\s*\{[^}]*overflow-y:\s*hidden/);
+assert.match(css, /\.profile-menu button\s*\{[^}]*min-height:\s*52px/);
+assert.match(script, /MANAGER_PROFILE_STORAGE_KEY/);
+assert.match(script, /function openProfileSubpage\(action\)/);
+assert.match(script, /function saveManagerProfile\(event\)/);
+assert.match(script, /profileDraftAvatar/);
+assert.match(script, /部门和角色由系统管理员维护/);
+assert.match(script, /data-notification-setting/);
 assert.match(script, /function renderReports\(\)/);
 assert.match(script, /function reportTaskRows\(/);
 assert.match(script, /reportRanges = \{ yesterday: \{ label: "昨日", days: 1, endOffset: -1 \}, today: \{ label: "今日", days: 1, endOffset: 0 \}, last7: \{ label: "近7天", days: 7, endOffset: 0 \}, month: \{ label: "近一月", days: 30, endOffset: 0 \} \}/);

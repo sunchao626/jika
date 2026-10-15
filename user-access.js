@@ -14,7 +14,7 @@
     { group: "司机管理", id: "drivers", name: "司机档案管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "财务管理", id: "finance", name: "运输成本台账", actions: ["view", "edit", "export", "special"], special: "费用审核" },
     { group: "财务管理", id: "driverExpenses", name: "司机费用上报", actions: ["view", "special", "export"], special: "费用审核" },
-    { group: "基础资料", id: "customers", name: "客户管理", actions: ["view", "create", "edit", "delete", "export"] },
+    { group: "系统配置", id: "customers", name: "客户管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "系统配置", id: "reminders", name: "消息提醒模板", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "announcements", name: "公告管理", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "photoRequirements", name: "司机拍照要求", actions: ["view", "create", "edit", "delete"] },

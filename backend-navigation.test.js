@@ -14,8 +14,13 @@ const routeSection = html.slice(html.lastIndexOf('<section class="nav-section', 
 assert.doesNotMatch(planSection, /data-page="fixed-routes"/);
 assert.match(routeSection, /线路管理[\s\S]*data-page="fixed-routes"[^>]*>固定线路管理<\/button>/);
 assert.doesNotMatch(html, />办公管理<\/button>/);
+assert.doesNotMatch(html, />基础资料<\/button>/);
+const systemStart = html.indexOf("系统配置");
+const systemSection = html.slice(html.lastIndexOf('<section class="nav-section', systemStart), html.indexOf('</section>', systemStart));
+assert.match(systemSection, /系统配置[\s\S]*data-page="customer-archives"[^>]*>客户管理<\/button>/);
 assert.match(html, /id="routeDialog"[^>]*data-breadcrumb="线路管理 \/ 固定线路管理 \/ 线路建档"/);
 assert.match(html, /id="projectDialog"[^>]*data-breadcrumb="线路管理 \/ 固定线路管理 \/ 项目建档"/);
 assert.match(app, /"fixed-routes": \{ title: "固定线路管理", kicker: "线路管理 \/ 固定线路", view: "route" \}/);
+assert.match(app, /"customer-archives": \{ title: "客户管理", kicker: "系统配置 \/ 客户管理", view: "customer" \}/);
 
 console.log("Backend navigation hierarchy test passed");
