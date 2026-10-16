@@ -1,3 +1,15 @@
+const CapacityOwnership = window.CapacityOwnership || {
+  TYPES: { SELF: "自营", THIRD: "三方", MIXED: "自营+三方", PENDING: "待确定" },
+  normalizeType(value) { return ["自有", "自有司机"].includes(value) ? "自营" : ["外协", "外协司机", "三方司机"].includes(value) ? "三方" : value || "待确定"; },
+  organizationName(record = {}) { return this.normalizeType(record.capacityOwnership || record.ownership || record.driverType) === "自营" ? "本公司" : record.supplierName || record.fleetName || record.fleet || "未配置供应商"; },
+  normalizeResource(record = {}, kind = "vehicle") { record.capacityOwnership = this.normalizeType(record.capacityOwnership || record.ownership || record.driverType); record.organizationName = this.organizationName(record); record.supplierName = record.capacityOwnership === "三方" ? record.organizationName : ""; if (kind === "driver") record.driverType = record.capacityOwnership === "三方" ? "三方司机" : "自有司机"; else record.ownership = record.capacityOwnership === "三方" ? "外协" : "自有"; return record; },
+  groupSnapshot(resources = [], options = {}) { const list = resources.filter(Boolean).map((item) => ({ role: item.role || "运力", name: item.name || "未选择", type: this.normalizeType(item.capacityOwnership || item.ownership || item.driverType), organizationName: this.organizationName(item), supplierName: item.supplierName || "" })); const types = new Set(list.map((item) => item.type).filter((type) => ["自营", "三方"].includes(type))); const type = options.missingRequired || !types.size ? "待确定" : types.size > 1 ? "自营+三方" : [...types][0]; return { type, resources: list, supplierNames: [...new Set(list.filter((item) => item.type === "三方").map((item) => item.organizationName))], tooltip: list.map((item) => `${item.role}：${item.name} · ${item.organizationName}`).join("\n") }; },
+  matchesFilter(value, filter, individualResource = false) { return !filter || (individualResource && this.normalizeType(filter) === "自营+三方" ? ["自营", "三方"].includes(this.normalizeType(value)) : this.normalizeType(value) === this.normalizeType(filter)); },
+  badgeMarkup(value, tooltip = "") { const type = this.normalizeType(value); const className = type === "自营" ? "self" : type === "三方" ? "third" : type === "自营+三方" ? "mixed" : "pending"; return `<span class="capacity-ownership-badge ${className}"${tooltip ? ` title="${String(tooltip).replaceAll('"', '&quot;')}"` : ""}>${type}</span>`; },
+  sortSelfFirst(records, getter = (item) => item.capacityOwnership) { const order = { 自营: 0, "自营+三方": 1, 三方: 2, 待确定: 3 }; return [...records].sort((a, b) => (order[this.normalizeType(getter(a))] ?? 9) - (order[this.normalizeType(getter(b))] ?? 9)); },
+  readSuppliers() { return []; }, saveSuppliers(records) { return records; }, findSupplier() { return null; }, ensureSupplier() { return null; },
+};
+
 const waybills = [
   {
     waybillNo: "WB20260916001",
@@ -353,6 +365,7 @@ const pageViews = {
   customer: document.querySelector("#customerPage"),
   reminderTemplates: document.querySelector("#reminderTemplatePage"),
   announcements: document.querySelector("#announcementPage"),
+  thirdPartySuppliers: document.querySelector("#thirdPartySupplierPage"),
   vehicle: document.querySelector("#vehiclePage"),
   trailer: document.querySelector("#trailerPage"),
   driver: document.querySelector("#driverPage"),
@@ -378,6 +391,7 @@ const pageMeta = {
   "customer-archives": { title: "客户管理", kicker: "系统配置 / 客户管理", view: "customer" },
   "reminder-templates": { title: "消息提醒模板", kicker: "系统配置 / 消息提醒", view: "reminderTemplates" },
   announcements: { title: "公告管理", kicker: "系统配置 / 公告管理", view: "announcements" },
+  "third-party-suppliers": { title: "三方供应商档案", kicker: "系统配置 / 三方供应商档案", view: "thirdPartySuppliers" },
   vehicle: {
     title: "车辆档案管理",
     kicker: "车辆管理 / 车辆档案",
@@ -680,7 +694,7 @@ const drivers = [
   {
     id: "SJ-1004", name: "陈涛", gender: "男", idCard: "330109199003154812", phone: "13600002228",
     address: "杭州市萧山区市心南路", emergencyContact: "陈晓", emergencyPhone: "13800004116",
-    entryDate: "2023-02-06", driverType: "自有司机", driverState: "空闲", certificationStatus: "verified", fleet: "杭州车队",
+    entryDate: "2023-02-06", driverType: "三方司机", capacityOwnership: "三方", supplierName: "杭州危险品运输车队", driverState: "空闲", certificationStatus: "verified", fleet: "杭州车队",
     licenseNo: "330109199003154812", licenseClass: "A2", licenseIssueDate: "2016-03-15", licenseExpiry: "2028-03-15",
     licenseAttachment: "驾驶证扫描件", qualificationNo: "330109007721", qualificationExpiry: "2027-12-20",
     qualificationAttachment: "从业资格证照片", bankCard: "6212261200002289", bankName: "中国工商银行杭州萧山支行", remark: "主要负责杭州至宁波往返线路",
@@ -753,7 +767,7 @@ function normalizeDriverRecord(record = {}, defaults = {}, index = 0) {
 drivers.forEach((driver, index) => Object.assign(driver, normalizeDriverRecord(driver, {}, index)));
 
 function enabledOwnDrivers() {
-  return drivers.filter((driver) => driver.driverType === "自有司机" && driver.driverState !== "停用");
+  return CapacityOwnership.sortSelfFirst(drivers.filter((driver) => driver.driverState !== "停用"));
 }
 
 function availableOwnDrivers() {
@@ -977,6 +991,83 @@ function hydrateAdminDataSnapshot() {
 
 hydrateAdminDataSnapshot();
 
+vehicles.forEach((vehicle) => CapacityOwnership.normalizeResource(vehicle, "vehicle"));
+trailers.forEach((trailer) => CapacityOwnership.normalizeResource(trailer, "trailer"));
+drivers.forEach((driver) => CapacityOwnership.normalizeResource(driver, "driver"));
+
+function getCapacityOwnershipSnapshot(driverId, vehicleId, trailerId) {
+  const driver = drivers.find((item) => item.id === driverId);
+  const vehicle = vehicles.find((item) => item.plateNo === vehicleId);
+  const trailer = trailers.find((item) => item.id === trailerId);
+  return CapacityOwnership.groupSnapshot([
+    driver && { ...driver, role: "司机", name: driver.name },
+    vehicle && { ...vehicle, role: "车辆", name: vehicle.plateNo },
+    trailer && { ...trailer, role: "挂车", name: trailer.plateNo },
+  ], { missingRequired: !driver || !vehicle });
+}
+
+function applyCapacitySnapshot(record, force = false) {
+  if (!record || (!force && record.capacityOwnershipSnapshot)) return record;
+  const snapshot = getCapacityOwnershipSnapshot(record.driverId, record.vehicleId, record.trailerId);
+  const driver = drivers.find((item) => item.id === record.driverId);
+  const vehicle = vehicles.find((item) => item.plateNo === record.vehicleId);
+  const trailer = trailers.find((item) => item.id === record.trailerId);
+  Object.assign(record, {
+    capacityOwnershipSnapshot: snapshot.type,
+    capacityOwnershipDetailSnapshot: snapshot.resources,
+    capacityOwnershipTooltipSnapshot: snapshot.tooltip,
+    driverOrganizationSnapshot: driver ? CapacityOwnership.organizationName(driver) : "待确定",
+    vehicleOrganizationSnapshot: vehicle ? CapacityOwnership.organizationName(vehicle) : "待确定",
+    trailerOrganizationSnapshot: trailer ? CapacityOwnership.organizationName(trailer) : "未绑定",
+    carrierTypeSnapshot: vehicle?.capacityOwnership || "待确定",
+    carrierUnitSnapshot: vehicle ? CapacityOwnership.organizationName(vehicle) : "待确定",
+  });
+  return record;
+}
+
+function refreshSupplierDatalist() {
+  const list = document.querySelector("#thirdPartySupplierOptions");
+  if (!list) return;
+  list.innerHTML = CapacityOwnership.readSuppliers().filter((item) => item.status !== "停用").map((item) => `<option value="${dashboardEscape(item.name)}">${dashboardEscape(item.id)}</option>`).join("");
+}
+
+function syncCapacityOwnershipForm(form) {
+  const typeField = form?.elements.capacityOwnership;
+  const supplierField = form?.elements.supplierName;
+  if (!typeField || !supplierField) return;
+  const isThirdParty = CapacityOwnership.normalizeType(typeField.value) === CapacityOwnership.TYPES.THIRD;
+  supplierField.closest("[data-third-party-field]").hidden = !isThirdParty;
+  supplierField.required = isThirdParty;
+  if (!isThirdParty) {
+    supplierField.value = "";
+    supplierField.setCustomValidity("");
+  }
+}
+
+function validateCapacityOwnershipForm(form) {
+  syncCapacityOwnershipForm(form);
+  const type = CapacityOwnership.normalizeType(form.elements.capacityOwnership?.value);
+  const input = form.elements.supplierName;
+  if (type !== CapacityOwnership.TYPES.THIRD) return true;
+  const supplier = CapacityOwnership.findSupplier(input.value);
+  input.setCustomValidity(supplier?.status === "启用" ? "" : "请选择供应商档案中已启用的三方供应商。");
+  if (!supplier || supplier.status !== "启用") {
+    input.reportValidity();
+    return false;
+  }
+  input.value = supplier.name;
+  return true;
+}
+
+function capacityFieldsFromForm(form, kind) {
+  const type = CapacityOwnership.normalizeType(form.elements.capacityOwnership?.value);
+  const supplier = type === CapacityOwnership.TYPES.THIRD ? CapacityOwnership.findSupplier(form.elements.supplierName?.value) : null;
+  const result = { capacityOwnership: type, supplierId: supplier?.id || "", supplierName: supplier?.name || "", organizationName: type === CapacityOwnership.TYPES.SELF ? CapacityOwnership.SELF_ORGANIZATION || "本公司" : supplier?.name || "" };
+  if (kind === "driver") result.driverType = type === CapacityOwnership.TYPES.THIRD ? "三方司机" : "自有司机";
+  else result.ownership = type === CapacityOwnership.TYPES.THIRD ? "外协" : "自有";
+  return result;
+}
+
 function ensureDemoAutoDispatches() {
   const hasAutoDispatch = dispatches.some((item) => item.dispatchMode === "auto" || DEFAULT_AUTO_DISPATCH_IDS.has(item.id));
   if (hasAutoDispatch) return;
@@ -1018,6 +1109,7 @@ function normalizeDispatchRecord(dispatch) {
     dispatch.projectId = dispatch.projectId || waybill.projectId || "";
     dispatch.projectName = dispatch.projectName || waybill.projectName || "未分配项目";
   }
+  applyCapacitySnapshot(dispatch);
   return dispatch;
 }
 
@@ -1055,6 +1147,8 @@ function syncDriverOperationalStates() {
   });
 }
 
+if (typeof window !== "undefined") window.applyCapacitySnapshot = applyCapacitySnapshot;
+
 syncDriverOperationalStates();
 
 function saveDispatches() {
@@ -1073,6 +1167,7 @@ function publishAdminDataSnapshot() {
     vehicleRepairs: vehicleRepairRecords,
     trailers,
     drivers,
+    thirdPartySuppliers: CapacityOwnership.readSuppliers(),
     routeAccounts: typeof routeAccountCatalog !== "undefined" ? routeAccountCatalog : [],
   });
 }
@@ -1359,11 +1454,12 @@ function filterVehicles(formData) {
   const vehicleState = formData.get("vehicleState");
   const dueStatus = formData.get("dueStatus");
   const warningDays = Number(formData.get("warningDays")) || 30;
+  const capacityOwnership = formData.get("capacityOwnership");
   return vehicles.filter((item) => {
     const matchedPlate = normalize(item.plateNo).includes(plateNo);
     const matchedState = !vehicleState || item.vehicleState === vehicleState;
     const matchedDueStatus = !dueStatus || getDueInfo(item, warningDays).key === dueStatus;
-    return matchedPlate && matchedState && matchedDueStatus;
+    return matchedPlate && matchedState && matchedDueStatus && CapacityOwnership.matchesFilter(item.capacityOwnership, capacityOwnership, true);
   });
 }
 
@@ -1393,7 +1489,7 @@ function getWarningDays() {
 function renderVehicleRows(rows, warningDays = 30) {
   const vehicleBody = document.querySelector("#vehicleBody");
   if (!rows.length) {
-    vehicleBody.innerHTML = '<tr><td class="no-data-cell" colspan="14">暂无符合条件的车辆档案</td></tr>';
+    vehicleBody.innerHTML = '<tr><td class="no-data-cell" colspan="15">暂无符合条件的车辆档案</td></tr>';
     return;
   }
 
@@ -1408,7 +1504,8 @@ function renderVehicleRows(rows, warningDays = 30) {
           <td>${businessCell(vehicle.vin, "待补录")}</td>
           <td>${businessCell(vehicle.engineNo, "待补录")}</td>
           <td>${businessCell(vehicle.permitNo, "待补录")}</td>
-          <td>${businessCell(vehicle.ownership, "待确认")}</td>
+          <td>${CapacityOwnership.badgeMarkup(vehicle.capacityOwnership)}</td>
+          <td>${businessCell(CapacityOwnership.organizationName(vehicle), "待确认")}</td>
           <td>${businessCell(getVehicleDriverLabel(vehicle), "未绑定司机")}</td>
           <td><span class="state-pill ${getVehicleStateClass(vehicle.vehicleState)}">${businessCell(vehicle.vehicleState, "状态待确认")}</span></td>
           <td>${businessCell(vehicle.inspectionDue, "待补录")}</td>
@@ -1479,7 +1576,8 @@ function renderVehicleDetailBase(vehicle) {
         ["所属车队", vehicle.fleet],
         ["车队名称", vehicle.fleetName],
         ["默认挂车", getTrailerLabel(vehicle.trailerId)],
-        ["车辆所属", vehicle.ownership],
+        ["运力归属", vehicle.capacityOwnership],
+        ["所属单位", CapacityOwnership.organizationName(vehicle)],
         ["车辆状态", vehicle.vehicleState],
       ],
     },
@@ -1527,7 +1625,7 @@ function renderVehicleDetailBase(vehicle) {
   ];
 
   document.querySelector("#detailVehicleTitle").textContent = businessText(vehicle.plateNo, "待录入车牌");
-  document.querySelector("#detailVehicleMeta").textContent = `${businessText(vehicle.vehicleType, "待维护车型")} / ${businessText(vehicle.ownership, "待确认归属")}`;
+  document.querySelector("#detailVehicleMeta").textContent = `${businessText(vehicle.vehicleType, "待维护车型")} · ${businessText(vehicle.capacityOwnership, "待确认归属")} · ${businessText(CapacityOwnership.organizationName(vehicle), "待确认单位")}`;
   const detailVehicleState = document.querySelector("#detailVehicleState");
   detailVehicleState.textContent = businessText(vehicle.vehicleState, "状态待确认");
   detailVehicleState.className = `state-pill ${getVehicleStateClass(vehicle.vehicleState)}`;
@@ -1826,7 +1924,7 @@ function openVehicleForm(mode, plateNo = "") {
       "mandatoryInsuranceExpiry",
       "cargoInsuranceNo",
       "cargoInsuranceExpiry",
-      "ownership",
+      "capacityOwnership", "supplierName",
       "vehicleState",
       "vin",
       "inspectionDue",
@@ -1837,7 +1935,11 @@ function openVehicleForm(mode, plateNo = "") {
         if (vehicleForm.elements[fieldName]) vehicleForm.elements[fieldName].value = vehicle[fieldName] || "";
       }
     );
+    vehicleForm.elements.supplierName.value = CapacityOwnership.organizationName(vehicle) === "本公司" ? "" : CapacityOwnership.organizationName(vehicle);
   }
+  if (!vehicle) vehicleForm.elements.capacityOwnership.value = CapacityOwnership.TYPES.SELF;
+  refreshSupplierDatalist();
+  syncCapacityOwnershipForm(vehicleForm);
   vehicleForm.elements.vehicleState.disabled = hasOpenRepair;
 
   vehicleDialog.showModal();
@@ -1884,7 +1986,7 @@ function getVehicleFormData() {
     mandatoryInsuranceExpiry: formData.get("mandatoryInsuranceExpiry"),
     cargoInsuranceNo: formData.get("cargoInsuranceNo").trim(),
     cargoInsuranceExpiry: formData.get("cargoInsuranceExpiry"),
-    ownership: formData.get("ownership"),
+    ...capacityFieldsFromForm(vehicleForm, "vehicle"),
     vehicleState: formData.get("vehicleState"),
     inspectionDue: formData.get("inspectionDue"),
     insuranceDue: formData.get("insuranceDue"),
@@ -1931,10 +2033,12 @@ function filterTrailers(formData) {
   const plateNo = normalize(formData.get("plateNo"));
   const trailerType = normalize(formData.get("trailerType"));
   const trailerState = formData.get("trailerState");
+  const capacityOwnership = formData.get("capacityOwnership");
   return trailers.filter((trailer) =>
     normalize(trailer.plateNo).includes(plateNo) &&
     normalize(trailer.trailerType).includes(trailerType) &&
-    (!trailerState || trailer.trailerState === trailerState)
+    (!trailerState || trailer.trailerState === trailerState) &&
+    CapacityOwnership.matchesFilter(trailer.capacityOwnership, capacityOwnership, true)
   );
 }
 
@@ -1944,12 +2048,12 @@ function getFilteredTrailers() {
 
 function renderTrailerRows(rows) {
   if (!rows.length) {
-    trailerBody.innerHTML = '<tr><td class="no-data-cell" colspan="10">暂无符合条件的挂车档案</td></tr>';
+    trailerBody.innerHTML = '<tr><td class="no-data-cell" colspan="11">暂无符合条件的挂车档案</td></tr>';
     return;
   }
   trailerBody.innerHTML = rows.map((trailer) => `
     <tr>
-      <td><strong class="primary-text">${trailer.plateNo}</strong></td><td>${trailer.trailerType}</td><td>${trailer.vin}</td><td>${trailer.ownership}</td><td>${trailer.fleet || "-"}</td>
+      <td><strong class="primary-text">${trailer.plateNo}</strong></td><td>${trailer.trailerType}</td><td>${trailer.vin}</td><td>${CapacityOwnership.badgeMarkup(trailer.capacityOwnership)}</td><td>${dashboardEscape(CapacityOwnership.organizationName(trailer))}</td><td>${trailer.fleet || "-"}</td>
       <td><span class="state-pill ${getVehicleStateClass(trailer.trailerState)}">${trailer.trailerState}</span></td><td>${trailer.inspectionDue || "-"}</td><td>${trailer.insuranceDue || "-"}</td><td>${trailer.attachments || "-"}</td>
       <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-edit-trailer="${trailer.id}" type="button">编辑</button><button class="link-btn delete-btn" data-delete-trailer="${trailer.id}" type="button">删除</button></div></td>
     </tr>`).join("");
@@ -1980,10 +2084,14 @@ function openTrailerForm(mode, trailerId = "") {
   const trailer = trailers.find((item) => item.id === trailerId);
   document.querySelector("#trailerFormTitle").textContent = mode === "edit" ? "编辑挂车档案" : "新增挂车档案";
   if (trailer) {
-    ["plateNo", "trailerType", "vin", "fleet", "ownership", "trailerState", "registrationCertNo", "permitNo", "operatingPermitExpiry", "inspectionDue", "insuranceNo", "insuranceDue", "attachments", "remark"].forEach((fieldName) => {
+    ["plateNo", "trailerType", "vin", "fleet", "capacityOwnership", "supplierName", "trailerState", "registrationCertNo", "permitNo", "operatingPermitExpiry", "inspectionDue", "insuranceNo", "insuranceDue", "attachments", "remark"].forEach((fieldName) => {
       trailerForm.elements[fieldName].value = trailer[fieldName] || "";
     });
+    trailerForm.elements.supplierName.value = CapacityOwnership.organizationName(trailer) === "本公司" ? "" : CapacityOwnership.organizationName(trailer);
   }
+  if (!trailer) trailerForm.elements.capacityOwnership.value = CapacityOwnership.TYPES.SELF;
+  refreshSupplierDatalist();
+  syncCapacityOwnershipForm(trailerForm);
   trailerDialog.showModal();
 }
 
@@ -2002,7 +2110,7 @@ function getTrailerFormData() {
     trailerType: String(formData.get("trailerType") || "").trim(),
     vin: String(formData.get("vin") || "").trim(),
     fleet: String(formData.get("fleet") || "").trim(),
-    ownership: formData.get("ownership"),
+    ...capacityFieldsFromForm(trailerForm, "trailer"),
     trailerState: formData.get("trailerState"),
     registrationCertNo: String(formData.get("registrationCertNo") || "").trim(),
     permitNo: String(formData.get("permitNo") || "").trim(),
@@ -2140,6 +2248,7 @@ function filterDrivers(formData) {
   const phone = normalize(formData.get("phone"));
   const state = formData.get("driverState");
   const expiryType = formData.get("expiryType");
+  const capacityOwnership = formData.get("capacityOwnership");
 
   return drivers.filter((driver) => {
     const licenseDays = daysUntil(driver.licenseExpiry);
@@ -2151,12 +2260,11 @@ function filterDrivers(formData) {
       (expiryType === "已过期" && (licenseDays < 0 || qualificationDays < 0));
 
     return (
-      driver.driverType === "自有司机" &&
       normalize(driver.name).includes(name) &&
       normalize(driver.idCard).includes(idCard) &&
       normalize(driver.phone).includes(phone) &&
       (!state || driver.driverState === state) &&
-      matchesExpiry
+      matchesExpiry && CapacityOwnership.matchesFilter(driver.capacityOwnership, capacityOwnership, true)
     );
   });
 }
@@ -2187,7 +2295,7 @@ function renderDriverCredentialNavAlert(referenceDate = new Date()) {
 }
 
 function renderDriverSummaryCards() {
-  const ownDrivers = drivers.filter((driver) => driver.driverType === "自有司机");
+  const ownDrivers = drivers;
   const attendanceCounts = {
     total: ownDrivers.length,
     leave: ownDrivers.filter((driver) => driver.driverState === "休假中").length,
@@ -2236,7 +2344,7 @@ function updateDriverSelection() {
 function renderDriverRows(rows) {
   renderedDriverIds = rows.map((driver) => driver.id);
   if (!rows.length) {
-    driverBody.innerHTML = '<tr><td class="no-data-cell" colspan="14">暂无符合条件的司机档案</td></tr>';
+    driverBody.innerHTML = '<tr><td class="no-data-cell" colspan="16">暂无符合条件的司机档案</td></tr>';
     updateDriverSelection();
     return;
   }
@@ -2257,6 +2365,8 @@ function renderDriverRows(rows) {
           <td>${businessCell(driver.idCard, "330206199001019999")}</td>
           <td><span class="state-pill ${getDriverStateClass(driver.driverState)}">${businessCell(driver.driverState, "停用")}</span></td>
           <td><span class="certification-badge ${certificationInfo.className}">${certificationInfo.label}</span></td>
+          <td>${CapacityOwnership.badgeMarkup(driver.capacityOwnership)}</td>
+          <td>${businessCell(CapacityOwnership.organizationName(driver), "待确认")}</td>
           <td>${businessCell(driver.fleet, "宁波测试车队")}</td>
           <td>${businessCell(driver.entryDate, "2026-03-18")}</td>
           <td>${businessCell(driver.licenseClass, "A2")}</td>
@@ -2298,7 +2408,8 @@ function renderDriverDetail(driver) {
         ["紧急联系人", driver.emergencyContact],
         ["紧急联系电话", driver.emergencyPhone],
         ["入职日期", driver.entryDate],
-        ["司机类型", driver.driverType],
+        ["运力归属", driver.capacityOwnership],
+        ["所属单位", CapacityOwnership.organizationName(driver)],
         ["司机状态", driver.driverState],
         ["所属车队", driver.fleet],
         ["认证状态", certificationInfo.label],
@@ -2336,7 +2447,7 @@ function renderDriverDetail(driver) {
   ];
 
   document.querySelector("#detailDriverTitle").textContent = businessText(driver.name, "测试司机");
-  document.querySelector("#detailDriverMeta").textContent = `${businessText(driver.driverType, "自有司机")} / ${businessText(driver.licenseClass, "A2")}`;
+  document.querySelector("#detailDriverMeta").textContent = `${businessText(driver.capacityOwnership, "自营")} · ${businessText(CapacityOwnership.organizationName(driver), "本公司")} / ${businessText(driver.licenseClass, "A2")}`;
   const detailDriverState = document.querySelector("#detailDriverState");
   detailDriverState.textContent = businessText(driver.driverState, "停用");
   detailDriverState.className = `state-pill ${getDriverStateClass(driver.driverState)}`;
@@ -2434,11 +2545,15 @@ function openDriverForm(mode, driverId = "") {
     [
       "name", "gender", "idCard", "phone", "address", "emergencyContact", "emergencyPhone", "entryDate",
       "driverState", "fleet", "licenseNo", "licenseClass", "licenseIssueDate", "licenseExpiry", "qualificationNo",
-      "qualificationExpiry", "bankCard", "bankName", "remark",
+      "qualificationExpiry", "bankCard", "bankName", "remark", "capacityOwnership", "supplierName",
     ].forEach((fieldName) => {
       driverForm.elements[fieldName].value = businessText(driver[fieldName], "");
     });
+    driverForm.elements.supplierName.value = CapacityOwnership.organizationName(driver) === "本公司" ? "" : CapacityOwnership.organizationName(driver);
   }
+  if (!driver) driverForm.elements.capacityOwnership.value = CapacityOwnership.TYPES.SELF;
+  refreshSupplierDatalist();
+  syncCapacityOwnershipForm(driverForm);
   driverDialog.showModal();
 }
 
@@ -2457,7 +2572,7 @@ function getDriverFormData() {
     "qualificationExpiry", "bankCard", "bankName", "remark",
   ];
   const data = Object.fromEntries(textFields.map((fieldName) => [fieldName, String(formData.get(fieldName) || "").trim()]));
-  data.driverType = "自有司机";
+  Object.assign(data, capacityFieldsFromForm(driverForm, "driver"));
   data.licenseAttachment = window.AttachmentPicker?.getValue(driverForm.elements.licenseAttachment) || "未上传";
   data.qualificationAttachment = window.AttachmentPicker?.getValue(driverForm.elements.qualificationAttachment) || "未上传";
   return data;
@@ -2643,8 +2758,15 @@ function saveProjectFromForm() {
 function populateRouteAssociations() {
   const vehicleSelect = document.querySelector("#routeDefaultVehicle");
   const driverSelect = document.querySelector("#routeDefaultDriver");
-  vehicleSelect.innerHTML = '<option value="">不指定</option>' + vehicles.filter((vehicle) => vehicle.vehicleState === "在用").map((vehicle) => `<option>${vehicle.plateNo}</option>`).join("");
-  driverSelect.innerHTML = '<option value="">不指定</option>' + enabledOwnDrivers().map((driver) => `<option>${driver.name}</option>`).join("");
+  const ownershipFilter = document.querySelector("#routeCapacityOwnershipFilter")?.value || "";
+  const currentVehicle = vehicleSelect.value;
+  const currentDriver = driverSelect.value;
+  const vehicleOptions = CapacityOwnership.sortSelfFirst(vehicles.filter((vehicle) => vehicle.vehicleState === "在用" && CapacityOwnership.matchesFilter(vehicle.capacityOwnership, ownershipFilter, true)));
+  const driverOptions = CapacityOwnership.sortSelfFirst(enabledOwnDrivers().filter((driver) => CapacityOwnership.matchesFilter(driver.capacityOwnership, ownershipFilter, true)));
+  vehicleSelect.innerHTML = '<option value="">不指定</option>' + vehicleOptions.map((vehicle) => `<option value="${dashboardEscape(vehicle.plateNo)}">【${vehicle.capacityOwnership}】${dashboardEscape(vehicle.plateNo)} · ${dashboardEscape(CapacityOwnership.organizationName(vehicle))}</option>`).join("");
+  driverSelect.innerHTML = '<option value="">不指定</option>' + driverOptions.map((driver) => `<option value="${dashboardEscape(driver.name)}">【${driver.capacityOwnership}】${dashboardEscape(driver.name)} · ${dashboardEscape(CapacityOwnership.organizationName(driver))}</option>`).join("");
+  if ([...vehicleSelect.options].some((option) => option.value === currentVehicle)) vehicleSelect.value = currentVehicle;
+  if ([...driverSelect.options].some((option) => option.value === currentDriver)) driverSelect.value = currentDriver;
   const customerSelect = document.querySelector("#routeCustomerSelect");
   const projectSelect = document.querySelector("#routeProjectSelect");
   if (customerSelect && projectSelect) {
@@ -2691,6 +2813,7 @@ function closeRouteForm() {
 
 function getRouteFormData() {
   const formData = new FormData(routeForm);
+  const thirdPartySupplier = CapacityOwnership.findSupplier(formData.get("thirdPartyCarrier"));
   return {
     routeName: String(formData.get("routeName") || "").trim(),
     origin: String(formData.get("origin") || "").trim(), destination: String(formData.get("destination") || "").trim(),
@@ -2701,6 +2824,7 @@ function getRouteFormData() {
     defaultVehicle: formData.get("defaultVehicle"), defaultDriver: formData.get("defaultDriver"),
     thirdPartyEnabled: formData.get("thirdPartyEnabled") === "true",
     thirdPartyCarrier: String(formData.get("thirdPartyCarrier") || "").trim(),
+    thirdPartySupplierId: thirdPartySupplier?.id || "",
     thirdPartyPricingMethod: formData.get("thirdPartyPricingMethod") || "perTrip",
     thirdPartySettlementPrice: Number(formData.get("thirdPartySettlementPrice")) || 0,
     thirdPartySettlementCycle: formData.get("thirdPartySettlementCycle") || "月结30天",
@@ -2811,7 +2935,7 @@ function populateDispatchFilters() {
   const vehicleFilter = document.querySelector("#dispatchVehicleFilter");
   const currentValues = { route: routeFilter.value, driver: driverFilter.value, vehicle: vehicleFilter.value };
   routeFilter.innerHTML = '<option value="">全部线路</option>' + fixedRoutes.map((route) => `<option value="${route.id}">${route.routeName}</option>`).join("");
-  driverFilter.innerHTML = '<option value="">全部司机</option>' + drivers.filter((driver) => driver.driverType === "自有司机").map((driver) => `<option value="${driver.name}">${driver.name}</option>`).join("");
+  driverFilter.innerHTML = '<option value="">全部司机</option>' + CapacityOwnership.sortSelfFirst(drivers).map((driver) => `<option value="${driver.name}">${driver.name} / ${driver.capacityOwnership}</option>`).join("");
   vehicleFilter.innerHTML = '<option value="">全部车辆</option>' + vehicles.map((vehicle) => `<option value="${vehicle.plateNo}">${vehicle.plateNo}</option>`).join("");
   routeFilter.value = currentValues.route;
   driverFilter.value = currentValues.driver;
@@ -2826,6 +2950,7 @@ function filterDispatches(formData) {
   const plateNo = formData.get("plateNo");
   const status = formData.get("dispatchStatus");
   const mode = formData.get("dispatchMode");
+  const capacityOwnership = formData.get("capacityOwnership");
   return dispatches.filter((dispatch) =>
     normalize(dispatch.waybillNo).includes(waybillNo) &&
     (!orderDate || dispatch.orderDate === orderDate) &&
@@ -2833,7 +2958,8 @@ function filterDispatches(formData) {
     (!driverName || dispatch.driverName === driverName) &&
     (!plateNo || dispatch.vehicleId === plateNo) &&
     (!status || dispatch.status === status) &&
-    (!mode || getDispatchMode(dispatch) === mode)
+    (!mode || getDispatchMode(dispatch) === mode) &&
+    CapacityOwnership.matchesFilter(dispatch.capacityOwnershipSnapshot, capacityOwnership)
   );
 }
 
@@ -2878,7 +3004,7 @@ function renderDispatchRows(rows) {
   dispatchBody.innerHTML = rows.map((dispatch) => `
     <tr>
       <td><input class="dispatch-row-check" data-dispatch-id="${dispatch.id}" type="checkbox" ${selectedDispatchIds.has(dispatch.id) ? "checked" : ""} /></td>
-      <td><strong class="primary-text">${dispatch.waybillNo}</strong></td><td>${dispatch.planTaskNo || "-"}</td><td>${dispatch.taskType || "-"}</td><td class="dispatch-capacity-cell">${renderDispatchCapacityProgress(dispatch)}</td><td><span class="dispatch-mode ${getDispatchMode(dispatch)}">${{ auto: "自动派单", manual: "手动派单", pending: "待分配" }[getDispatchMode(dispatch)]}</span></td><td>${dispatch.routeName || "-"}</td><td><span class="dispatch-vehicle-type">${getDispatchVehicleType(dispatch)}</span></td><td>${dispatch.origin || "-"}</td><td>${dispatch.destination || "-"}</td><td>${dispatch.dispatchTime || "-"}</td>
+      <td><strong class="primary-text">${dispatch.waybillNo}</strong></td><td>${dispatch.planTaskNo || "-"}</td><td>${dispatch.taskType || "-"}</td><td class="dispatch-capacity-cell">${CapacityOwnership.badgeMarkup(dispatch.capacityOwnershipSnapshot, dispatch.capacityOwnershipTooltipSnapshot)}${renderDispatchCapacityProgress(dispatch)}</td><td><span class="dispatch-mode ${getDispatchMode(dispatch)}">${{ auto: "自动派单", manual: "手动派单", pending: "待分配" }[getDispatchMode(dispatch)]}</span></td><td>${dispatch.routeName || "-"}</td><td><span class="dispatch-vehicle-type">${getDispatchVehicleType(dispatch)}</span></td><td>${dispatch.origin || "-"}</td><td>${dispatch.destination || "-"}</td><td>${dispatch.dispatchTime || "-"}</td>
       <td>${dispatch.driverName}</td><td>${dispatch.phone}</td><td>${dispatch.vehicleId || "-"}</td><td><span class="dispatch-status ${getDispatchStatusClass(dispatch.status)}">${dispatch.status}</span></td><td><span class="dispatch-node">${dispatch.currentNode}</span></td>
       <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-view-dispatch="${dispatch.id}" type="button">查看</button>${["待派单", "已派单", "运输中"].includes(dispatch.status) ? `<button class="link-btn" data-edit-dispatch="${dispatch.id}" type="button">编辑派单</button>` : ""}${["待派单", "已派单"].includes(dispatch.status) ? `<button class="link-btn delete-btn revoke-btn" data-revoke-dispatch="${dispatch.id}" type="button">撤销</button>` : ""}</div></td>
     </tr>`).join("");
@@ -2954,6 +3080,12 @@ function getCapacityRecords() {
     if (driver) linkedDriverIds.add(driver.id);
     const vehicleDispatch = getLatestActiveDispatchForResource({ vehicleId: vehicle.plateNo });
     const driverDispatch = driver ? getLatestActiveDispatchForResource({ driverId: driver.id }) : null;
+    const trailer = getTrailerById(vehicle.trailerId);
+    const ownership = CapacityOwnership.groupSnapshot([
+      driver && { ...driver, role: "司机", name: driver.name },
+      { ...vehicle, role: "车辆", name: vehicle.plateNo },
+      trailer && { ...trailer, role: "挂车", name: trailer.plateNo },
+    ], { missingRequired: !driver });
     return {
       id: `vehicle-${vehicle.plateNo}`,
       resourceType: "车辆",
@@ -2968,6 +3100,8 @@ function getCapacityRecords() {
       vehicleStatus: getCapacityVehicleStatus(vehicle, vehicleDispatch),
       updatedAt: vehicleDispatch?.dispatchTime || driverDispatch?.dispatchTime || "最近同步",
       dispatchId: vehicleDispatch?.id || "",
+      capacityOwnership: ownership.type,
+      capacityOwnershipTooltip: ownership.tooltip,
     };
   });
 
@@ -2975,6 +3109,7 @@ function getCapacityRecords() {
     .filter((driver) => !linkedDriverIds.has(driver.id))
     .map((driver) => {
       const activeDispatch = getLatestActiveDispatchForResource({ driverId: driver.id });
+      const ownership = CapacityOwnership.groupSnapshot([{ ...driver, role: "司机", name: driver.name }]);
       return {
         id: `driver-${driver.id}`,
         resourceType: "司机",
@@ -2989,6 +3124,8 @@ function getCapacityRecords() {
         vehicleStatus: "未绑定",
         updatedAt: activeDispatch?.dispatchTime || "最近同步",
         dispatchId: activeDispatch?.id || "",
+        capacityOwnership: ownership.type,
+        capacityOwnershipTooltip: ownership.tooltip,
       };
     });
 
@@ -3004,11 +3141,12 @@ function filterCapacityRecords(rows, formData) {
   const keyword = normalize(formData.get("keyword"));
   const resourceType = formData.get("resourceType");
   const status = formData.get("status");
+  const capacityOwnership = formData.get("capacityOwnership");
   return rows.filter((row) => {
     const matchedKeyword = !keyword || [row.driverName, row.driverPhone, row.vehiclePlate, row.trailerLabel, row.currentTask].some((value) => normalize(value).includes(keyword));
     const matchedType = !resourceType || row.resourceType === resourceType;
     const matchedStatus = !status || (status === "需关注" ? [row.driverStatus, row.vehicleStatus].some((value) => ["维修中", "休假中"].includes(value)) : row.driverStatus === status || row.vehicleStatus === status);
-    return matchedKeyword && matchedType && matchedStatus;
+    return matchedKeyword && matchedType && matchedStatus && CapacityOwnership.matchesFilter(row.capacityOwnership, capacityOwnership);
   });
 }
 
@@ -3034,12 +3172,13 @@ function renderCapacitySummary(records = getCapacityRecords()) {
 
 function renderCapacityRows(rows) {
   if (!rows.length) {
-    capacityBody.innerHTML = '<tr><td class="no-data-cell" colspan="9">暂无符合条件的运力记录</td></tr>';
+    capacityBody.innerHTML = '<tr><td class="no-data-cell" colspan="10">暂无符合条件的运力记录</td></tr>';
     return;
   }
   capacityBody.innerHTML = rows.map((row) => `
     <tr>
       <td><span class="capacity-resource-badge ${row.resourceType === "车辆" ? "vehicle" : "driver"}">${row.resourceType}</span></td>
+      <td>${CapacityOwnership.badgeMarkup(row.capacityOwnership, row.capacityOwnershipTooltip)}</td>
       <td><strong class="capacity-primary-text">${dashboardEscape(row.driverName)}</strong><small class="capacity-secondary-text">${dashboardEscape(row.driverPhone || "未绑定电话")}</small></td>
       <td><strong class="capacity-primary-text">${dashboardEscape(row.vehiclePlate)}</strong><small class="capacity-secondary-text">${dashboardEscape(row.vehicleType)}</small></td>
       <td>${dashboardEscape(row.trailerLabel)}</td>
@@ -3176,7 +3315,7 @@ function populateDispatchFormOptions() {
     ).map((waybill) => `<option value="${waybill.waybillNo}">${waybill.waybillNo} / ${waybill.customerName}</option>`).join("");
     waybillSelect.disabled = false;
   }
-  const availableVehicles = vehicles.filter((vehicle) => vehicle.vehicleState === "在用");
+  const availableVehicles = CapacityOwnership.sortSelfFirst(vehicles.filter((vehicle) => vehicle.vehicleState === "在用"));
   const currentVehicle = editingDispatch && vehicles.find((vehicle) => vehicle.plateNo === editingDispatch.vehicleId && vehicle.vehicleState === "在用");
   const availableDrivers = availableOwnDrivers();
   const currentDriver = editingDispatch && typeof drivers !== "undefined" ? drivers.find((driver) => driver.id === editingDispatch.driverId) : null;
@@ -3186,9 +3325,9 @@ function populateDispatchFormOptions() {
   const driverOptions = [...availableDrivers, ...driverCandidates.filter((driver, index) =>
     !availableDrivers.some((item) => item.id === driver.id) && driverCandidates.findIndex((item) => item.id === driver.id) === index
   )];
-  driverSelect.innerHTML = '<option value="">请选择司机</option>' + driverOptions.map((driver) => `<option value="${driver.id}">${driver.name} / ${driver.phone}${driver.id === editingDispatch?.driverId ? "（当前）" : ""}</option>`).join("");
+  driverSelect.innerHTML = '<option value="">请选择司机</option>' + CapacityOwnership.sortSelfFirst(driverOptions).map((driver) => `<option value="${driver.id}">${driver.capacityOwnership === "自营" ? "【自营】" : "【三方】"}${driver.name} / ${driver.phone}${driver.capacityOwnership === "三方" ? ` / ${CapacityOwnership.organizationName(driver)}` : ""}${driver.id === editingDispatch?.driverId ? "（当前）" : ""}</option>`).join("");
   const vehicleOptions = [...availableVehicles, ...(currentVehicle && !availableVehicles.some((vehicle) => vehicle.plateNo === currentVehicle.plateNo) ? [currentVehicle] : [])];
-  vehicleSelect.innerHTML = '<option value="">请选择车辆</option>' + vehicleOptions.map((vehicle) => `<option value="${vehicle.plateNo}">${vehicle.plateNo} / ${vehicle.vehicleType}${vehicle.plateNo === editingDispatch?.vehicleId ? "（当前）" : ""}</option>`).join("");
+  vehicleSelect.innerHTML = '<option value="">请选择车辆</option>' + CapacityOwnership.sortSelfFirst(vehicleOptions).map((vehicle) => `<option value="${vehicle.plateNo}">${vehicle.capacityOwnership === "自营" ? "【自营】" : "【三方】"}${vehicle.plateNo} / ${vehicle.vehicleType}${vehicle.capacityOwnership === "三方" ? ` / ${CapacityOwnership.organizationName(vehicle)}` : ""}${vehicle.plateNo === editingDispatch?.vehicleId ? "（当前）" : ""}</option>`).join("");
   populateDispatchTrailerOptions(editingDispatch, currentVehicle);
   if (vehicleTypeSelect) {
     vehicleTypeSelect.disabled = false;
@@ -3202,9 +3341,9 @@ function populateDispatchTrailerOptions(editingDispatch = null, vehicle = null) 
   const trailerList = typeof trailers !== "undefined" ? trailers : [];
   const trailerId = vehicle ? (vehicle.trailerId || "") : (editingDispatch?.trailerId || "");
   const currentTrailer = trailerId && trailerList.find((trailer) => trailer.id === trailerId);
-  const options = trailerList.slice();
+  const options = CapacityOwnership.sortSelfFirst(trailerList);
   if (trailerId && !currentTrailer) options.unshift({ id: trailerId, plateNo: trailerId, trailerType: "当前挂车" });
-  trailerSelect.innerHTML = '<option value="">未绑定挂车</option>' + options.map((trailer) => `<option value="${trailer.id}">${trailer.plateNo} / ${trailer.trailerType}${trailer.id === trailerId ? "（当前）" : ""}</option>`).join("");
+  trailerSelect.innerHTML = '<option value="">未绑定挂车</option>' + options.map((trailer) => `<option value="${trailer.id}">${trailer.capacityOwnership === "自营" ? "【自营】" : "【三方】"}${trailer.plateNo} / ${trailer.trailerType}${trailer.capacityOwnership === "三方" ? ` / ${CapacityOwnership.organizationName(trailer)}` : ""}${trailer.id === trailerId ? "（当前）" : ""}</option>`).join("");
   trailerSelect.value = trailerId;
   trailerSelect.disabled = !vehicle && !editingDispatch;
 }
@@ -3488,7 +3627,7 @@ function renderDispatchDetailPage(dispatchId) {
     <div class="dispatch-detail-page-grid">
       <div class="dispatch-detail-page-main">
         <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="file-text" aria-hidden="true"></i><div><h3>运单信息</h3><span>任务与线路基础资料</span></div></div><div class="dispatch-detail-field-grid"><div><span>运单号</span><strong>${dashboardEscape(dispatch.waybillNo || "-")}</strong></div><div><span>计划任务编号</span><strong>${dashboardEscape(dispatch.planTaskNo || waybill?.planTaskNo || "-")}</strong></div><div><span>客户 / 项目</span><strong>${dashboardEscape([dispatch.customerName, dispatch.projectName].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>任务类型</span><strong>${dashboardEscape(taskType)}</strong></div><div><span>派单方式</span><strong>${modeLabel}</strong></div><div><span>箱信息</span><strong>${dashboardEscape(dispatch.boxes || formatWaybillBoxes(waybill || {}) || "-")}</strong></div><div><span>收货人</span><strong>${dashboardEscape(dispatch.consignee || "-")}</strong></div><div><span>到达时间</span><strong>${dashboardEscape(dispatch.arrivalTime || "-")}</strong></div><div><span>到达地点</span><strong>${dashboardEscape(dispatch.arrivalLocation || "-")}</strong></div><div class="wide"><span>还箱地</span><strong>${dashboardEscape(dispatch.loadAddress || "-")}</strong></div><div class="wide"><span>备注</span><strong>${dashboardEscape(dispatch.note || "-")}</strong></div></div></section>
-        <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="truck" aria-hidden="true"></i><div><h3>运力与结算</h3><span>司机、车辆及本次派单金额</span></div></div><div class="dispatch-detail-field-grid"><div><span>司机</span><strong>${dashboardEscape(dispatch.driverName || "待分配")}</strong></div><div><span>联系电话</span><strong>${dashboardEscape(dispatch.phone || "-")}</strong></div><div><span>车牌</span><strong>${dashboardEscape(dispatch.vehicleId || "待分配")}</strong></div><div><span>车型 / 挂车</span><strong>${dashboardEscape([getDispatchVehicleType(dispatch), dispatch.trailerId].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>预估收入</span><strong class="money-value">${formatMoney(dispatch.estimatedRevenue || 0)}</strong></div><div><span>司机提成</span><strong>${formatMoney(dispatch.commission || 0)}</strong></div></div></section>
+        <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="truck" aria-hidden="true"></i><div><h3>运力与结算</h3><span>司机、车辆及本次派单金额</span></div></div><div class="dispatch-detail-field-grid"><div><span>运力归属</span><strong>${CapacityOwnership.badgeMarkup(dispatch.capacityOwnershipSnapshot, dispatch.capacityOwnershipTooltipSnapshot)}</strong></div><div><span>承运单位</span><strong>${dashboardEscape(dispatch.carrierUnitSnapshot || "待确定")}</strong></div><div><span>司机</span><strong>${dashboardEscape(dispatch.driverName || "待分配")}</strong></div><div><span>司机所属单位</span><strong>${dashboardEscape(dispatch.driverOrganizationSnapshot || "待确定")}</strong></div><div><span>联系电话</span><strong>${dashboardEscape(dispatch.phone || "-")}</strong></div><div><span>车牌</span><strong>${dashboardEscape(dispatch.vehicleId || "待分配")}</strong></div><div><span>车辆所属单位</span><strong>${dashboardEscape(dispatch.vehicleOrganizationSnapshot || "待确定")}</strong></div><div><span>车型 / 挂车</span><strong>${dashboardEscape([getDispatchVehicleType(dispatch), dispatch.trailerId].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>挂车所属单位</span><strong>${dashboardEscape(dispatch.trailerOrganizationSnapshot || "未绑定")}</strong></div><div><span>预估收入</span><strong class="money-value">${formatMoney(dispatch.estimatedRevenue || 0)}</strong></div><div><span>司机提成</span><strong>${formatMoney(dispatch.commission || 0)}</strong></div></div></section>
         <section class="dispatch-detail-panel dispatch-route-panel"><div class="dispatch-detail-panel-title"><i data-lucide="route" aria-hidden="true"></i><div><h3>运输路线</h3><span>提箱地、装卸地与还箱地</span></div></div><div class="dispatch-route-line"><div><span>提箱地</span><strong>${dashboardEscape(dispatch.origin || "-")}</strong></div><i data-lucide="arrow-right" aria-hidden="true"></i><div><span>装卸地</span><strong>${dashboardEscape(dispatch.destination || "-")}</strong></div><i data-lucide="arrow-right" aria-hidden="true"></i><div><span>还箱地</span><strong>${dashboardEscape(dispatch.loadAddress || "-")}</strong></div></div></section>
       </div>
       <aside class="dispatch-detail-page-side"><section class="dispatch-detail-panel dispatch-timeline-panel"><div class="dispatch-detail-panel-title"><i data-lucide="history" aria-hidden="true"></i><div><h3>运输节点</h3><span>${timeline.length} 个任务节点 · 后台测试数据</span></div></div><div class="dispatch-detail-timeline">${timeline.map((item) => `<article class="dispatch-node-card ${item.state}"><span class="dispatch-node-dot" aria-hidden="true"></span><div class="dispatch-node-card-head"><div><strong>${dashboardEscape(item.node)}</strong><span>${dashboardEscape(item.time)}</span></div><em>${item.state === "current" ? "进行中" : item.state === "completed" ? "已完成" : item.state === "cancelled" ? "已取消" : "待执行"}</em></div><p>${dashboardEscape(item.desc)}</p>${item.photos.length ? renderDispatchPhotoGallery(item) : ""}</article>`).join("")}</div></section></aside>
@@ -4165,20 +4304,16 @@ function renderAnnouncementPage(rows = getAnnouncementFiltered()) {
   window.lucide?.createIcons();
 }
 
-function announcementDriverTypeOptions() {
-  return [...new Set(drivers.map((driver) => String(driver.driverType || "其他司机")).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-CN"));
-}
-
 function getAnnouncementVisibleDrivers() {
-  const type = document.querySelector("#announcementDriverType")?.value || "";
-  return drivers.filter((driver) => !type || driver.driverType === type);
+  const ownership = document.querySelector("#announcementDriverOwnership")?.value || "";
+  return CapacityOwnership.sortSelfFirst(drivers.filter((driver) => CapacityOwnership.matchesFilter(driver.capacityOwnership, ownership, true)));
 }
 
 function renderAnnouncementDriverPicker() {
   const list = document.querySelector("#announcementDriverList");
   if (!list) return;
   const visible = getAnnouncementVisibleDrivers();
-  list.innerHTML = visible.length ? visible.map((driver) => `<label class="announcement-driver-option"><input type="checkbox" data-announcement-driver="${dashboardEscape(driver.id)}" ${announcementSelectedDriverIds.has(driver.id) ? "checked" : ""} /><span><strong>${dashboardEscape(driver.name)}</strong><small>${dashboardEscape(driver.driverType || "其他司机")} · ${dashboardEscape(driver.fleet || "未分配车队")}</small></span><em>${dashboardEscape(driver.driverState || "")}</em></label>`).join("") : `<div class="announcement-driver-empty">暂无符合条件的司机</div>`;
+  list.innerHTML = visible.length ? visible.map((driver) => `<label class="announcement-driver-option"><input type="checkbox" data-announcement-driver="${dashboardEscape(driver.id)}" ${announcementSelectedDriverIds.has(driver.id) ? "checked" : ""} /><span><strong>${dashboardEscape(driver.name)}</strong><small>${CapacityOwnership.badgeMarkup(driver.capacityOwnership)} ${dashboardEscape(CapacityOwnership.organizationName(driver))} · ${dashboardEscape(driver.fleet || "未分配车队")}</small></span><em>${dashboardEscape(driver.driverState || "")}</em></label>`).join("") : `<div class="announcement-driver-empty">暂无符合条件的司机</div>`;
   document.querySelector("#announcementDriverResultText").textContent = `当前结果 ${visible.length} 名司机`;
   document.querySelector("#announcementSelectedDriverText").textContent = `已选 ${announcementSelectedDriverIds.size} 名司机`;
 }
@@ -4205,8 +4340,7 @@ function setAnnouncementForm(item = null) {
   document.querySelector("#announcementPreviewTitle").textContent = item?.title || "公告标题";
   document.querySelector("#announcementPreviewContent").textContent = item?.content || "公告内容将在这里显示。";
   document.querySelectorAll("#announcementForm input[name='scope']").forEach((input) => { input.checked = input.value === (item?.scope === "全部司机" ? "all" : item ? "partial" : "all"); });
-  const typeSelect = document.querySelector("#announcementDriverType");
-  typeSelect.innerHTML = `<option value="">全部类型</option>${announcementDriverTypeOptions().map((type) => `<option value="${dashboardEscape(type)}">${dashboardEscape(type)}</option>`).join("")}`;
+  document.querySelector("#announcementDriverOwnership").value = "";
   setAnnouncementScope(item?.scope === "全部司机" || !item ? "all" : "partial");
   renderAnnouncementDriverPicker();
 }
@@ -4291,7 +4425,9 @@ function getFinanceRow(waybill, dispatch = getFinanceDispatch(waybill.waybillNo)
   const expense = getFinanceExpense(waybill.waybillNo);
   const vehicleTotal = vehicleCosts.reduce((sum, field) => sum + financeNumber(expense[field]), 0);
   const laborTotal = laborCosts.reduce((sum, field) => sum + financeNumber(expense[field]), 0);
-  const isThirdParty = vehicle?.ownership === "外协";
+  const capacityOwnership = dispatch.capacityOwnershipSnapshot || CapacityOwnership.TYPES.PENDING;
+  const carrierType = dispatch.carrierTypeSnapshot || vehicle?.capacityOwnership || CapacityOwnership.TYPES.PENDING;
+  const isThirdParty = carrierType === CapacityOwnership.TYPES.THIRD;
   const pricingMethodLabels = { perTrip: "按趟固定价", perContainer: "按箱计价", perMileage: "按里程计价", negotiated: "临时议价" };
   const routeStops = typeof getRouteStops === "function" ? getRouteStops(route) : [];
   const pickupPoint = containers.map((item) => item.pickupPoint || route.pickupPoint || routeStops[0]?.value || route.origin || "").filter(Boolean);
@@ -4321,7 +4457,12 @@ function getFinanceRow(waybill, dispatch = getFinanceDispatch(waybill.waybillNo)
       ? dispatch.routeMileageSnapshot
       : (Object.prototype.hasOwnProperty.call(waybill, "routeMileageSnapshot") ? waybill.routeMileageSnapshot : getRouteMileageSnapshot(route)),
     transportMode: waybill.transportMode || dispatch.transportMode || "公路运输",
-    carrier: isThirdParty ? (dispatch.thirdPartyCarrierSnapshot || route.thirdPartyCarrier || vehicle?.fleetName || vehicle?.fleet || waybill.carrier || "外协承运商") : "自营",
+    capacityOwnership,
+    capacityOwnershipTooltip: dispatch.capacityOwnershipTooltipSnapshot || "",
+    carrierType,
+    carrier: dispatch.carrierUnitSnapshot || (isThirdParty ? (dispatch.thirdPartyCarrierSnapshot || route.thirdPartyCarrier || vehicle?.fleetName || vehicle?.fleet || waybill.carrier || "外协承运商") : "本公司"),
+    driverOrganization: dispatch.driverOrganizationSnapshot || "待确定",
+    vehicleOrganization: dispatch.vehicleOrganizationSnapshot || (vehicle ? CapacityOwnership.organizationName(vehicle) : "待确定"),
     vehicleNo: dispatch.vehicleId || waybill.plateNo || "",
     vehicleType: dispatch.vehicleType || vehicle?.vehicleType || "",
     driverName: dispatch.driverName || waybill.driverName || "",
@@ -4361,6 +4502,7 @@ function getFilteredFinanceRows() {
   const keyword = String(data.get("keyword") || "").trim().toLowerCase();
   const resourceKeyword = String(data.get("resourceKeyword") || "").trim().toLowerCase();
   const status = String(data.get("status") || "");
+  const capacityOwnership = String(data.get("capacityOwnership") || "");
   return getFinanceRows().filter((row) => {
     const text = [row.waybillNo, row.boxes, row.seals].join(" ").toLowerCase();
     const resourceText = [row.driverName, row.vehicleNo].join(" ").toLowerCase();
@@ -4370,7 +4512,8 @@ function getFilteredFinanceRows() {
       (!routeId || row.routeId === routeId) &&
       (!keyword || text.includes(keyword)) &&
       (!resourceKeyword || resourceText.includes(resourceKeyword)) &&
-      (!status || row.status === status);
+      (!status || row.status === status) &&
+      CapacityOwnership.matchesFilter(row.capacityOwnership, capacityOwnership);
   });
 }
 
@@ -4415,11 +4558,11 @@ function renderFinanceRows(rows) {
   body.innerHTML = visible.length ? visible.map((row) => `<tr>
     <td>${financeFormatCell(row.orderDate)}</td><td><strong>${financeFormatCell(row.customerName)}</strong></td><td>${financeFormatCell(row.projectName)}</td><td>${financeFormatCell(row.routeName)}</td><td><strong class="primary-text">${financeFormatCell(row.waybillNo)}</strong></td>
     <td><span class="finance-multiline">${row.boxes.split(" / ").map((item) => financeFormatCell(item)).join("<br />")}</span></td><td>${financeFormatCell(row.boxTypes)}</td><td><span class="finance-multiline">${row.seals.split(" / ").map((item) => financeFormatCell(item)).join("<br />")}</span></td>
-    <td>${financeFormatCell(row.dockingTime, "待补录")}</td><td>${financeFormatCell(row.pickupPoint)}</td><td>${financeFormatCell(row.loadingAddress)}<br /><span class="finance-subcell">${financeFormatCell(row.unloadingAddress)}</span></td><td>${financeFormatCell(row.dropoffPoint)}</td><td>${financeFormatCell(row.mileage, "待补录")}</td><td>${financeFormatCell(row.transportMode)}</td><td>${financeFormatCell(row.carrier)}</td>
+    <td>${financeFormatCell(row.dockingTime, "待补录")}</td><td>${financeFormatCell(row.pickupPoint)}</td><td>${financeFormatCell(row.loadingAddress)}<br /><span class="finance-subcell">${financeFormatCell(row.unloadingAddress)}</span></td><td>${financeFormatCell(row.dropoffPoint)}</td><td>${financeFormatCell(row.mileage, "待补录")}</td><td>${financeFormatCell(row.transportMode)}</td><td>${CapacityOwnership.badgeMarkup(row.capacityOwnership, row.capacityOwnershipTooltip)}</td><td>${CapacityOwnership.badgeMarkup(row.carrierType)}<span class="capacity-organization">${financeFormatCell(row.carrier)}</span></td><td>${financeFormatCell(row.driverOrganization)}</td><td>${financeFormatCell(row.vehicleOrganization)}</td>
     <td>${financeFormatCell(row.vehicleNo)}</td><td>${financeFormatCell(row.vehicleType)}</td><td>${financeFormatCell(row.driverName)}</td><td>${financeFormatCell(row.driverPhone)}</td><td>${financeFormatCell(row.pickupTime, "待完成")}</td><td>${financeFormatCell(row.completedTime, "待完成")}</td><td>${financeFormatCell(row.settlementMethod)}</td>
     <td class="finance-money-cell">${financeMoney(row.vehicleTotal)}</td><td class="finance-money-cell">${financeMoney(row.laborTotal)}</td><td class="finance-money-cell total">${financeMoney(row.totalExpense)}</td><td><span class="dispatch-status ${financeStatusClass(row.status)}">${financeFormatCell(row.status)}</span></td>
     <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-finance-expense="${dashboardEscape(row.waybillNo)}" type="button">${row.totalExpense > 0 ? "编辑费用" : "费用补录"}</button></div></td>
-  </tr>`).join("") : `<tr><td colspan="27" class="no-data-cell">暂无符合条件的报表明细</td></tr>`;
+  </tr>`).join("") : `<tr><td colspan="30" class="no-data-cell">暂无符合条件的报表明细</td></tr>`;
 }
 
 function renderFinancePagination(total) {
@@ -4586,10 +4729,20 @@ function notifyDriverExpenseClient() {
 
 function getDriverExpenseRows() {
   return driverExpenseRecords
-    .map((item) => ({
-      ...item,
-      driverName: drivers.find((driver) => driver.id === item.driverId)?.name || item.driverName || "未知司机",
-    }))
+    .map((item) => {
+      const driver = drivers.find((record) => record.id === item.driverId);
+      const vehicle = vehicles.find((record) => record.plateNo === item.vehicleId);
+      const dispatch = dispatches.find((record) => record.waybillNo === item.waybillNo && record.driverId === item.driverId) || dispatches.find((record) => record.waybillNo === item.waybillNo);
+      const snapshot = dispatch || getCapacityOwnershipSnapshot(item.driverId, item.vehicleId, "");
+      return {
+        ...item,
+        driverName: driver?.name || item.driverName || "未知司机",
+        capacityOwnership: item.capacityOwnershipSnapshot || snapshot.capacityOwnershipSnapshot || snapshot.type || CapacityOwnership.groupSnapshot([driver, vehicle].filter(Boolean)).type,
+        capacityOwnershipTooltip: item.capacityOwnershipTooltipSnapshot || dispatch?.capacityOwnershipTooltipSnapshot || "",
+        driverOrganization: item.driverOrganizationSnapshot || dispatch?.driverOrganizationSnapshot || (driver ? CapacityOwnership.organizationName(driver) : "待确定"),
+        vehicleOrganization: item.vehicleOrganizationSnapshot || dispatch?.vehicleOrganizationSnapshot || (vehicle ? CapacityOwnership.organizationName(vehicle) : "待确定"),
+      };
+    })
     .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
 }
 
@@ -4597,7 +4750,7 @@ function getFilteredDriverExpenseRows(rows = getDriverExpenseRows()) {
   const form = document.querySelector("#driverExpenseQueryForm");
   if (!form) return rows;
   const data = new FormData(form);
-  return window.ExpenseReport.filterRecords(rows, {
+  const filtered = window.ExpenseReport.filterRecords(rows, {
     driverId: String(data.get("driverId") || ""),
     keyword: String(data.get("keyword") || ""),
     type: String(data.get("type") || ""),
@@ -4605,6 +4758,7 @@ function getFilteredDriverExpenseRows(rows = getDriverExpenseRows()) {
     startDate: String(data.get("startDate") || ""),
     endDate: String(data.get("endDate") || ""),
   });
+  return filtered.filter((item) => CapacityOwnership.matchesFilter(item.capacityOwnership, String(data.get("capacityOwnership") || "")));
 }
 
 function driverExpenseStatusMeta(status) {
@@ -4665,9 +4819,9 @@ function renderDriverExpenseRows(rows) {
       : `<button class="link-btn" data-driver-expense-action="view" data-driver-expense-id="${dashboardEscape(item.id)}" type="button">查看</button>`;
     return `<tr data-driver-expense-row="${dashboardEscape(item.id)}">
       <td class="check-col"><input class="driver-expense-checkbox" type="checkbox" value="${dashboardEscape(item.id)}" aria-label="选择费用 ${dashboardEscape(item.id)}" ${item.status === "pending" ? "" : "disabled"} ${selectedDriverExpenseIds.has(item.id) ? "checked" : ""} /></td>
-      <td><strong class="primary-text">${dashboardEscape(item.id)}</strong></td><td>${financeFormatCell(item.driverName)}</td><td>${financeFormatCell(item.waybillNo)}</td><td>${financeFormatCell(item.vehicleId)}</td><td>${financeFormatCell(item.typeLabel)}</td><td class="finance-money-cell">${financeMoney(item.amount)}</td><td>${financeFormatCell(item.date)}</td><td class="driver-expense-receipt">${financeFormatCell(item.receiptName, "未上传")}</td><td class="driver-expense-remark">${financeFormatCell(item.remark, "无")}</td><td>${financeFormatCell(driverExpenseDateTime(item.createdAt))}</td><td><span class="driver-expense-status ${status.className}">${status.label}</span></td><td>${reviewInfo}</td><td class="fixed-action-column"><div class="vehicle-action-group">${actions}</div></td>
+      <td><strong class="primary-text">${dashboardEscape(item.id)}</strong></td><td>${financeFormatCell(item.driverName)}</td><td>${financeFormatCell(item.waybillNo)}</td><td>${financeFormatCell(item.vehicleId)}</td><td>${CapacityOwnership.badgeMarkup(item.capacityOwnership, item.capacityOwnershipTooltip)}</td><td>${financeFormatCell(item.driverOrganization)}</td><td>${financeFormatCell(item.vehicleOrganization)}</td><td>${financeFormatCell(item.typeLabel)}</td><td class="finance-money-cell">${financeMoney(item.amount)}</td><td>${financeFormatCell(item.date)}</td><td class="driver-expense-receipt">${financeFormatCell(item.receiptName, "未上传")}</td><td class="driver-expense-remark">${financeFormatCell(item.remark, "无")}</td><td>${financeFormatCell(driverExpenseDateTime(item.createdAt))}</td><td><span class="driver-expense-status ${status.className}">${status.label}</span></td><td>${reviewInfo}</td><td class="fixed-action-column"><div class="vehicle-action-group">${actions}</div></td>
     </tr>`;
-  }).join("") : '<tr><td colspan="14" class="empty-table-cell">暂无符合条件的费用上报记录</td></tr>';
+  }).join("") : '<tr><td colspan="17" class="empty-table-cell">暂无符合条件的费用上报记录</td></tr>';
 }
 
 function renderDriverExpenseSelectionState(rows) {
@@ -4793,6 +4947,7 @@ function getFilteredVehicleRepairs() {
   const reporterName = normalize(query.get("reporterName"));
   const fromDate = query.get("fromDate");
   const toDate = query.get("toDate");
+  const capacityOwnership = query.get("capacityOwnership");
   return vehicleRepairRecords.filter((record) => {
     const date = String(record.reportedAt || "").slice(0, 10);
     return normalize(record.plateNo).includes(plate)
@@ -4801,7 +4956,8 @@ function getFilteredVehicleRepairs() {
       && (!category || record.category === category)
       && normalize(record.reporterName || record.createdBy).includes(reporterName)
       && (!fromDate || date >= fromDate)
-      && (!toDate || date <= toDate);
+      && (!toDate || date <= toDate)
+      && CapacityOwnership.matchesFilter(record.capacityOwnershipSnapshot || vehicles.find((item) => item.plateNo === record.plateNo)?.capacityOwnership, capacityOwnership, true);
   }).sort((left, right) => String(right.reportedAt).localeCompare(String(left.reportedAt)));
 }
 
@@ -4820,6 +4976,8 @@ function renderVehicleRepairPage() {
   body.innerHTML = rows.length ? rows.map((record) => `<tr>
     <td><strong>${dashboardEscape(record.repairNo)}</strong></td>
     <td><strong>${dashboardEscape(record.plateNo)}</strong><small>${dashboardEscape(record.vehicleType || "")}</small></td>
+    <td>${CapacityOwnership.badgeMarkup(record.capacityOwnershipSnapshot || vehicles.find((item) => item.plateNo === record.plateNo)?.capacityOwnership)}</td>
+    <td>${dashboardEscape(record.vehicleOrganizationSnapshot || CapacityOwnership.organizationName(vehicles.find((item) => item.plateNo === record.plateNo) || {}))}</td>
     <td><strong>${dashboardEscape(record.category)}</strong><small class="repair-cell-description">${dashboardEscape(record.description)}</small>${record.evidence?.length ? `<small>凭证 ${record.evidence.length} 个</small>` : ""}</td>
     <td>${dashboardEscape(record.repairLocation || "-")}</td>
     <td><strong>${dashboardEscape(record.source)}</strong><small>${dashboardEscape(record.reporterName || record.createdBy || "-")}</small></td>
@@ -4827,7 +4985,7 @@ function renderVehicleRepairPage() {
     <td><span class="repair-status-pill ${record.status === "已完成" ? "done" : record.status === "已取消" ? "cancelled" : record.status === "维修中" ? "working" : "pending"}">${dashboardEscape(record.status)}</span></td>
     <td>¥${Number(record.actualCost || 0).toFixed(2)}</td>
     <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-edit-repair="${dashboardEscape(record.id)}" type="button">处理</button></div></td>
-  </tr>`).join("") : '<tr><td class="no-data-cell" colspan="9">暂无符合条件的维修记录</td></tr>';
+  </tr>`).join("") : '<tr><td class="no-data-cell" colspan="11">暂无符合条件的维修记录</td></tr>';
   document.querySelector("#vehicleRepairResultText").textContent = `共 ${rows.length} 条维修记录`;
   window.lucide?.createIcons();
 }
@@ -4919,12 +5077,16 @@ async function submitVehicleRepairForm(event) {
     actualCost: Math.max(0, Number(data.actualCost) || 0),
     reportedAt: data.reportedAt || new Date().toISOString(),
     evidence: existingEvidence,
+    capacityOwnershipSnapshot: vehicle.capacityOwnership,
+    vehicleOrganizationSnapshot: CapacityOwnership.organizationName(vehicle),
   };
   delete patch.evidenceFiles;
   let nextVehicleState = null;
   if (editingVehicleRepairId) {
     const current = vehicleRepairRecords.find((item) => item.id === editingVehicleRepairId);
     if (!current) return;
+    patch.capacityOwnershipSnapshot = current.capacityOwnershipSnapshot || patch.capacityOwnershipSnapshot;
+    patch.vehicleOrganizationSnapshot = current.vehicleOrganizationSnapshot || patch.vehicleOrganizationSnapshot;
     if (current.plateNo !== patch.plateNo) {
       showApplicationAlert("维修单关联车辆不能修改，请取消后为其他车辆新建维修单。");
       return;
@@ -4982,18 +5144,111 @@ async function submitVehicleRepairForm(event) {
 }
 
 function exportVehicleRepairReport() {
-  const headers = ["维修单号", "车牌号", "车辆类型", "所属车队", "故障类别", "故障描述", "维修地点", "提交方式", "提交人", "报修时间", "维修状态", "维修厂", "预计费用", "实际费用", "维修开始时间", "完工时间", "维修结果", "凭证", "备注"];
+  const headers = ["维修单号", "车牌号", "车辆类型", "运力归属", "车辆所属单位", "所属车队", "故障类别", "故障描述", "维修地点", "提交方式", "提交人", "报修时间", "维修状态", "维修厂", "预计费用", "实际费用", "维修开始时间", "完工时间", "维修结果", "凭证", "备注"];
   const escapeCsv = (value) => {
     const text = String(value ?? "").replace(/^([=+\-@])/, "'$1");
     return `"${text.replaceAll('"', '""')}"`;
   };
-  const rows = getFilteredVehicleRepairs().map((record) => [record.repairNo, record.plateNo, record.vehicleType, record.fleet, record.category, record.description, record.repairLocation, record.source, record.reporterName || record.createdBy, record.reportedAt, record.status, record.repairVendor, record.expectedCost, record.actualCost, record.startedAt, record.completedAt, record.result, (record.evidence || []).map((file) => typeof file === "string" ? file : file.name).join("、"), record.remark]);
+  const rows = getFilteredVehicleRepairs().map((record) => [record.repairNo, record.plateNo, record.vehicleType, record.capacityOwnershipSnapshot, record.vehicleOrganizationSnapshot, record.fleet, record.category, record.description, record.repairLocation, record.source, record.reporterName || record.createdBy, record.reportedAt, record.status, record.repairVendor, record.expectedCost, record.actualCost, record.startedAt, record.completedAt, record.result, (record.evidence || []).map((file) => typeof file === "string" ? file : file.name).join("、"), record.remark]);
   const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
   link.download = `车辆维修报表-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+function downloadCapacityArchive(fileName, headers, rows) {
+  const escapeCsv = (value) => `"${String(value ?? "").replace(/^([=+\-@])/, "'$1").replaceAll('"', '""')}"`;
+  const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
+  link.download = `${fileName}-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function exportVehicleArchive() {
+  const rows = getFilteredVehicles().map((item) => [item.plateNo, item.vehicleType, item.capacityOwnership, CapacityOwnership.organizationName(item), item.supplierId, item.driver, getTrailerLabel(item.trailerId), item.fleet, item.vehicleState, item.vin, item.permitNo, item.inspectionDue, item.insuranceDue]);
+  downloadCapacityArchive("车辆档案", ["车牌号", "车辆类型", "运力归属", "所属单位", "供应商编号", "驾驶员", "默认挂车", "所属车队", "车辆状态", "车架号", "营运证号", "审验到期", "保险到期"], rows);
+}
+
+function exportTrailerArchive() {
+  const rows = getFilteredTrailers().map((item) => [item.plateNo, item.trailerType, item.capacityOwnership, CapacityOwnership.organizationName(item), item.supplierId, item.fleet, item.trailerState, item.vin, item.permitNo, item.inspectionDue, item.insuranceDue]);
+  downloadCapacityArchive("挂车档案", ["挂车车牌", "挂车类型", "运力归属", "所属单位", "供应商编号", "所属车队", "状态", "车架号", "营运证号", "审验到期", "保险到期"], rows);
+}
+
+function exportDriverArchive() {
+  const rows = getFilteredDrivers().map((item) => [item.id, item.name, item.phone, item.capacityOwnership, CapacityOwnership.organizationName(item), item.supplierId, item.driverState, item.fleet, item.idCard, item.licenseClass, item.licenseExpiry, item.qualificationExpiry]);
+  downloadCapacityArchive("司机档案", ["司机编号", "姓名", "联系电话", "运力归属", "所属单位", "供应商编号", "司机状态", "所属车队", "身份证号", "准驾车型", "驾驶证到期", "从业资格证到期"], rows);
+}
+
+let editingThirdPartySupplierId = "";
+
+function getFilteredThirdPartySuppliers() {
+  const form = document.querySelector("#thirdPartySupplierQueryForm");
+  const data = form ? new FormData(form) : new FormData();
+  const keyword = normalize(data.get("keyword"));
+  const status = data.get("status");
+  return CapacityOwnership.readSuppliers().filter((item) =>
+    (!keyword || [item.id, item.name, item.contact, item.phone].some((value) => normalize(value).includes(keyword))) &&
+    (!status || item.status === status)
+  );
+}
+
+function renderThirdPartySupplierPage() {
+  const rows = getFilteredThirdPartySuppliers();
+  const body = document.querySelector("#thirdPartySupplierBody");
+  if (!body) return;
+  body.innerHTML = rows.length ? rows.map((item) => `<tr><td><strong>${dashboardEscape(item.id)}</strong></td><td>${dashboardEscape(item.name)}</td><td>${dashboardEscape(item.contact || "-")}</td><td>${dashboardEscape(item.phone || "-")}</td><td><span class="state-pill ${item.status === "启用" ? "active-state" : "inactive-state"}">${dashboardEscape(item.status)}</span></td><td>${dashboardEscape(item.remark || "-")}</td><td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-edit-third-party-supplier="${dashboardEscape(item.id)}" type="button">编辑</button><button class="link-btn" data-toggle-third-party-supplier="${dashboardEscape(item.id)}" type="button">${item.status === "启用" ? "停用" : "启用"}</button></div></td></tr>`).join("") : '<tr><td class="no-data-cell" colspan="7">暂无符合条件的三方供应商</td></tr>';
+  document.querySelector("#thirdPartySupplierResultText").textContent = `共 ${rows.length} 家供应商`;
+  document.querySelector("#thirdPartySupplierActiveBadge").textContent = `启用 ${CapacityOwnership.readSuppliers().filter((item) => item.status === "启用").length}`;
+  refreshSupplierDatalist();
+}
+
+function openThirdPartySupplierForm(supplierId = "") {
+  const form = document.querySelector("#thirdPartySupplierForm");
+  const supplier = CapacityOwnership.readSuppliers().find((item) => item.id === supplierId);
+  editingThirdPartySupplierId = supplierId;
+  form.reset();
+  document.querySelector("#thirdPartySupplierFormTitle").textContent = supplier ? "编辑三方供应商" : "新增三方供应商";
+  ["name", "contact", "phone", "status", "remark"].forEach((field) => { form.elements[field].value = supplier?.[field] || (field === "status" ? "启用" : ""); });
+  document.querySelector("#thirdPartySupplierDialog").showModal();
+}
+
+function closeThirdPartySupplierForm() {
+  const dialog = document.querySelector("#thirdPartySupplierDialog");
+  if (dialog?.open) dialog.close();
+  editingThirdPartySupplierId = "";
+}
+
+function saveThirdPartySupplier(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const records = CapacityOwnership.readSuppliers();
+  const duplicate = records.find((item) => normalize(item.name) === normalize(data.name) && item.id !== editingThirdPartySupplierId);
+  form.elements.name.setCustomValidity(duplicate ? "该供应商名称已存在，请直接编辑原档案。" : "");
+  if (duplicate) { form.elements.name.reportValidity(); return; }
+  if (editingThirdPartySupplierId) Object.assign(records.find((item) => item.id === editingThirdPartySupplierId), data);
+  else {
+    const sequence = records.reduce((max, item) => Math.max(max, Number(String(item.id).replace(/\D/g, "")) || 0), 0) + 1;
+    records.unshift({ id: `SUP-${String(sequence).padStart(3, "0")}`, ...data });
+  }
+  CapacityOwnership.saveSuppliers(records);
+  if (editingThirdPartySupplierId) {
+    [vehicles, trailers, drivers].forEach((collection) => collection.forEach((item) => {
+      if (item.supplierId !== editingThirdPartySupplierId) return;
+      item.supplierName = data.name;
+      item.organizationName = data.name;
+    }));
+    saveVehicles();
+    saveTrailers();
+    saveDrivers();
+  }
+  closeThirdPartySupplierForm();
+  renderThirdPartySupplierPage();
+  publishAdminDataSnapshot();
 }
 
 function switchPage(pageName) {
@@ -5079,6 +5334,7 @@ function switchPage(pageName) {
   if (meta.view === "announcements") {
     renderAnnouncementPage(getAnnouncementFiltered());
   }
+  if (meta.view === "thirdPartySuppliers") renderThirdPartySupplierPage();
 }
 
 renderRows(waybills);
@@ -5086,6 +5342,26 @@ renderVehiclePage();
 renderVehicleRepairPage();
 renderTrailerPage();
 renderDriverPage();
+renderThirdPartySupplierPage();
+
+document.querySelector("#thirdPartySupplierQueryForm")?.addEventListener("submit", (event) => { event.preventDefault(); renderThirdPartySupplierPage(); });
+document.querySelector("#thirdPartySupplierQueryForm")?.addEventListener("reset", () => setTimeout(renderThirdPartySupplierPage, 0));
+document.querySelector("#addThirdPartySupplierBtn")?.addEventListener("click", () => openThirdPartySupplierForm());
+document.querySelector("#closeThirdPartySupplierBtn")?.addEventListener("click", closeThirdPartySupplierForm);
+document.querySelector("#cancelThirdPartySupplierBtn")?.addEventListener("click", closeThirdPartySupplierForm);
+document.querySelector("#thirdPartySupplierForm")?.addEventListener("submit", saveThirdPartySupplier);
+document.querySelector("#thirdPartySupplierBody")?.addEventListener("click", (event) => {
+  const edit = event.target.closest("[data-edit-third-party-supplier]");
+  const toggle = event.target.closest("[data-toggle-third-party-supplier]");
+  if (edit) openThirdPartySupplierForm(edit.dataset.editThirdPartySupplier);
+  if (toggle) {
+    const records = CapacityOwnership.readSuppliers();
+    const supplier = records.find((item) => item.id === toggle.dataset.toggleThirdPartySupplier);
+    if (supplier) supplier.status = supplier.status === "启用" ? "停用" : "启用";
+    CapacityOwnership.saveSuppliers(records);
+    renderThirdPartySupplierPage();
+  }
+});
 renderRoutePage();
 renderDispatchPage();
 renderCapacityPage();
@@ -6297,8 +6573,17 @@ financeQueryForm?.addEventListener("change", (event) => {
   }
 });
 document.querySelector("#financeExportBtn")?.addEventListener("click", () => {
+  const headers = ["接单时间", "客户", "项目", "路线", "运单号", "集装箱号", "箱型", "铅封号", "里程(KM)", "运输方式", "运力归属", "承运类型", "承运单位", "司机所属单位", "车辆所属单位", "车号", "车型", "司机", "司机电话", "结算方式", "车辆费用", "司机劳务费", "费用合计", "状态"];
+  const rows = getFilteredFinanceRows().map((row) => [row.orderDate, row.customerName, row.projectName, row.routeName, row.waybillNo, row.boxes, row.boxTypes, row.seals, row.mileage, row.transportMode, row.capacityOwnership, row.carrierType, row.carrier, row.driverOrganization, row.vehicleOrganization, row.vehicleNo, row.vehicleType, row.driverName, row.driverPhone, row.settlementMethod, row.vehicleTotal, row.laborTotal, row.totalExpense, row.status]);
+  const escapeCsv = (value) => `"${String(value ?? "").replace(/^([=+\-@])/, "'$1").replaceAll('"', '""')}"`;
+  const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
+  link.download = `运输成本台账-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
   const result = document.querySelector("#financeResultText");
-  if (result) result.textContent = "导出按钮已触发（演示交互，暂未生成文件）";
+  if (result) result.textContent = `已导出 ${rows.length} 条运输成本台账`;
 });
 financeReportBody?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-finance-expense]");
@@ -6533,6 +6818,7 @@ document.querySelector("#cancelVehicleFormBtn").addEventListener("click", () => 
 
 vehicleForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (!validateCapacityOwnershipForm(vehicleForm)) return;
   const data = getVehicleFormData();
   const existingVehicle = vehicles.find((item) => item.plateNo === editingVehiclePlate);
   if (existingVehicle && window.VehicleRepair.hasOpenRepair(vehicleRepairRecords, existingVehicle.plateNo)) data.vehicleState = "维修中";
@@ -6706,6 +6992,7 @@ document.querySelector("#messageAlertBtn").addEventListener("click", () => {
 
   showApplicationAlert(`车辆到期提醒\n${pending.join("\n") || "暂无待提醒车辆"}`);
 });
+document.querySelector("#exportVehicleBtn")?.addEventListener("click", exportVehicleArchive);
 
 trailerQueryForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -6713,10 +7000,12 @@ trailerQueryForm.addEventListener("submit", (event) => {
   renderTrailerPage(filterTrailers(new FormData(event.currentTarget)));
 });
 document.querySelector("#addTrailerBtn").addEventListener("click", () => openTrailerForm("create"));
+document.querySelector("#exportTrailerBtn")?.addEventListener("click", exportTrailerArchive);
 document.querySelector("#closeTrailerFormBtn").addEventListener("click", closeTrailerForm);
 document.querySelector("#cancelTrailerFormBtn").addEventListener("click", closeTrailerForm);
 trailerForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (!validateCapacityOwnershipForm(trailerForm)) return;
   const data = getTrailerFormData();
   const existingTrailer = trailers.find((item) => item.id === editingTrailerId);
   const duplicatePlate = trailers.find((item) => item.plateNo === data.plateNo && item !== existingTrailer);
@@ -6793,6 +7082,7 @@ document.querySelector("#backToDriverListBtn").addEventListener("click", closeDr
 
 driverForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (!validateCapacityOwnershipForm(driverForm)) return;
   const data = getDriverFormData();
   const existingDriver = drivers.find((driver) => driver.id === editingDriverId);
   const duplicateIdCard = drivers.find((driver) => driver.idCard === data.idCard && driver !== existingDriver);
@@ -6826,6 +7116,11 @@ driverBody.addEventListener("change", (event) => {
   if (checkbox.checked) selectedDriverIds.add(checkbox.dataset.driverId);
   else selectedDriverIds.delete(checkbox.dataset.driverId);
   updateDriverSelection();
+});
+
+[vehicleForm, trailerForm, driverForm].forEach((form) => {
+  form?.elements.capacityOwnership?.addEventListener("change", () => syncCapacityOwnershipForm(form));
+  form?.elements.supplierName?.addEventListener("input", () => form.elements.supplierName.setCustomValidity(""));
 });
 
 driverBody.addEventListener("click", (event) => {
@@ -6872,7 +7167,7 @@ driverPageJump.addEventListener("change", () => {
 driverMoreBtn.addEventListener("click", () => driverMoreMenu.classList.toggle("open"));
 document.querySelector("#exportDriverBtn").addEventListener("click", () => {
   driverMoreMenu.classList.remove("open");
-  showApplicationAlert(`已准备导出 ${getFilteredDrivers().length} 条司机档案。`);
+  exportDriverArchive();
 });
 document.querySelector("#batchDriverStatusBtn").addEventListener("click", () => {
   driverMoreMenu.classList.remove("open");
@@ -6952,6 +7247,12 @@ projectForm?.addEventListener("submit", (event) => {
 
 routeForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  const supplierInput = routeForm.elements.thirdPartyCarrier;
+  const thirdPartyEnabled = routeForm.elements.thirdPartyEnabled.value === "true";
+  const supplier = CapacityOwnership.findSupplier(supplierInput.value);
+  supplierInput.setCustomValidity(thirdPartyEnabled && (!supplier || supplier.status !== "启用") ? "启用三方运力时请选择供应商档案中已启用的供应商。" : "");
+  if (!routeForm.reportValidity()) return;
+  if (supplier) supplierInput.value = supplier.name;
   const data = getRouteFormData();
   const existingRoute = fixedRoutes.find((route) => route.id === editingRouteId);
   if (routeFormMode === "edit" && existingRoute) Object.assign(existingRoute, data);
@@ -6965,6 +7266,7 @@ routeForm.addEventListener("submit", (event) => {
 routeForm.elements.commissionType.addEventListener("change", updateRouteCommissionPreview);
 routeForm.elements.estimatedRevenue.addEventListener("input", updateRouteCommissionPreview);
 routeForm.elements.commissionValue.addEventListener("input", updateRouteCommissionPreview);
+document.querySelector("#routeCapacityOwnershipFilter")?.addEventListener("change", populateRouteAssociations);
 
 routeBody.addEventListener("change", (event) => {
   const checkbox = event.target.closest(".route-row-check");
@@ -7236,6 +7538,7 @@ dispatchForm.addEventListener("submit", (event) => {
     editingDispatch.arrivalLocation = readField("arrivalLocation").trim();
     editingDispatch.note = readField("note").trim();
     editingDispatch.pushed = true;
+    if (typeof window.applyCapacitySnapshot === "function") window.applyCapacitySnapshot(editingDispatch, true);
     editingDispatch.timeline = Array.isArray(editingDispatch.timeline) ? editingDispatch.timeline : [];
     if (wasPendingDispatch) {
       editingDispatch.status = "已派单";
@@ -7314,6 +7617,7 @@ dispatchForm.addEventListener("submit", (event) => {
     pushed: true,
     timeline: [{ node: "已派单", time: dispatchTime, desc: "派单已推送至司机微信小程序", photos: [] }],
   };
+  if (typeof window.applyCapacitySnapshot === "function") window.applyCapacitySnapshot(assigned, true);
   const pending = dispatches.find((item) => item.waybillNo === waybill.waybillNo && item.status === "待派单");
   if (pending) Object.assign(pending, assigned);
   else dispatches.unshift({ id: `PD-${Date.now()}`, ...assigned });
@@ -7426,7 +7730,8 @@ capacityBody.addEventListener("click", (event) => {
 dispatchMoreBtn.addEventListener("click", () => dispatchMoreMenu.classList.toggle("open"));
 document.querySelector("#exportDispatchBtn").addEventListener("click", () => {
   dispatchMoreMenu.classList.remove("open");
-  showApplicationAlert(`已准备导出 ${getFilteredDispatches().length} 条派单台账。`);
+  const rows = getFilteredDispatches().map((item) => [item.id, item.waybillNo, item.routeName, item.capacityOwnershipSnapshot, item.driverName, item.driverOrganizationSnapshot, item.vehicleId, item.vehicleOrganizationSnapshot, item.trailerId, item.trailerOrganizationSnapshot, item.carrierTypeSnapshot, item.carrierUnitSnapshot, item.dispatchTime, item.status]);
+  downloadCapacityArchive("派单台账", ["派单编号", "运单号", "线路", "运力归属", "司机", "司机所属单位", "车辆", "车辆所属单位", "挂车", "挂车所属单位", "承运类型", "承运单位", "派单时间", "状态"], rows);
 });
 document.querySelector("#batchDispatchStatusBtn").addEventListener("click", () => {
   dispatchMoreMenu.classList.remove("open");
@@ -7498,6 +7803,11 @@ window.addEventListener("storage", (event) => {
         const untouchedDrivers = drivers.filter((driver) => !syncedIds.has(driver.id));
         drivers.splice(0, drivers.length, ...normalizedDrivers, ...untouchedDrivers);
       }
+      vehicles.forEach((item) => CapacityOwnership.normalizeResource(item, "vehicle"));
+      trailers.forEach((item) => CapacityOwnership.normalizeResource(item, "trailer"));
+      drivers.forEach((item) => CapacityOwnership.normalizeResource(item, "driver"));
+      dispatches.forEach(normalizeDispatchRecord);
+      refreshSupplierDatalist();
       syncDriverOperationalStates();
       renderRows(waybills);
       renderVehiclePage(getFilteredVehicles(), getWarningDays());
@@ -7692,7 +8002,7 @@ if (announcementQueryForm && announcementForm && announcementDialog && announcem
     document.querySelector("#announcementPreviewContent").textContent = announcementForm.elements.content.value.trim() || "公告内容将在这里显示。";
   });
   announcementForm.querySelectorAll("input[name='scope']").forEach((input) => input.addEventListener("change", () => setAnnouncementScope(input.value)));
-  document.querySelector("#announcementDriverType").addEventListener("change", renderAnnouncementDriverPicker);
+  document.querySelector("#announcementDriverOwnership").addEventListener("change", renderAnnouncementDriverPicker);
   document.querySelector("#announcementDriverList").addEventListener("change", (event) => {
     const input = event.target.closest("input[data-announcement-driver]");
     if (!input) return;

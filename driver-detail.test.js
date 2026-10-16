@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
+const CapacityOwnership = require("./capacity-ownership.js");
 
 const source = fs.readFileSync("app.js", "utf8");
 const start = source.indexOf("function renderDriverDetail(");
@@ -13,6 +14,7 @@ const node = (selector) => {
   return nodes.get(selector);
 };
 const context = vm.createContext({
+  CapacityOwnership,
   document: { querySelector: node },
   getCertificationInfo: () => ({ label: "已认证", className: "verified" }),
   getDriverStateClass: () => "transporting-state",

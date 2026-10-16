@@ -72,6 +72,7 @@
             <button class="nav-child" data-page="customer-archives" type="button">客户管理</button>
             <button class="nav-child" data-page="reminder-templates" type="button">消息提醒模板</button>
             <button class="nav-child" data-page="announcements" type="button">公告管理</button>
+            <button class="nav-child" data-page="third-party-suppliers" type="button">三方供应商档案</button>
             <button class="nav-child" data-page="user-access" type="button">用户与权限</button>
             <button class="nav-child" data-page="photo-requirements" type="button">司机拍照要求</button>
             <button class="nav-child" data-page="auto-dispatch-config" type="button">自动派单配置</button>
@@ -363,13 +364,14 @@
                   </div></section>
                   <section class="driver-form-section"><h3>三方运力结算</h3><p class="finance-form-tip">派单时将结算规则写入运单快照，后续线路调价不影响历史结算。</p><div class="form-grid">
                     <label class="field"><span>启用三方运力</span><select name="thirdPartyEnabled"><option value="false">否</option><option value="true">是</option></select></label>
-                    <label class="field"><span>默认承运商 / 外协车队</span><input name="thirdPartyCarrier" placeholder="请输入承运商或车队名称" /></label>
+                    <label class="field"><span>默认三方供应商</span><input name="thirdPartyCarrier" list="thirdPartySupplierOptions" placeholder="搜索供应商档案" /></label>
                     <label class="field"><span>计价方式</span><select name="thirdPartyPricingMethod"><option value="perTrip">按趟固定价</option><option value="perContainer">按箱计价</option><option value="perMileage">按里程计价</option><option value="negotiated">临时议价</option></select></label>
                     <label class="field"><span>三方结算价（元）</span><input name="thirdPartySettlementPrice" type="number" min="0" step="0.01" placeholder="0.00" /></label>
                     <label class="field"><span>结算周期</span><select name="thirdPartySettlementCycle"><option>现结</option><option>周结</option><option selected>月结30天</option><option>月结45天</option><option>月结60天</option></select></label>
                     <label class="field"><span>发票要求</span><select name="thirdPartyInvoiceRequired"><option value="true">需要进项发票</option><option value="false">无需发票</option></select></label>
                   </div></section>
                   <section class="driver-form-section"><h3>关联配置（可选）</h3><div class="form-grid">
+                    <label class="field">运力归属筛选<select id="routeCapacityOwnershipFilter"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
                     <label class="field">线路专属车辆<select name="defaultVehicle" id="routeDefaultVehicle"><option value="">不指定</option></select></label>
                     <label class="field">常用司机<select name="defaultDriver" id="routeDefaultDriver"><option value="">不指定</option></select></label>
                   </div></section>
@@ -411,6 +413,7 @@
                 <label class="field query-extra"><span>车牌</span><select name="plateNo" id="dispatchVehicleFilter"><option value="">全部车辆</option></select></label>
                 <label class="field query-extra"><span>派单状态</span><select name="dispatchStatus"><option value="">全部状态</option><option>待派单</option><option>已派单</option><option>运输中</option><option>已完成</option><option>取消</option></select></label>
                 <label class="field query-extra"><span>派单方式</span><select name="dispatchMode"><option value="">全部方式</option><option value="auto">自动派单</option><option value="manual">手动派单</option><option value="pending">待分配</option></select></label>
+                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
               </div>
               <div class="query-footer"><span class="selection-summary" id="dispatchSelectedText">已选择 0 条派单</span><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button><button class="btn quiet query-toggle" type="button" aria-expanded="false">展开</button><button class="btn primary" type="submit">查询</button><span class="query-action-separator" aria-hidden="true"></span><button class="btn accent" id="addDispatchBtn" type="button">新增派单</button><button class="btn primary" id="dispatchMoreBtn" type="button">更多功能</button>
@@ -467,10 +470,11 @@
                 <label class="field"><span>司机 / 车牌</span><input name="keyword" placeholder="请输入司机姓名或车牌" /></label>
                 <label class="field"><span>运力类型</span><select name="resourceType"><option value="">全部运力</option><option value="车辆">车辆</option><option value="司机">司机</option></select></label>
                 <label class="field"><span>当前状态</span><select name="status"><option value="">全部状态</option><option>运输中</option><option>空闲中</option><option>已停用</option><option>维修中</option><option>休假中</option><option value="需关注">维修中 / 休假中</option></select></label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
               </div>
               <div class="query-footer query-footer-end"><div class="action-bar"><button class="btn quiet query-clear" type="button">清空</button><button class="btn quiet query-toggle" type="button" aria-expanded="false">展开</button><button class="btn primary" type="submit">查询</button></div></div>
             </form>
-            <section class="table-card" aria-label="运力管理列表"><div class="table-summary"><div><strong>运力状态列表</strong><span id="capacityResultText">司机、车辆及当前任务实时状态</span></div><span class="draft-badge" id="capacityActiveBadge">运输中 0</span></div><div class="table-wrap"><table class="fixed-action-table capacity-management-table"><thead><tr><th>运力类型</th><th>司机</th><th>车辆</th><th>挂车</th><th>当前任务 / 线路</th><th>司机状态</th><th>车辆状态</th><th>更新时间</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="capacityBody"></tbody></table></div></section>
+            <section class="table-card" aria-label="运力管理列表"><div class="table-summary"><div><strong>运力状态列表</strong><span id="capacityResultText">司机、车辆及当前任务实时状态</span></div><span class="draft-badge" id="capacityActiveBadge">运输中 0</span></div><div class="table-wrap"><table class="fixed-action-table capacity-management-table"><thead><tr><th>运力类型</th><th>运力归属</th><th>司机</th><th>车辆</th><th>挂车</th><th>当前任务 / 线路</th><th>司机状态</th><th>车辆状态</th><th>更新时间</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="capacityBody"></tbody></table></div></section>
             <footer class="pagination" aria-label="运力管理分页"><label>每页条数<select id="capacityPageSize"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select></label><div class="page-controls"><button id="capacityPrevPage" type="button" disabled>上一页</button><button class="page-current" id="capacityCurrentPage" type="button">1</button><button id="capacityNextPage" type="button" disabled>下一页</button><label>跳至<input id="capacityPageJump" type="number" min="1" value="1" />页</label><span class="total-records" id="capacityTotalText">共 0 条记录</span></div></footer>
           </section>
 
@@ -523,7 +527,7 @@
                 <section class="dispatch-management-lane capacity-lane" aria-label="运力资源列表">
                 <header class="dispatch-lane-heading">
                   <div><span class="dispatch-lane-index">02</span><div><strong>运力资源</strong><small id="dispatchManagementCapacityCount">0 组运力</small></div></div>
-                <div class="dispatch-lane-controls"><label class="dispatch-select-all"><input id="dispatchManagementCapacitySelectAll" type="checkbox" />全选本页空闲</label><select id="dispatchManagementCapacityFilter" aria-label="运力状态筛选"><option value="">全部状态</option><option value="空闲">空闲</option><option value="运输中">运输中</option><option value="即将完成">即将完成</option><option value="维修中">维修中</option><option value="停用">停用</option></select></div>
+                <div class="dispatch-lane-controls"><label class="dispatch-select-all"><input id="dispatchManagementCapacitySelectAll" type="checkbox" />全选本页空闲</label><select id="dispatchManagementOwnershipFilter" aria-label="运力归属筛选"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select><select id="dispatchManagementCapacityFilter" aria-label="运力状态筛选"><option value="">全部状态</option><option value="空闲">空闲</option><option value="运输中">运输中</option><option value="即将完成">即将完成</option><option value="维修中">维修中</option><option value="停用">停用</option></select></div>
                 </header>
                 <div class="dispatch-lane-filterbar capacity-filterbar"><label class="dispatch-driver-search-label"><span>司机</span><input class="dispatch-driver-search" id="dispatchManagementCapacityDriverSearch" type="search" placeholder="搜索司机姓名或电话" aria-label="按司机姓名或电话搜索运力" /></label></div>
                 <div class="dispatch-management-capacity-list" id="dispatchManagementCapacityList"><div class="dispatch-capacity-list-head" aria-hidden="true"><span>选择</span><span>匹配值</span><span>司机 / 电话</span><span>车辆 / 挂车</span><span>当前进度</span></div></div>
@@ -543,7 +547,7 @@
 
             <dialog class="dispatch-confirm-dialog dispatch-vehicle-picker-dialog" id="dispatchManagementVehicleDialog" aria-labelledby="dispatchManagementVehicleTitle">
               <header class="dispatch-confirm-heading"><span class="dispatch-confirm-icon"><i data-lucide="truck" aria-hidden="true"></i></span><div><h2 id="dispatchManagementVehicleTitle">更换车辆</h2><p>选择一组空闲运力；已分配给其他任务的车辆不可重复选择。</p></div></header>
-              <div class="dispatch-vehicle-picker-filters"><label>运力状态<select id="dispatchManagementVehicleFilter"><option value="">全部状态</option><option value="空闲">空闲</option><option value="运输中">运输中</option><option value="即将完成">即将完成</option><option value="维修中">维修中</option><option value="停用">停用</option></select></label><label>司机<input id="dispatchManagementVehicleDriverSearch" type="search" placeholder="搜索司机姓名或电话" /></label></div>
+              <div class="dispatch-vehicle-picker-filters"><label>运力状态<select id="dispatchManagementVehicleFilter"><option value="">全部状态</option><option value="空闲">空闲</option><option value="运输中">运输中</option><option value="即将完成">即将完成</option><option value="维修中">维修中</option><option value="停用">停用</option></select></label><label>运力归属<select id="dispatchManagementVehicleOwnershipFilter"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label><label>司机<input id="dispatchManagementVehicleDriverSearch" type="search" placeholder="搜索司机姓名或电话" /></label></div>
               <div class="dispatch-vehicle-picker-list" id="dispatchManagementVehicleList"></div>
               <div class="dispatch-confirm-actions"><button class="btn quiet" id="dispatchManagementVehicleCancel" type="button">取消</button></div>
             </dialog>
@@ -574,7 +578,7 @@
             <div class="auto-view-tabs" role="tablist" aria-label="自动派单工作区"><button class="active" data-auto-view="dispatch" role="tab" aria-selected="true" type="button">自动派单</button><button data-auto-view="simulator" role="tab" aria-selected="false" type="button">派单模拟器</button></div>
             <div class="auto-stage" aria-label="自动派单处理阶段"><span>01 任务接入</span><span>02 运力识别</span><span>03 线路匹配</span><span>04 派单下发</span></div>
             <div class="auto-metrics" id="autoMetrics" aria-label="派单概览"></div>
-            <div class="auto-toolbar"><div class="auto-tabs" role="tablist" aria-label="任务分类"><button class="active" data-auto-tab="queue" role="tab" aria-selected="true" type="button">待处理 <span id="autoQueueCount">0</span></button><button data-auto-tab="exception" role="tab" aria-selected="false" type="button">异常任务 <span id="autoExceptionCount">0</span></button><button data-auto-tab="result" role="tab" aria-selected="false" type="button">已派单 <span id="autoResultCount">0</span></button><button data-auto-tab="fleet" role="tab" aria-selected="false" type="button">运力状态 <span id="autoFleetCount">0</span></button></div><button class="auto-reset" id="autoResetBtn" type="button">重置匹配</button></div>
+            <div class="auto-toolbar"><div class="auto-tabs" role="tablist" aria-label="任务分类"><button class="active" data-auto-tab="queue" role="tab" aria-selected="true" type="button">待处理 <span id="autoQueueCount">0</span></button><button data-auto-tab="exception" role="tab" aria-selected="false" type="button">异常任务 <span id="autoExceptionCount">0</span></button><button data-auto-tab="result" role="tab" aria-selected="false" type="button">已派单 <span id="autoResultCount">0</span></button><button data-auto-tab="fleet" role="tab" aria-selected="false" type="button">运力状态 <span id="autoFleetCount">0</span></button></div><div class="auto-toolbar-actions"><label>运力归属<select id="autoCapacityOwnershipFilter"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label><button class="auto-reset" id="autoResetBtn" type="button">重置匹配</button></div></div>
             <div class="auto-workspace" id="autoWorkspace"><section class="auto-list" aria-label="任务与运力"><div class="auto-list-heading"><strong id="autoListTitle">待处理任务</strong><span id="autoListSubtitle"></span></div><div class="auto-table-wrap"><table class="fixed-action-table"><thead id="autoTableHead"><tr><th>任务 / 来源</th><th>运输线路</th><th>计划日期</th><th>匹配状态</th><th class="fixed-action-column">处理</th></tr></thead><tbody id="autoTaskBody"></tbody></table></div></section><aside class="auto-inspector" id="autoInspector" aria-live="polite"></aside></div>
             <section class="auto-simulator" id="autoSimulator" hidden aria-label="派单模拟器">
               <div class="auto-simulator-heading"><div><strong>派单模拟器</strong><span>基于当前自动派单规则，预览派单后司机与车辆的运力状态</span></div><span class="auto-simulator-badge">仅模拟</span></div>
@@ -737,6 +741,7 @@
                 <label class="field query-extra"><span>运单 / 箱号</span><input name="keyword" placeholder="请输入运单号或集装箱号" /></label>
                 <label class="field query-extra"><span>司机 / 车号</span><input name="resourceKeyword" placeholder="请输入司机或车牌" /></label>
                 <label class="field query-extra"><span>运输状态</span><select name="status"><option value="">全部状态</option><option>已派单</option><option>运输中</option><option>已完成</option><option>取消</option></select></label>
+                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
               </div>
               <div class="query-footer"><span class="selection-summary" id="financeQuerySummary">已生成 0 条运输明细</span><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button>
@@ -750,7 +755,7 @@
             <section class="table-card finance-report-card" aria-label="财务报表明细">
               <div class="table-summary"><div><strong>运输成本台账明细</strong><span id="financeResultText">按运单展示，多个集装箱在同一条明细内汇总</span></div><span class="draft-badge" id="financeActiveBadge">待补费用 0</span></div>
               <div class="table-wrap finance-table-wrap"><table class="fixed-action-table finance-table"><thead><tr>
-                <th>接单时间</th><th>客户</th><th>项目</th><th>路线</th><th>运单号</th><th>集装箱号</th><th>箱型</th><th>铅封号</th><th>靠台时间</th><th>提箱地</th><th>装卸货地</th><th>落箱地</th><th>里程(KM)</th><th>运输方式</th><th>承运单位</th><th>车号</th><th>车型</th><th>司机</th><th>司机电话</th><th>提箱时间</th><th>完成时间</th><th>结算方式</th><th>车辆费用</th><th>司机劳务费</th><th>费用合计</th><th>状态</th><th class="fixed-action-column">操作</th>
+                <th>接单时间</th><th>客户</th><th>项目</th><th>路线</th><th>运单号</th><th>集装箱号</th><th>箱型</th><th>铅封号</th><th>靠台时间</th><th>提箱地</th><th>装卸货地</th><th>落箱地</th><th>里程(KM)</th><th>运输方式</th><th>运力归属</th><th>承运单位</th><th>司机所属单位</th><th>车辆所属单位</th><th>车号</th><th>车型</th><th>司机</th><th>司机电话</th><th>提箱时间</th><th>完成时间</th><th>结算方式</th><th>车辆费用</th><th>司机劳务费</th><th>费用合计</th><th>状态</th><th class="fixed-action-column">操作</th>
               </tr></thead><tbody id="financeReportBody"></tbody></table></div>
             </section>
             <footer class="pagination" aria-label="财务报表分页"><label>每页条数<select id="financePageSize"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select></label><div class="page-controls"><button id="financePrevPage" type="button" disabled>上一页</button><button class="page-current" id="financeCurrentPage" type="button">1</button><button id="financeNextPage" type="button" disabled>下一页</button><label>跳至<input id="financePageJump" type="number" min="1" value="1" />页</label><span class="total-records" id="financeTotalText">共 0 条记录</span></div></footer>
@@ -802,6 +807,7 @@
                 <label class="field"><span>审核状态</span><select name="status"><option value="">全部状态</option><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已驳回</option></select></label>
                 <label class="field query-extra"><span>开始日期</span><input name="startDate" type="date" /></label>
                 <label class="field query-extra"><span>结束日期</span><input name="endDate" type="date" /></label>
+                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
               </div>
               <div class="query-footer"><span class="selection-summary" id="driverExpenseQuerySummary">筛选结果 0 条费用明细</span><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button>
@@ -822,7 +828,7 @@
                 </div>
               </div>
               <div class="table-wrap driver-expense-table-wrap"><table class="fixed-action-table driver-expense-table"><thead><tr>
-                <th class="check-col"><label class="checkbox-label"><input id="driverExpenseSelectAll" type="checkbox" />全选</label></th><th>上报编号</th><th>司机</th><th>关联运单</th><th>车辆</th><th>费用类型</th><th>金额</th><th>发生日期</th><th>费用凭证</th><th>备注</th><th>上报时间</th><th>审核状态</th><th>审核信息</th><th class="fixed-action-column">操作</th>
+                <th class="check-col"><label class="checkbox-label"><input id="driverExpenseSelectAll" type="checkbox" />全选</label></th><th>上报编号</th><th>司机</th><th>关联运单</th><th>车辆</th><th>运力归属</th><th>司机所属单位</th><th>车辆所属单位</th><th>费用类型</th><th>金额</th><th>发生日期</th><th>费用凭证</th><th>备注</th><th>上报时间</th><th>审核状态</th><th>审核信息</th><th class="fixed-action-column">操作</th>
               </tr></thead><tbody id="driverExpenseBody"></tbody></table></div>
             </section>
             <footer class="pagination" aria-label="司机费用上报分页"><label>每页条数<select id="driverExpensePageSize"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select></label><div class="page-controls"><button id="driverExpensePrevPage" type="button" disabled>上一页</button><button class="page-current" id="driverExpenseCurrentPage" type="button">1</button><button id="driverExpenseNextPage" type="button" disabled>下一页</button><label>跳至<input id="driverExpensePageJump" type="number" min="1" value="1" />页</label><span class="total-records" id="driverExpenseTotalText">共 0 条记录</span></div></footer>
@@ -863,6 +869,7 @@
                   <label class="field"><span>结算方向</span><select name="direction"><option value="receivable">客户应收</option><option value="payable">外调应付</option></select></label>
                   <label class="field"><span>项目</span><select name="projectId" id="settlementProjectFilter"><option value="">全部项目</option></select></label>
                   <label class="field"><span>搜索</span><input name="keyword" type="search" placeholder="运单号、客户、承运商或司机" /></label>
+                  <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
                 </div>
                 <div class="query-footer"><span class="selection-summary" id="settlementPendingSummary">已选择 0 条</span><div class="action-bar"><button class="btn quiet" id="settlementSelectAll" type="button"><i data-lucide="list-checks" aria-hidden="true"></i>全选结果</button><button class="btn primary" id="createSettlementOrder" type="button" disabled><i data-lucide="file-plus-2" aria-hidden="true"></i>生成结算单</button></div></div>
               </form>
@@ -1037,12 +1044,19 @@
                     <label class="field required-field"><span class="field-label">公告标题</span><input name="title" required maxlength="100" placeholder="例如：国庆期间港区作业安排" /></label>
                     <label class="field required-field"><span class="field-label">公告类型</span><select name="type" required><option value="">请选择公告类型</option><option>运营通知</option><option>安全提醒</option><option>制度公告</option><option>活动通知</option><option>其他</option></select></label>
                   </div></section>
-                  <section class="driver-form-section"><h3>接收司机</h3><fieldset class="announcement-scope-options"><legend class="sr-only">公告接收范围</legend><label><input type="radio" name="scope" value="all" checked /><span><strong>全部司机</strong><small>向当前司机档案中的全部司机发送</small></span></label><label><input type="radio" name="scope" value="partial" /><span><strong>部分司机</strong><small>按司机类型筛选后勾选接收人</small></span></label></fieldset><div class="announcement-driver-picker" id="announcementDriverPicker" hidden><div class="announcement-driver-toolbar"><label class="field"><span>司机类型</span><select id="announcementDriverType"><option value="">全部类型</option></select></label><button class="btn quiet" id="announcementSelectVisibleDrivers" type="button">全选当前结果</button></div><div class="announcement-driver-summary"><span id="announcementDriverResultText">请选择司机</span><span id="announcementSelectedDriverText">已选 0 名司机</span></div><div class="announcement-driver-list" id="announcementDriverList"></div></div></section>
+                  <section class="driver-form-section"><h3>接收司机</h3><fieldset class="announcement-scope-options"><legend class="sr-only">公告接收范围</legend><label><input type="radio" name="scope" value="all" checked /><span><strong>全部司机</strong><small>向当前司机档案中的全部司机发送</small></span></label><label><input type="radio" name="scope" value="partial" /><span><strong>部分司机</strong><small>按运力归属筛选后勾选接收人</small></span></label></fieldset><div class="announcement-driver-picker" id="announcementDriverPicker" hidden><div class="announcement-driver-toolbar"><label class="field"><span>运力归属</span><select id="announcementDriverOwnership"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label><button class="btn quiet" id="announcementSelectVisibleDrivers" type="button">全选当前结果</button></div><div class="announcement-driver-summary"><span id="announcementDriverResultText">请选择司机</span><span id="announcementSelectedDriverText">已选 0 名司机</span></div><div class="announcement-driver-list" id="announcementDriverList"></div></div></section>
                   <section class="driver-form-section"><h3>消息内容</h3><div class="form-grid reminder-template-content-grid"><label class="field required-field reminder-template-wide"><span class="field-label">消息内容</span><textarea name="content" required rows="6" maxlength="1000" placeholder="请输入公告内容"></textarea><small class="field-hint">发布后目标司机将在司机端“消息通知”中收到公告。</small></label><label class="field field-wide file-field"><span>公告附件</span><input name="attachment" type="file" accept=".jpg,.jpeg,.png,.pdf" data-upload-label="公告附件" data-upload-hint="支持 JPG、PNG、PDF，单个文件不超过 10 MB" /></label></div><div class="reminder-template-preview"><div><span>司机端预览</span><strong id="announcementPreviewTitle">公告标题</strong></div><p id="announcementPreviewContent">公告内容将在这里显示。</p></div></section>
                 </div>
                 <div class="form-actions"><button class="btn quiet" id="cancelAnnouncementBtn" type="button">取消</button><button class="btn primary" type="submit">立即发布</button></div>
               </form>
             </dialog>
+          </section>
+
+          <section class="page-view" id="thirdPartySupplierPage">
+            <div class="finance-heading"><div><span class="page-eyebrow">系统配置 / 三方供应商档案</span><h2>三方供应商档案</h2><p>统一维护司机、车辆和挂车引用的三方运力单位。</p></div><span class="finance-sync-badge"><i></i>全业务统一引用</span></div>
+            <form class="query-panel" id="thirdPartySupplierQueryForm"><div class="query-grid"><label class="field"><span>供应商名称</span><input name="keyword" type="search" placeholder="搜索名称、联系人或电话" /></label><label class="field"><span>状态</span><select name="status"><option value="">全部状态</option><option>启用</option><option>停用</option></select></label></div><div class="query-footer query-footer-end"><div class="action-bar"><button class="btn quiet" type="reset">清空</button><button class="btn primary" type="submit">查询</button><button class="btn accent" id="addThirdPartySupplierBtn" type="button">新增供应商</button></div></div></form>
+            <section class="table-card"><div class="table-summary"><div><strong>供应商列表</strong><span id="thirdPartySupplierResultText">统一三方名称，避免同一单位重复录入</span></div><span class="draft-badge" id="thirdPartySupplierActiveBadge">启用 0</span></div><div class="table-wrap"><table class="fixed-action-table"><thead><tr><th>供应商编号</th><th>供应商名称</th><th>联系人</th><th>联系电话</th><th>状态</th><th>备注</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="thirdPartySupplierBody"></tbody></table></div></section>
+            <dialog class="add-dialog vehicle-dialog admin-form-dialog" id="thirdPartySupplierDialog"><form id="thirdPartySupplierForm"><header class="vehicle-dialog-header"><div><strong id="thirdPartySupplierFormTitle">新增三方供应商</strong><span>保存后可在司机、车辆和挂车档案中搜索选择</span></div><button class="icon-btn" id="closeThirdPartySupplierBtn" type="button" aria-label="关闭">×</button></header><div class="driver-form-body"><section class="driver-form-section"><h3>供应商信息</h3><div class="form-grid"><label class="field required-field"><span class="field-label">供应商名称</span><input name="name" required maxlength="100" /></label><label class="field"><span>联系人</span><input name="contact" maxlength="50" /></label><label class="field"><span>联系电话</span><input name="phone" maxlength="30" /></label><label class="field required-field"><span class="field-label">状态</span><select name="status" required><option>启用</option><option>停用</option></select></label><label class="field field-wide"><span>备注</span><textarea name="remark" rows="3" maxlength="300"></textarea></label></div></section></div><div class="form-actions"><button class="btn quiet" id="cancelThirdPartySupplierBtn" type="button">取消</button><button class="btn primary" type="submit">保存供应商</button></div></form></dialog>
           </section>
 
           <section class="page-view" id="vehiclePage">
@@ -1077,6 +1091,7 @@
                     <option value="normal">正常</option>
                   </select>
                 </label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
               </div>
               <div class="query-footer query-footer-end"><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button>
@@ -1084,6 +1099,7 @@
                 <button class="btn primary" type="submit">查询</button>
                 <span class="query-action-separator" aria-hidden="true"></span>
                 <button class="btn accent" type="button" id="addVehicleBtn">新增车辆</button>
+                <button class="btn quiet" type="button" id="exportVehicleBtn">导出档案</button>
                 <button class="btn primary" type="button" id="messageAlertBtn">消息提醒</button>
               </div></div>
             </form>
@@ -1107,7 +1123,8 @@
                         <th>车架号</th>
                         <th>发动机号</th>
                         <th>营运证号</th>
-                        <th>车辆所属</th>
+                        <th>运力归属</th>
+                        <th>所属单位</th>
                         <th>司机信息</th>
                         <th>车辆状态</th>
                         <th>审验到期</th>
@@ -1163,7 +1180,8 @@
                     <label class="field">所属车队<input name="fleet" placeholder="请输入所属车队" /></label>
                     <label class="field">车队名称<input name="fleetName" placeholder="请输入车队名称" /></label>
                     <label class="field"><span>默认挂车</span><select name="trailerId" id="vehicleTrailerSelect"><option value="">不指定</option></select></label>
-                    <label class="field required-field"><span class="field-label">车辆所属</span><select name="ownership" required><option>自有</option><option>外协</option></select></label>
+                    <label class="field required-field"><span class="field-label">运力归属</span><select name="capacityOwnership" data-capacity-ownership required><option>自营</option><option>三方</option></select></label>
+                    <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartySupplierOptions" placeholder="搜索供应商名称" /></label>
                     <label class="field required-field"><span class="field-label">车辆状态</span><select name="vehicleState" required><option>在用</option><option>停用</option><option>维修中</option></select></label>
                   </div></section>
                   <section class="driver-form-section"><h3>车辆参数</h3><div class="form-grid">
@@ -1396,6 +1414,7 @@
                 <label class="field"><span>提交人</span><input name="reporterName" placeholder="请输入提交人" /></label>
                 <label class="field"><span>报修开始日期</span><input name="fromDate" type="date" /></label>
                 <label class="field"><span>报修结束日期</span><input name="toDate" type="date" /></label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
               </div>
               <div class="query-footer query-footer-end"><div class="action-bar">
                 <button class="btn quiet" type="reset">清空</button>
@@ -1406,7 +1425,7 @@
             </form>
             <section class="table-card vehicle-repair-table-card" aria-label="车辆维修记录">
               <div class="table-summary"><div><strong>维修记录</strong><span id="vehicleRepairResultText">记录车辆日常维修与处理情况</span></div><span class="draft-badge">车辆状态同步</span></div>
-              <div class="table-wrap"><table class="vehicle-repair-table"><thead><tr><th>维修单号</th><th>车牌号</th><th>故障信息</th><th>维修地点</th><th>提交方式 / 提交人</th><th>报修时间</th><th>维修状态</th><th>实际费用</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="vehicleRepairBody"></tbody></table></div>
+              <div class="table-wrap"><table class="vehicle-repair-table"><thead><tr><th>维修单号</th><th>车牌号</th><th>运力归属</th><th>车辆所属单位</th><th>故障信息</th><th>维修地点</th><th>提交方式 / 提交人</th><th>报修时间</th><th>维修状态</th><th>实际费用</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="vehicleRepairBody"></tbody></table></div>
             </section>
             <dialog class="add-dialog vehicle-dialog admin-form-dialog vehicle-repair-dialog" id="vehicleRepairDialog">
               <form id="vehicleRepairForm">
@@ -1441,6 +1460,7 @@
                 <label class="field"><span>挂车车牌号</span><input name="plateNo" placeholder="请输入挂车车牌号" /></label>
                 <label class="field"><span>挂车类型</span><input name="trailerType" placeholder="例如：集装箱骨架车" /></label>
                 <label class="field"><span>挂车状态</span><select name="trailerState"><option value="">全部状态</option><option>在用</option><option>停用</option><option>维修中</option></select></label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
               </div>
               <div class="query-footer query-footer-end"><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button>
@@ -1448,13 +1468,14 @@
                 <button class="btn primary" type="submit">查询</button>
                 <span class="query-action-separator" aria-hidden="true"></span>
                 <button class="btn accent" type="button" id="addTrailerBtn">新增挂车</button>
+                <button class="btn quiet" type="button" id="exportTrailerBtn">导出档案</button>
               </div></div>
             </form>
             <section class="vehicle-module active" id="trailerArchivesModule">
               <section class="table-card" aria-label="挂车档案列表">
                 <div class="table-summary"><div><strong>挂车档案列表</strong><span id="trailerResultText">维护挂车身份、证照与状态</span></div><span class="draft-badge" id="trailerActiveBadge">在用 0</span></div>
                 <div class="table-wrap"><table class="fixed-action-table">
-                  <thead><tr><th>挂车车牌</th><th>挂车类型</th><th>车架号</th><th>车辆所属</th><th>所属车队</th><th>挂车状态</th><th>审验到期</th><th>保险到期</th><th>附件资料</th><th class="fixed-action-column">操作</th></tr></thead>
+                  <thead><tr><th>挂车车牌</th><th>挂车类型</th><th>车架号</th><th>运力归属</th><th>所属单位</th><th>所属车队</th><th>挂车状态</th><th>审验到期</th><th>保险到期</th><th>附件资料</th><th class="fixed-action-column">操作</th></tr></thead>
                   <tbody id="trailerBody"></tbody>
                 </table></div>
               </section>
@@ -1471,7 +1492,8 @@
                     <label class="field required-field"><span class="field-label">挂车类型</span><input name="trailerType" required placeholder="例如：集装箱骨架车" /></label>
                     <label class="field required-field"><span class="field-label">车架号</span><input name="vin" required /></label>
                     <label class="field">所属车队<input name="fleet" placeholder="请输入所属车队" /></label>
-                    <label class="field required-field"><span class="field-label">车辆所属</span><select name="ownership" required><option>自有</option><option>外协</option></select></label>
+                    <label class="field required-field"><span class="field-label">运力归属</span><select name="capacityOwnership" data-capacity-ownership required><option>自营</option><option>三方</option></select></label>
+                    <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartySupplierOptions" placeholder="搜索供应商名称" /></label>
                     <label class="field required-field"><span class="field-label">挂车状态</span><select name="trailerState" required><option>在用</option><option>停用</option><option>维修中</option></select></label>
                   </div></section>
                   <section class="driver-form-section"><h3>证照与审验</h3><div class="form-grid">
@@ -1529,6 +1551,7 @@
                     <option>已过期</option>
                   </select>
                 </label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
               </div>
               <div class="query-footer">
                 <span class="selection-summary" id="driverSelectedText">已选择 0 名司机</span>
@@ -1566,6 +1589,8 @@
                       <th>身份证号</th>
                       <th>司机状态</th>
                       <th>认证状态</th>
+                      <th>运力归属</th>
+                      <th>所属单位</th>
                       <th>所属车队</th>
                       <th>入职日期</th>
                       <th>准驾车型</th>
@@ -1664,6 +1689,8 @@
                       <label class="field required-field"><span class="field-label">紧急联系电话</span><input name="emergencyPhone" required /></label>
                       <label class="field required-field"><span class="field-label">入职日期</span><input name="entryDate" type="date" required /></label>
                       <label class="field required-field"><span class="field-label">司机状态</span><select name="driverState" required><option>空闲</option><option>运输中</option><option>休假中</option><option>停用</option></select></label>
+                      <label class="field required-field"><span class="field-label">运力归属</span><select name="capacityOwnership" data-capacity-ownership required><option>自营</option><option>三方</option></select></label>
+                      <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartySupplierOptions" placeholder="搜索供应商名称" /></label>
                       <label class="field required-field"><span class="field-label">所属车队</span><input name="fleet" required /></label>
                     </div>
                   </section>
@@ -1904,7 +1931,9 @@
     <dialog class="confirm-dialog app-notice-dialog" id="appNoticeDialog" aria-labelledby="appNoticeTitle" aria-describedby="appNoticeText"><div class="confirm-icon" aria-hidden="true">i</div><h2 id="appNoticeTitle">操作提示</h2><p id="appNoticeText" role="alert"></p><div class="confirm-actions"><button class="btn primary" id="closeAppNoticeBtn" type="button">知道了</button></div></dialog>
     <dialog class="confirm-dialog" id="appConfirmDialog" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmText"><div class="confirm-icon" aria-hidden="true">?</div><h2 id="appConfirmTitle">确认操作</h2><p id="appConfirmText"></p><div class="confirm-actions"><button class="btn quiet" id="cancelAppConfirmBtn" type="button">取消</button><button class="btn primary" id="acceptAppConfirmBtn" type="button">确认</button></div></dialog>
 
+    <datalist id="thirdPartySupplierOptions"></datalist>
     <script src="vendor/lucide.min.js"></script>
+    <script src="capacity-ownership.js"></script>
     <script src="admin-data-bridge.js"></script>
     <script src="attachment-upload.js"></script>
     <script src="dispatch-store.js"></script>

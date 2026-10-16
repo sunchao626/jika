@@ -31,6 +31,21 @@ const vehicles = {
   "浙A·F2190": { type: "危险品牵引车", fleet: "杭州危险品运输车队", state: "在用" },
 };
 
+Object.values(drivers).forEach((driver) => {
+  driver.capacityOwnership = window.CapacityOwnership.normalizeType(driver.capacityOwnership || driver.type);
+  driver.organizationName = driver.capacityOwnership === "自营" ? "本公司" : driver.supplierName || driver.fleet;
+});
+
+function syncDriverArchive() {
+  const snapshot = window.AdminDataBridge?.read();
+  if (!Array.isArray(snapshot?.drivers)) return;
+  snapshot.drivers.forEach((record) => {
+    if (!record?.id || !drivers[record.id]) return;
+    const normalized = window.CapacityOwnership.normalizeResource({ ...record }, "driver");
+    Object.assign(drivers[record.id], normalized, { type: normalized.driverType });
+  });
+}
+
 function syncVehicleArchive() {
   const snapshot = window.AdminDataBridge?.read();
   if (!Array.isArray(snapshot?.vehicles)) return;
@@ -45,6 +60,9 @@ function syncVehicleArchive() {
       fleet: vehicle.fleetName || vehicle.fleet || "",
       state: vehicle.vehicleState || "在用",
       driverId: driver?.id || "",
+      capacityOwnership: window.CapacityOwnership.normalizeType(vehicle.capacityOwnership || vehicle.ownership),
+      supplierName: vehicle.supplierName || "",
+      organizationName: window.CapacityOwnership.organizationName(vehicle),
     };
   });
   Object.keys(vehicles).forEach((plate) => delete vehicles[plate]);
@@ -52,6 +70,7 @@ function syncVehicleArchive() {
 }
 
 syncVehicleArchive();
+syncDriverArchive();
 
 const waybillMeta = {
   WB20260916001: { taskType: "提空装货", customer: "宁波海拓供应链有限公司", billNo: "BL-NB-26091601", containerType: "40HQ", sealNo: "SEAL831942", loadAddress: "宁波市北仑区港兴路 88 号" },
@@ -173,7 +192,7 @@ function loadDriverProfiles() {
 }
 
 function saveDriverProfiles() {
-  const editableFields = ["name", "phone", "type", "fleet", "address", "emergencyContact", "licenseNo", "licenseClass", "licenseExpiry", "qualificationNo", "qualificationExpiry"];
+  const editableFields = ["name", "phone", "fleet", "address", "emergencyContact", "licenseNo", "licenseClass", "licenseExpiry", "qualificationNo", "qualificationExpiry"];
   const profiles = Object.fromEntries(Object.entries(drivers).map(([driverId, driver]) => [
     driverId,
     Object.fromEntries(editableFields.map((field) => [field, driver[field] || ""])),
@@ -904,7 +923,7 @@ function renderProfile() {
   const vehicle = vehicles[plateNo];
   document.querySelector("#profileAvatar").textContent = driver.name.slice(0, 1);
   document.querySelector("#profileName").textContent = driver.name;
-  document.querySelector("#profileMeta").textContent = `${driver.type} · ${driver.fleet}`;
+  document.querySelector("#profileMeta").textContent = `${driver.capacityOwnership || "自营"} · ${driver.organizationName || "本公司"} · ${driver.fleet}`;
   document.querySelector("#profilePhone").textContent = maskPhone(driver.phone);
   const profileBadge = document.querySelector("#profileCertificationBadge");
   profileBadge.textContent = certificationView.label;
@@ -951,7 +970,8 @@ function renderPersonalEditForm() {
         <label class="expense-field">司机编号<input value="${h(driver.id)}" readonly /></label>
         <label class="expense-field">姓名<input name="name" value="${h(driver.name)}" maxlength="20" required /></label>
         <label class="expense-field">联系电话<input name="phone" value="${h(driver.phone)}" inputmode="tel" maxlength="11" pattern="1[3-9]\\d{9}" required /></label>
-        <label class="expense-field">司机类型<select name="type" required><option ${driver.type === "自有司机" ? "selected" : ""}>自有司机</option><option ${driver.type === "外协司机" ? "selected" : ""}>外协司机</option></select></label>
+        <label class="expense-field">运力归属<input value="${h(driver.capacityOwnership || "自营")}" readonly /></label>
+        <label class="expense-field">所属单位<input value="${h(driver.organizationName || "本公司")}" readonly /></label>
         <label class="expense-field">所属车队<input name="fleet" value="${h(driver.fleet)}" maxlength="40" required /></label>
         <label class="expense-field">联系地址<input name="address" value="${h(driver.address || "上海市浦东新区临港大道 688 号")}" maxlength="120" required /></label>
         <label class="expense-field">紧急联系人<input name="emergencyContact" value="${h(driver.emergencyContact || "赵敏 13800002166")}" maxlength="40" required /></label>
@@ -1052,10 +1072,10 @@ function renderSubpage(page) {
 
   if (page === "personal") {
     elements.subpageContent.innerHTML = `
-      <div class="subpage-summary"><span class="subpage-summary-icon">${h(driver.name.slice(0, 1))}</span><div><strong>${h(driver.name)}</strong><span>${h(driver.type)} · ${h(driver.fleet)}</span></div></div>
+      <div class="subpage-summary"><span class="subpage-summary-icon">${h(driver.name.slice(0, 1))}</span><div><strong>${h(driver.name)}</strong><span>${h(driver.capacityOwnership || "自营")} · ${h(driver.organizationName || "本公司")}</span></div></div>
       <section class="info-section"><h2>基础资料</h2>${infoRows([
         { label: "司机编号", value: driver.id }, { label: "姓名", value: driver.name }, { label: "联系电话", value: maskPhone(driver.phone) },
-        { label: "司机类型", value: driver.type }, { label: "所属车队", value: driver.fleet }, { label: "司机状态", value: "在职" },
+        { label: "运力归属", value: driver.capacityOwnership || "自营" }, { label: "所属单位", value: driver.organizationName || "本公司" }, { label: "所属车队", value: driver.fleet }, { label: "司机状态", value: "在职" },
       ])}</section>
       <section class="info-section"><h2>联系信息</h2>${infoRows([{ label: "住址", value: driver.address || "上海市浦东新区临港大道 688 号" }, { label: "紧急联系人", value: driver.emergencyContact || "赵敏  138****2166" }])}</section>
       <button class="subpage-secondary subpage-link-button" data-subpage-action="open-documents" type="button">证件管理 <b>›</b></button>
@@ -1093,7 +1113,7 @@ function renderSubpage(page) {
       <div class="subpage-summary"><span class="subpage-summary-icon">车</span><div><strong>${h(plateNo)}</strong><span>${h(vehicle?.type || "暂无车辆信息")}</span></div></div>
       <section class="info-section"><h2>车辆档案</h2>${infoRows([
         { label: "车牌号码", value: plateNo }, { label: "车辆类型", value: vehicle?.type || "-" },
-        { label: "所属车队", value: vehicle?.fleet || driver.fleet }, { label: "车辆状态", value: vehicle?.state || "待分配", status: vehicle?.state || "待分配", warning: vehicle?.state !== "在用" },
+        { label: "运力归属", value: vehicle?.capacityOwnership || "待确定" }, { label: "所属单位", value: vehicle?.organizationName || "待确定" }, { label: "所属车队", value: vehicle?.fleet || driver.fleet }, { label: "车辆状态", value: vehicle?.state || "待分配", status: vehicle?.state || "待分配", warning: vehicle?.state !== "在用" },
         { label: "营运证号", value: "沪交运管字 330206-889" }, { label: "下次审验", value: "2027-03-18" },
       ])}</section>
       <button class="subpage-secondary subpage-link-button" data-subpage-action="open-insurance" type="button">查看车辆保险 <b>›</b></button>
@@ -1541,7 +1561,6 @@ elements.subpageContent.addEventListener("submit", async (event) => {
     Object.assign(driver, {
       name: String(data.name || "").trim(),
       phone,
-      type: String(data.type || "").trim(),
       fleet: String(data.fleet || "").trim(),
       address: String(data.address || "").trim(),
       emergencyContact: String(data.emergencyContact || "").trim(),
@@ -1610,6 +1629,8 @@ elements.subpageContent.addEventListener("submit", async (event) => {
       reportedAt: new Date().toISOString(),
       evidence: [],
       status: "待维修",
+      capacityOwnershipSnapshot: vehicle.capacityOwnership || "待确定",
+      vehicleOrganizationSnapshot: vehicle.organizationName || "待确定",
     }, { vehicleState: vehicle.state });
     if (result.error) { showToast(result.error); return; }
     const uploadedAt = window.DispatchStore.nowText();
@@ -1680,6 +1701,10 @@ elements.subpageContent.addEventListener("submit", async (event) => {
       remark: String(formData.get("remark") || "").trim(),
       status: "pending",
       createdAt: new Date().toISOString(),
+      capacityOwnershipSnapshot: dispatch.capacityOwnershipSnapshot || window.CapacityOwnership.groupSnapshot([{ ...currentDriver(), role: "司机", name: currentDriver().name }, { ...vehicles[vehicleId], role: "车辆", name: vehicleId }]).type,
+      capacityOwnershipTooltipSnapshot: dispatch.capacityOwnershipTooltipSnapshot || "",
+      driverOrganizationSnapshot: dispatch.driverOrganizationSnapshot || currentDriver().organizationName || "本公司",
+      vehicleOrganizationSnapshot: dispatch.vehicleOrganizationSnapshot || vehicles[vehicleId].organizationName || "待确定",
     });
     saveExpenses(state.expenses);
     if (window.opener && !window.opener.closed) {

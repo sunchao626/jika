@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
+const CapacityOwnership = require("./capacity-ownership.js");
 
 const source = fs.readFileSync("app.js", "utf8");
 const start = source.indexOf("function populateDispatchFormOptions()");
@@ -26,6 +27,7 @@ const routes = {
 };
 const dialog = { open: false, dataset: {}, showModal() { this.open = true; }, close() { this.open = false; } };
 const context = vm.createContext({
+  CapacityOwnership,
   document: { querySelector: find }, dispatchForm: form, dispatchDialog: dialog,
   dispatches: [],
   waybills: [

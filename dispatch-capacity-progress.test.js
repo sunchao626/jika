@@ -40,7 +40,7 @@ assert.match(cancelled, /已取消/);
 assert.match(cancelled, /不计入进度/);
 
 assert.match(html, /<th>任务类型<\/th><th class="dispatch-capacity-column">运力状态<\/th><th>派单方式<\/th>/);
-assert.match(app, /<td>\$\{dispatch\.taskType \|\| "-"\}<\/td><td class="dispatch-capacity-cell">\$\{renderDispatchCapacityProgress\(dispatch\)\}<\/td><td><span class="dispatch-mode/);
+assert.match(app, /<td>\$\{dispatch\.taskType \|\| "-"\}<\/td><td class="dispatch-capacity-cell">\$\{CapacityOwnership\.badgeMarkup\(dispatch\.capacityOwnershipSnapshot, dispatch\.capacityOwnershipTooltipSnapshot\)\}\$\{renderDispatchCapacityProgress\(dispatch\)\}<\/td><td><span class="dispatch-mode/);
 assert.match(app, /colspan="17"/);
 
 console.log("Dispatch capacity progress test passed");

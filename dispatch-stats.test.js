@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
+const CapacityOwnership = require("./capacity-ownership.js");
 
 const source = fs.readFileSync("app.js", "utf8");
 const start = source.indexOf("const seedAutoDispatchIds =");
@@ -26,6 +27,7 @@ const buttons = ["", "auto", "manual", "pending"].map((dispatchMode) => ({
 }));
 const form = { elements: { dispatchMode: { value: "auto" } } };
 const context = vm.createContext({
+  CapacityOwnership,
   dispatches, dispatchQueryForm: form, normalize: (value) => String(value || "").toLowerCase(),
   document: { querySelector: element, querySelectorAll: () => buttons },
 });
