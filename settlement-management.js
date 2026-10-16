@@ -4,6 +4,8 @@
   const selectedSourceIds = new Set();
   const selectedPayrollIds = new Set();
   let activeTab = "pending";
+  let activeSummaryKey = "";
+  let activeOrderFilter = "all";
   let activeOrderId = "";
   let orders = loadRecords(ORDER_STORAGE_KEY);
   let payrollOrders = loadRecords(PAYROLL_STORAGE_KEY);
@@ -125,12 +127,12 @@
     const payableOutstanding = orders.filter((item) => item.type === "payable").reduce((sum, order) => sum + Math.max(0, number(order.totalAmount) - orderTotals(order).paymentAmount), 0);
     const payrollPending = payrollSourceRows().reduce((sum, row) => sum + row.amount, 0);
     document.querySelector("#settlementSummary").innerHTML = [
-      ["待结算应收", money(receivableRows.reduce((sum, row) => sum + row.amount, 0)), `${receivableRows.length} 条已完成运单`, "pending"],
-      ["待结算外调运费", money(payableRows.reduce((sum, row) => sum + row.amount, 0)), `${payableRows.length} 条外协运单`, "labor"],
-      ["应收未回款", money(receivableOutstanding), "已生成结算单", "total"],
-      ["外调待付款", money(payableOutstanding), "已生成应付结算单", "rejected"],
-      ["司机待核算", money(payrollPending), `${payrollSourceRows().length} 条运单`, "completed"],
-    ].map(([label, value, note, className]) => `<div class="finance-summary-card ${className}"><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`).join("");
+      ["pending-receivable", "待结算应收", money(receivableRows.reduce((sum, row) => sum + row.amount, 0)), `${receivableRows.length} 条已完成运单`, "pending", "进入客户应收待结算"],
+      ["pending-payable", "待结算外调运费", money(payableRows.reduce((sum, row) => sum + row.amount, 0)), `${payableRows.length} 条外协运单`, "labor", "进入外调应付待结算"],
+      ["receivable-unpaid", "应收未回款", money(receivableOutstanding), "查看未完成回款的结算单", "total", "查看应收未回款"],
+      ["payable-unpaid", "外调待付款", money(payableOutstanding), "查看未完成付款的结算单", "rejected", "查看外调待付款"],
+      ["payroll", "司机待核算", money(payrollPending), `${payrollSourceRows().length} 条运单`, "completed", "进入驾驶员工资核算"],
+    ].map(([key, label, value, note, className, ariaLabel]) => `<button class="finance-summary-card settlement-summary-card ${className} ${activeSummaryKey === key ? "active" : ""}" data-settlement-summary="${key}" type="button" aria-label="${ariaLabel}" aria-pressed="${activeSummaryKey === key}"><span>${label}</span><i data-lucide="arrow-up-right" aria-hidden="true"></i><strong>${value}</strong><small>${note}</small></button>`).join("");
   }
 
   function populateProjectFilter() {
@@ -159,11 +161,42 @@
 
   function renderOrders() {
     const body = document.querySelector("#settlementOrderBody");
-    body.innerHTML = orders.length ? orders.map((order) => {
+    const rows = orders.filter((order) => {
+      if (activeOrderFilter === "receivable" || activeOrderFilter === "payable") return order.type === activeOrderFilter;
+      if (activeOrderFilter === "receivable-unpaid") return order.type === "receivable" && orderTotals(order).paymentAmount + 0.005 < number(order.totalAmount);
+      if (activeOrderFilter === "payable-unpaid") return order.type === "payable" && orderTotals(order).paymentAmount + 0.005 < number(order.totalAmount);
+      return true;
+    });
+    body.innerHTML = rows.length ? rows.map((order) => {
       const totals = orderTotals(order);
       return `<tr><td><strong class="primary-text">${escapeHtml(order.id)}</strong><small>${escapeHtml(order.statementNo)}</small></td><td><span class="settlement-direction ${order.type}">${order.type === "receivable" ? "应收" : "应付"}</span></td><td><strong>${escapeHtml(order.counterparty)}</strong></td><td>${escapeHtml((order.projectNames || []).join(" / ") || "-")}</td><td>${(order.lines || []).length}</td><td class="finance-money-cell">${money(order.totalAmount)}</td><td><span class="settlement-status ${order.reconciliationStatus}">${order.reconciliationStatus === "confirmed" ? "已确认" : "已生成"}</span></td><td>${totals.invoiceStatus}</td><td>${totals.paymentStatus}</td><td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-settlement-view="${escapeHtml(order.id)}" type="button">查看</button>${order.documentStatus === "draft" ? `<button class="link-btn success-link" data-settlement-confirm="${escapeHtml(order.id)}" type="button">确认</button>` : ""}</div></td></tr>`;
-    }).join("") : '<tr><td class="empty-table-cell" colspan="10">尚未生成结算单</td></tr>';
-    document.querySelector("#settlementOrderBadge").textContent = `${orders.length} 张结算单`;
+    }).join("") : '<tr><td class="empty-table-cell" colspan="10">当前筛选下没有结算单</td></tr>';
+    const filterLabels = { all: "全部结算单", receivable: "客户应收", payable: "外调应付", "receivable-unpaid": "应收未回款", "payable-unpaid": "外调待付款" };
+    document.querySelector("#settlementOrderResultText").textContent = `${filterLabels[activeOrderFilter]} · 发票状态与资金状态分别跟踪`;
+    document.querySelector("#settlementOrderBadge").textContent = `${rows.length} / ${orders.length} 张`;
+    document.querySelectorAll("[data-settlement-order-filter]").forEach((button) => {
+      const active = button.dataset.settlementOrderFilter === activeOrderFilter;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  }
+
+  function activateSummary(key) {
+    activeSummaryKey = key;
+    selectedSourceIds.clear();
+    if (key === "pending-receivable" || key === "pending-payable") {
+      const form = document.querySelector("#settlementPendingQuery");
+      form.elements.direction.value = key === "pending-receivable" ? "receivable" : "payable";
+      form.elements.projectId.value = "";
+      form.elements.keyword.value = "";
+      activeTab = "pending";
+    } else if (key === "receivable-unpaid" || key === "payable-unpaid") {
+      activeOrderFilter = key;
+      activeTab = "orders";
+    } else if (key === "payroll") {
+      activeTab = "payroll";
+    }
+    render();
   }
 
   function renderPayroll() {
@@ -204,6 +237,8 @@
     });
     selectedSourceIds.clear();
     saveRecords();
+    activeSummaryKey = "";
+    activeOrderFilter = direction;
     activeTab = "orders";
     render();
   }
@@ -279,6 +314,7 @@
     if (recordType === "invoice") order.invoiceRecords.push(record); else order.paymentRecords.push(record);
     saveRecords();
     document.querySelector("#settlementTransactionDialog").close();
+    activeSummaryKey = "";
     activeTab = "transactions";
     render();
   }
@@ -308,7 +344,11 @@
     window.lucide?.createIcons();
   }
 
-  document.querySelectorAll("[data-settlement-tab]").forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.settlementTab)));
+  document.querySelectorAll("[data-settlement-tab]").forEach((button) => button.addEventListener("click", () => { activeSummaryKey = ""; switchTab(button.dataset.settlementTab); renderSummary(); window.lucide?.createIcons(); }));
+  document.querySelector("#settlementSummary")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-settlement-summary]");
+    if (button) activateSummary(button.dataset.settlementSummary);
+  });
   document.querySelector("#settlementPendingQuery")?.addEventListener("input", () => { selectedSourceIds.clear(); renderPending(); });
   document.querySelector("#settlementPendingBody")?.addEventListener("change", (event) => {
     if (!event.target.matches(".settlement-source-check")) return;
@@ -326,6 +366,15 @@
     const confirm = event.target.closest("[data-settlement-confirm]");
     if (view) openOrderDetail(view.dataset.settlementView);
     if (confirm) confirmOrder(confirm.dataset.settlementConfirm);
+  });
+  document.querySelector(".settlement-filter-group")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-settlement-order-filter]");
+    if (!button) return;
+    activeSummaryKey = "";
+    activeOrderFilter = button.dataset.settlementOrderFilter;
+    renderOrders();
+    renderSummary();
+    window.lucide?.createIcons();
   });
   document.querySelector("#closeSettlementDetail")?.addEventListener("click", () => document.querySelector("#settlementDetailDialog").close());
   document.querySelector("#confirmSettlementOrder")?.addEventListener("click", () => { confirmOrder(activeOrderId); document.querySelector("#settlementDetailDialog").close(); });

@@ -33,6 +33,12 @@ assert.match(settlement, /进项发票/);
 assert.match(settlement, /payrollSourceRows/);
 assert.match(settlement, /selectedSourceIds/);
 assert.match(settlement, /settledSourceIds/);
+assert.match(settlement, /data-settlement-summary/);
+assert.match(settlement, /function activateSummary/);
+assert.match(settlement, /activeOrderFilter/);
+assert.match(html, /data-settlement-order-filter="receivable-unpaid"/);
+assert.match(html, /class="settlement-order-no-col"/);
+assert.match(html, /class="settlement-waybill-col"/);
 assert.match(access, /id: "settlements", name: "结算管理"/);
 
 console.log("Settlement management contract test passed");
