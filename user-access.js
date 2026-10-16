@@ -14,6 +14,7 @@
     { group: "司机管理", id: "drivers", name: "司机档案管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "财务管理", id: "finance", name: "运输成本台账", actions: ["view", "edit", "export", "special"], special: "费用审核" },
     { group: "财务管理", id: "driverExpenses", name: "司机费用上报", actions: ["view", "special", "export"], special: "费用审核" },
+    { group: "财务管理", id: "settlements", name: "结算管理", actions: ["view", "create", "edit", "export", "special"], special: "结算确认" },
     { group: "系统配置", id: "customers", name: "客户管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "系统配置", id: "reminders", name: "消息提醒模板", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "announcements", name: "公告管理", actions: ["view", "create", "edit", "delete"] },
@@ -27,7 +28,7 @@
     roles: [
       { id: "role-admin", name: "系统管理员", description: "管理全部业务模块和系统配置", status: "active", isSystem: true, permissions: ALL_PERMISSIONS(), scope: { type: "all", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-01" },
       { id: "role-dispatch", name: "调度员", description: "维护计划并执行日常派单", status: "active", permissions: { ...EMPTY_PERMISSIONS(), waybill: { view: true, create: true, edit: true, delete: false, export: true }, dispatchManagement: { view: true, special: true }, dispatchList: { view: true, edit: true, export: true, special: true }, capacity: { view: true }, routes: { view: true }, vehicles: { view: true }, trailers: { view: true }, drivers: { view: true }, customers: { view: true } }, scope: { type: "all", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-08" },
-      { id: "role-finance", name: "财务专员", description: "查看运输费用并审核司机费用上报", status: "active", permissions: { ...EMPTY_PERMISSIONS(), finance: { view: true, edit: true, export: true, special: true }, driverExpenses: { view: true, export: true, special: true }, customers: { view: true } }, scope: { type: "custom", customers: ["customer-hm", "customer-lg"], projects: [], routes: [] }, updatedAt: "2026-10-10" },
+      { id: "role-finance", name: "财务专员", description: "管理运输费用、结算、发票与收付款", status: "active", permissions: { ...EMPTY_PERMISSIONS(), finance: { view: true, edit: true, export: true, special: true }, driverExpenses: { view: true, export: true, special: true }, settlements: { view: true, create: true, edit: true, export: true, special: true }, customers: { view: true } }, scope: { type: "custom", customers: ["customer-hm", "customer-lg"], projects: [], routes: [] }, updatedAt: "2026-10-15" },
       { id: "role-fleet", name: "车队管理员", description: "维护车辆、挂车、司机及维修记录", status: "active", permissions: { ...EMPTY_PERMISSIONS(), vehicles: { view: true, create: true, edit: true, delete: true, export: true }, trailers: { view: true, create: true, edit: true, delete: true, export: true }, repairs: { view: true, create: true, edit: true, special: true }, drivers: { view: true, create: true, edit: true, export: true }, capacity: { view: true } }, scope: { type: "self", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-12" },
     ],
     users: [

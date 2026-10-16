@@ -348,6 +348,7 @@ const pageViews = {
   userAccess: document.querySelector("#userAccessPage"),
   finance: document.querySelector("#financePage"),
   driverExpenses: document.querySelector("#driverExpensePage"),
+  settlement: document.querySelector("#settlementPage"),
   vehicleRepairs: document.querySelector("#vehicleRepairPage"),
   customer: document.querySelector("#customerPage"),
   reminderTemplates: document.querySelector("#reminderTemplatePage"),
@@ -372,6 +373,7 @@ const pageMeta = {
   "user-access": { title: "用户与权限", kicker: "系统配置 / 用户与权限", view: "userAccess" },
   "finance-reports": { title: "运输成本台账", kicker: "财务管理 / 运输成本台账", view: "finance" },
   "driver-expenses": { title: "司机费用上报", kicker: "财务管理 / 司机费用上报", view: "driverExpenses" },
+  "settlement-management": { title: "结算管理", kicker: "财务管理 / 结算管理", view: "settlement" },
   "vehicle-repairs": { title: "车辆维修管理", kicker: "车辆管理 / 维修台账", view: "vehicleRepairs" },
   "customer-archives": { title: "客户管理", kicker: "系统配置 / 客户管理", view: "customer" },
   "reminder-templates": { title: "消息提醒模板", kicker: "系统配置 / 消息提醒", view: "reminderTemplates" },
@@ -1123,6 +1125,11 @@ function createPendingDispatch(waybill, route) {
     boxes: formatWaybillBoxes(waybill),
     estimatedRevenue: route ? Number(route.estimatedRevenue) || 0 : waybill.receivable,
     commission: route ? calculateRouteCommission(route) : 0,
+    thirdPartyCarrierSnapshot: route?.thirdPartyCarrier || "",
+    thirdPartyPricingMethodSnapshot: route?.thirdPartyPricingMethod || "perTrip",
+    thirdPartySettlementPriceSnapshot: route?.thirdPartyEnabled ? Number(route.thirdPartySettlementPrice) || 0 : 0,
+    thirdPartySettlementCycleSnapshot: route?.thirdPartySettlementCycle || "月结30天",
+    thirdPartyInvoiceRequiredSnapshot: route?.thirdPartyInvoiceRequired !== false,
     note: "",
     pushed: false,
     timeline: [],
@@ -2663,9 +2670,11 @@ function openRouteForm(mode, routeId = "") {
   const route = fixedRoutes.find((item) => item.id === routeId);
   document.querySelector("#routeFormTitle").textContent = mode === "edit" ? "编辑固定线路" : "新增固定线路";
   if (route) {
-    ["routeName", "origin", "destination", "viaPoints", "mileage", "routeState", "remark", "estimatedRevenue", "baseFreight", "commissionType", "commissionValue", "commissionRemark", "defaultVehicle", "defaultDriver"].forEach((fieldName) => {
-      routeForm.elements[fieldName].value = route[fieldName];
+    ["routeName", "origin", "destination", "viaPoints", "mileage", "routeState", "remark", "estimatedRevenue", "baseFreight", "commissionType", "commissionValue", "commissionRemark", "defaultVehicle", "defaultDriver", "thirdPartyCarrier", "thirdPartyPricingMethod", "thirdPartySettlementPrice", "thirdPartySettlementCycle"].forEach((fieldName) => {
+      if (route[fieldName] !== undefined && route[fieldName] !== null) routeForm.elements[fieldName].value = route[fieldName];
     });
+    routeForm.elements.thirdPartyEnabled.value = String(Boolean(route.thirdPartyEnabled));
+    routeForm.elements.thirdPartyInvoiceRequired.value = String(route.thirdPartyInvoiceRequired !== false);
     routeForm.elements.customerId.value = route.customerId || "";
     routeForm.elements.projectId.value = route.projectId || "";
   }
@@ -2690,6 +2699,12 @@ function getRouteFormData() {
     estimatedRevenue: Number(formData.get("estimatedRevenue")) || 0, baseFreight: Number(formData.get("baseFreight")) || 0, commissionType: formData.get("commissionType"),
     commissionValue: Number(formData.get("commissionValue")) || 0, commissionRemark: String(formData.get("commissionRemark") || "").trim(),
     defaultVehicle: formData.get("defaultVehicle"), defaultDriver: formData.get("defaultDriver"),
+    thirdPartyEnabled: formData.get("thirdPartyEnabled") === "true",
+    thirdPartyCarrier: String(formData.get("thirdPartyCarrier") || "").trim(),
+    thirdPartyPricingMethod: formData.get("thirdPartyPricingMethod") || "perTrip",
+    thirdPartySettlementPrice: Number(formData.get("thirdPartySettlementPrice")) || 0,
+    thirdPartySettlementCycle: formData.get("thirdPartySettlementCycle") || "月结30天",
+    thirdPartyInvoiceRequired: formData.get("thirdPartyInvoiceRequired") !== "false",
     customerId: formData.get("customerId"),
     customerName: (typeof routeAccountCatalog !== "undefined" ? getRouteAccount(formData.get("customerId"))?.customerName : "") || "",
     projectId: formData.get("projectId"),
@@ -4276,6 +4291,8 @@ function getFinanceRow(waybill, dispatch = getFinanceDispatch(waybill.waybillNo)
   const expense = getFinanceExpense(waybill.waybillNo);
   const vehicleTotal = vehicleCosts.reduce((sum, field) => sum + financeNumber(expense[field]), 0);
   const laborTotal = laborCosts.reduce((sum, field) => sum + financeNumber(expense[field]), 0);
+  const isThirdParty = vehicle?.ownership === "外协";
+  const pricingMethodLabels = { perTrip: "按趟固定价", perContainer: "按箱计价", perMileage: "按里程计价", negotiated: "临时议价" };
   const routeStops = typeof getRouteStops === "function" ? getRouteStops(route) : [];
   const pickupPoint = containers.map((item) => item.pickupPoint || route.pickupPoint || routeStops[0]?.value || route.origin || "").filter(Boolean);
   const dropoffPoint = containers.map((item) => item.returnPoint || route.dropoffPoint || waybill.returnPoint || routeStops[3]?.value || route.destination || "").filter(Boolean);
@@ -4304,14 +4321,14 @@ function getFinanceRow(waybill, dispatch = getFinanceDispatch(waybill.waybillNo)
       ? dispatch.routeMileageSnapshot
       : (Object.prototype.hasOwnProperty.call(waybill, "routeMileageSnapshot") ? waybill.routeMileageSnapshot : getRouteMileageSnapshot(route)),
     transportMode: waybill.transportMode || dispatch.transportMode || "公路运输",
-    carrier: "自营",
+    carrier: isThirdParty ? (dispatch.thirdPartyCarrierSnapshot || route.thirdPartyCarrier || vehicle?.fleetName || vehicle?.fleet || waybill.carrier || "外协承运商") : "自营",
     vehicleNo: dispatch.vehicleId || waybill.plateNo || "",
     vehicleType: dispatch.vehicleType || vehicle?.vehicleType || "",
     driverName: dispatch.driverName || waybill.driverName || "",
     driverPhone: dispatch.phone || "",
     pickupTime,
     completedTime,
-    settlementMethod: "开票对公",
+    settlementMethod: isThirdParty ? `${pricingMethodLabels[dispatch.thirdPartyPricingMethodSnapshot || route.thirdPartyPricingMethod] || "按趟固定价"} / ${dispatch.thirdPartySettlementCycleSnapshot || route.thirdPartySettlementCycle || "月结30天"}` : "内部成本归集",
     expense,
     vehicleTotal,
     laborTotal,
@@ -4522,6 +4539,32 @@ function saveDriverExpenseRecords() {
   try { localStorage.setItem(DRIVER_EXPENSE_STORAGE_KEY, JSON.stringify(driverExpenseRecords)); } catch (error) { console.warn("司机费用数据保存失败。", error); }
 }
 
+function postApprovedDriverExpensesToFinance(recordIds = null) {
+  const allowedIds = recordIds ? new Set(recordIds) : null;
+  const fieldByType = { fuel: "fuel", electricity: "electricity", gas: "gas", toll: "toll", parking: "parking" };
+  let changed = false;
+  driverExpenseRecords.forEach((record) => {
+    if (record.status !== "approved" || !record.waybillNo || (allowedIds && !allowedIds.has(record.id))) return;
+    const current = financeExpenseRecords[record.waybillNo] || {};
+    const postedIds = Array.isArray(current.driverExpenseIds) ? current.driverExpenseIds : [];
+    if (postedIds.includes(record.id)) return;
+    const field = fieldByType[record.type] || "vehicleOther";
+    current[field] = financeNumber(current[field]) + financeNumber(record.amount);
+    current.driverExpenseIds = [...postedIds, record.id];
+    current.driverExpenseAmount = financeNumber(current.driverExpenseAmount) + financeNumber(record.amount);
+    financeExpenseRecords[record.waybillNo] = current;
+    record.costPostedAt = record.costPostedAt || window.DispatchStore.nowText();
+    changed = true;
+  });
+  if (changed) {
+    saveFinanceExpenseRecords();
+    saveDriverExpenseRecords();
+  }
+  return changed;
+}
+
+postApprovedDriverExpensesToFinance();
+
 function mergeDriverExpenseRecords(incoming) {
   const merged = new Map(driverExpenseRecords.map((item) => [item.id, item]));
   incoming.map(normalizeDriverExpenseRecord).forEach((item) => {
@@ -4710,10 +4753,14 @@ function applyDriverExpenseReview(recordIds, result, rejectionReason = "") {
     reviewedBy: "系统管理员",
     rejectionReason,
   });
+  if (result === "approved") {
+    postApprovedDriverExpensesToFinance(ids);
+  }
   ids.forEach((id) => selectedDriverExpenseIds.delete(id));
   saveDriverExpenseRecords();
   notifyDriverExpenseClient();
   renderDriverExpensePage();
+  window.SettlementManager?.render();
   return ids.length;
 }
 
@@ -5021,6 +5068,7 @@ function switchPage(pageName) {
   if (meta.view === "driverExpenses") {
     renderDriverExpensePage();
   }
+  if (meta.view === "settlement") window.SettlementManager?.render();
   if (meta.view === "vehicleRepairs") renderVehicleRepairPage();
   if (meta.view === "customer") {
     window.CustomerManager?.render();
@@ -7172,6 +7220,11 @@ dispatchForm.addEventListener("submit", (event) => {
     editingDispatch.boxes = formatWaybillBoxes({ ...waybill, boxType: editingDispatch.boxType, boxNo1: editingDispatch.boxNo1, sealNo1: editingDispatch.sealNo1, boxNo2: editingDispatch.boxNo2, sealNo2: editingDispatch.sealNo2 });
     editingDispatch.estimatedRevenue = Number(route.estimatedRevenue) || 0;
     editingDispatch.commission = calculateRouteCommission(route);
+    editingDispatch.thirdPartyCarrierSnapshot = vehicle.ownership === "外协" ? (vehicle.fleetName || vehicle.fleet || route.thirdPartyCarrier || "") : "";
+    editingDispatch.thirdPartyPricingMethodSnapshot = route.thirdPartyPricingMethod || "perTrip";
+    editingDispatch.thirdPartySettlementPriceSnapshot = vehicle.ownership === "外协" ? Number(route.thirdPartySettlementPrice || route.baseFreight) || 0 : 0;
+    editingDispatch.thirdPartySettlementCycleSnapshot = route.thirdPartySettlementCycle || "月结30天";
+    editingDispatch.thirdPartyInvoiceRequiredSnapshot = route.thirdPartyInvoiceRequired !== false;
     editingDispatch.vehicleType = dispatchVehicleType;
     editingDispatch.trailerId = readField("trailerId", vehicle.trailerId || editingDispatch.trailerId || "");
     editingDispatch.driverId = driver.id;
@@ -7248,6 +7301,11 @@ dispatchForm.addEventListener("submit", (event) => {
     sealNo2: readField("sealNo2", waybill.sealNo2 || "-").trim() || "-",
     estimatedRevenue: route.estimatedRevenue,
     commission: calculateRouteCommission(route),
+    thirdPartyCarrierSnapshot: vehicle.ownership === "外协" ? (vehicle.fleetName || vehicle.fleet || route.thirdPartyCarrier || "") : "",
+    thirdPartyPricingMethodSnapshot: route.thirdPartyPricingMethod || "perTrip",
+    thirdPartySettlementPriceSnapshot: vehicle.ownership === "外协" ? Number(route.thirdPartySettlementPrice || route.baseFreight) || 0 : 0,
+    thirdPartySettlementCycleSnapshot: route.thirdPartySettlementCycle || "月结30天",
+    thirdPartyInvoiceRequiredSnapshot: route.thirdPartyInvoiceRequired !== false,
     consignee: readField("consignee").trim(),
     arrivalTime: readField("arrivalTime").trim(),
     arrivalLocation: readField("arrivalLocation").trim(),

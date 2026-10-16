@@ -65,6 +65,7 @@
             <button class="nav-parent" type="button"><span class="nav-icon">￥</span>财务管理</button>
             <button class="nav-child" data-page="finance-reports" type="button">运输成本台账</button>
             <button class="nav-child" data-page="driver-expenses" type="button">司机费用上报</button>
+            <button class="nav-child" data-page="settlement-management" type="button">结算管理</button>
           </section>
           <section class="nav-section">
             <button class="nav-parent" type="button"><span class="nav-icon">⚙</span>系统配置</button>
@@ -343,7 +344,7 @@
             <dialog class="add-dialog vehicle-dialog route-dialog admin-form-dialog" id="routeDialog" data-breadcrumb="线路管理 / 固定线路管理 / 线路建档">
               <form id="routeForm">
                 <header class="vehicle-dialog-header"><div><strong id="routeFormTitle">新增固定线路</strong><span>预配置线路收入和司机提成规则，开运单时可直接引用</span></div><button aria-label="关闭" class="icon-btn" id="closeRouteFormBtn" type="button">×</button></header>
-                <nav class="admin-section-nav" aria-label="线路表单分组"><button type="button" class="is-active">基础信息</button><button type="button">收入与提成</button><button type="button">关联配置</button></nav>
+                <nav class="admin-section-nav" aria-label="线路表单分组"><button type="button" class="is-active">基础信息</button><button type="button">收入与提成</button><button type="button">三方运力结算</button><button type="button">关联配置</button></nav>
                 <div class="driver-form-body admin-form-scroll">
                   <section class="driver-form-section"><h3>线路基础信息</h3><div class="form-grid">
                     <label class="field required-field"><span class="field-label">线路名称</span><input name="routeName" required /></label><label class="field required-field"><span class="field-label">客户</span><select name="customerId" id="routeCustomerSelect" required></select></label><label class="field required-field"><span class="field-label">项目</span><select name="projectId" id="routeProjectSelect" required></select></label>
@@ -359,6 +360,14 @@
                     <label class="field required-field"><span class="field-label" id="routeCommissionLabel">固定提成金额（元）</span><input name="commissionValue" id="routeCommissionValue" type="number" min="0" step="0.01" required /></label>
                     <label class="field">预计司机提成（元）<input id="routeCommissionPreview" readonly /></label>
                     <label class="field">提成规则说明<input name="commissionRemark" placeholder="例如：含往返空驶补贴" /></label>
+                  </div></section>
+                  <section class="driver-form-section"><h3>三方运力结算</h3><p class="finance-form-tip">派单时将结算规则写入运单快照，后续线路调价不影响历史结算。</p><div class="form-grid">
+                    <label class="field"><span>启用三方运力</span><select name="thirdPartyEnabled"><option value="false">否</option><option value="true">是</option></select></label>
+                    <label class="field"><span>默认承运商 / 外协车队</span><input name="thirdPartyCarrier" placeholder="请输入承运商或车队名称" /></label>
+                    <label class="field"><span>计价方式</span><select name="thirdPartyPricingMethod"><option value="perTrip">按趟固定价</option><option value="perContainer">按箱计价</option><option value="perMileage">按里程计价</option><option value="negotiated">临时议价</option></select></label>
+                    <label class="field"><span>三方结算价（元）</span><input name="thirdPartySettlementPrice" type="number" min="0" step="0.01" placeholder="0.00" /></label>
+                    <label class="field"><span>结算周期</span><select name="thirdPartySettlementCycle"><option>现结</option><option>周结</option><option selected>月结30天</option><option>月结45天</option><option>月结60天</option></select></label>
+                    <label class="field"><span>发票要求</span><select name="thirdPartyInvoiceRequired"><option value="true">需要进项发票</option><option value="false">无需发票</option></select></label>
                   </div></section>
                   <section class="driver-form-section"><h3>关联配置（可选）</h3><div class="form-grid">
                     <label class="field">线路专属车辆<select name="defaultVehicle" id="routeDefaultVehicle"><option value="">不指定</option></select></label>
@@ -832,6 +841,55 @@
                 <button class="btn danger" id="rejectDriverExpenseBtn" type="button">驳回</button>
                 <button class="btn primary" id="approveDriverExpenseBtn" type="button">审核通过</button>
               </footer>
+            </dialog>
+          </section>
+
+          <section class="page-view" id="settlementPage">
+            <div class="finance-heading">
+              <div><span class="page-eyebrow">财务管理 / 结算管理</span><h2>结算管理</h2><p>运单完成后进入待结算池，统一管理对账、发票、收付款和驾驶员工资。</p></div>
+              <span class="finance-sync-badge"><i></i>按完成运单实时归集</span>
+            </div>
+            <div class="finance-summary-grid settlement-summary-grid" id="settlementSummary"></div>
+            <div class="settlement-tabs" role="tablist" aria-label="结算管理视图">
+              <button class="active" data-settlement-tab="pending" type="button" role="tab" aria-selected="true">待结算</button>
+              <button data-settlement-tab="orders" type="button" role="tab" aria-selected="false">结算单与对账单</button>
+              <button data-settlement-tab="payroll" type="button" role="tab" aria-selected="false">驾驶员工资</button>
+              <button data-settlement-tab="transactions" type="button" role="tab" aria-selected="false">发票与收付款</button>
+            </div>
+
+            <section class="settlement-panel active" data-settlement-panel="pending">
+              <form class="query-panel" id="settlementPendingQuery">
+                <div class="query-grid settlement-query-grid">
+                  <label class="field"><span>结算方向</span><select name="direction"><option value="receivable">客户应收</option><option value="payable">外调应付</option></select></label>
+                  <label class="field"><span>项目</span><select name="projectId" id="settlementProjectFilter"><option value="">全部项目</option></select></label>
+                  <label class="field"><span>搜索</span><input name="keyword" type="search" placeholder="运单号、客户、承运商或司机" /></label>
+                </div>
+                <div class="query-footer"><span class="selection-summary" id="settlementPendingSummary">已选择 0 条</span><div class="action-bar"><button class="btn quiet" id="settlementSelectAll" type="button"><i data-lucide="list-checks" aria-hidden="true"></i>全选结果</button><button class="btn primary" id="createSettlementOrder" type="button" disabled><i data-lucide="file-plus-2" aria-hidden="true"></i>生成结算单</button></div></div>
+              </form>
+              <section class="table-card settlement-table-card"><div class="table-summary"><div><strong>已完成运单待结算明细</strong><span>系统按结算对象自动拆分单据，并生成对账单</span></div><span class="draft-badge" id="settlementPendingBadge">0 条待结算</span></div><div class="table-wrap"><table class="fixed-action-table settlement-source-table"><thead><tr><th class="check-col"><input id="settlementPendingCheckAll" type="checkbox" aria-label="全选待结算明细" /></th><th>运单号</th><th>完成时间</th><th>客户 / 项目</th><th>线路</th><th>结算对象</th><th>车辆 / 司机</th><th>结算金额</th></tr></thead><tbody id="settlementPendingBody"></tbody></table></div></section>
+            </section>
+
+            <section class="settlement-panel" data-settlement-panel="orders" hidden>
+              <section class="table-card settlement-table-card"><div class="table-summary"><div><strong>结算单与对账单</strong><span>发票状态与资金状态分别跟踪</span></div><span class="draft-badge" id="settlementOrderBadge">0 张结算单</span></div><div class="table-wrap"><table class="fixed-action-table settlement-order-table"><thead><tr><th>结算单号</th><th>方向</th><th>结算对象</th><th>项目</th><th>运单数</th><th>结算金额</th><th>对账状态</th><th>发票状态</th><th>资金状态</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="settlementOrderBody"></tbody></table></div></section>
+            </section>
+
+            <section class="settlement-panel" data-settlement-panel="payroll" hidden>
+              <div class="settlement-payroll-toolbar"><div><strong>驾驶员工资核算</strong><span>仅归集已完成且尚未核算的运单提成；司机上报费用计入运单成本，不并入工资。</span></div><button class="btn primary" id="createPayrollOrders" type="button" disabled><i data-lucide="badge-dollar-sign" aria-hidden="true"></i>生成工资核算单</button></div>
+              <section class="table-card settlement-table-card"><div class="table-summary"><div><strong>待核算运单</strong><span id="payrollSelectionSummary">已选择 0 条</span></div><span class="draft-badge" id="payrollPendingBadge">0 条待核算</span></div><div class="table-wrap"><table class="fixed-action-table settlement-payroll-table"><thead><tr><th class="check-col"><input id="payrollCheckAll" type="checkbox" aria-label="全选待核算工资" /></th><th>运单号</th><th>驾驶员</th><th>项目 / 线路</th><th>完成时间</th><th>任务提成</th></tr></thead><tbody id="payrollPendingBody"></tbody></table></div></section>
+              <section class="table-card settlement-table-card"><div class="table-summary"><div><strong>工资核算单</strong><span>按驾驶员自动拆单</span></div></div><div class="table-wrap"><table class="fixed-action-table settlement-payroll-order-table"><thead><tr><th>核算单号</th><th>驾驶员</th><th>运单数</th><th>应发金额</th><th>状态</th><th>生成时间</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="payrollOrderBody"></tbody></table></div></section>
+            </section>
+
+            <section class="settlement-panel" data-settlement-panel="transactions" hidden>
+              <section class="table-card settlement-table-card"><div class="table-summary"><div><strong>发票与收付款流水</strong><span>应收登记销项发票和收款，应付登记进项发票和付款</span></div></div><div class="table-wrap"><table class="fixed-action-table settlement-transaction-table"><thead><tr><th>日期</th><th>结算单号</th><th>结算对象</th><th>业务类型</th><th>票据 / 流水号</th><th>金额</th><th>登记人</th></tr></thead><tbody id="settlementTransactionBody"></tbody></table></div></section>
+            </section>
+
+            <dialog class="vehicle-dialog admin-form-dialog settlement-detail-dialog" id="settlementDetailDialog">
+              <header class="vehicle-dialog-header"><div><strong id="settlementDetailTitle">结算单详情</strong><span id="settlementDetailSubtitle"></span></div><button class="icon-btn" id="closeSettlementDetail" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
+              <div class="admin-form-scroll settlement-detail-body" id="settlementDetailBody"></div>
+              <footer class="form-actions"><button class="btn quiet" id="confirmSettlementOrder" type="button">确认结算单</button><button class="btn primary" id="openSettlementTransaction" type="button">登记发票 / 收付款</button></footer>
+            </dialog>
+            <dialog class="vehicle-dialog admin-form-dialog settlement-transaction-dialog" id="settlementTransactionDialog">
+              <form id="settlementTransactionForm"><header class="vehicle-dialog-header"><div><strong>登记发票 / 收付款</strong><span id="settlementTransactionSubtitle"></span></div><button class="icon-btn" id="closeSettlementTransaction" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header><div class="driver-form-body admin-form-scroll"><section class="driver-form-section"><h3>业务登记</h3><div class="form-grid"><label class="field required-field"><span class="field-label">业务类型</span><select name="recordType" required></select></label><label class="field required-field"><span class="field-label">金额（元）</span><input name="amount" type="number" min="0.01" step="0.01" required /></label><label class="field required-field"><span class="field-label">业务日期</span><input name="recordDate" type="date" required /></label><label class="field"><span>发票号 / 银行流水号</span><input name="referenceNo" placeholder="请输入票据或流水编号" /></label><label class="field field-wide"><span>备注</span><input name="remark" placeholder="可填写税率、付款账户或补充说明" /></label></div></section></div><div class="form-actions"><button class="btn quiet" id="cancelSettlementTransaction" type="button">取消</button><button class="btn primary" type="submit">保存登记</button></div></form>
             </dialog>
           </section>
 
@@ -1856,6 +1914,7 @@
     <script src="expense-report.js"></script>
     <script src="dispatch-rules.js"></script>
     <script src="app.js"></script>
+    <script src="settlement-management.js"></script>
     <script src="dispatch-management.js"></script>
     <script src="auto-dispatch.js"></script>
     <script src="customer.js"></script>
