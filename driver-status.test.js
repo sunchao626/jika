@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
+const CapacityOwnership = require("./capacity-ownership.js");
 
 const source = fs.readFileSync("app.js", "utf8");
 const start = source.indexOf("const ACTIVE_DRIVER_DISPATCH_STATES");
@@ -35,7 +36,7 @@ assert.equal(drivers[4].driverState, "空闲");
 
 const availabilityStart = source.indexOf("function enabledOwnDrivers()");
 const availabilityEnd = source.indexOf("const DRIVER_CERTIFICATION_STORAGE_KEY", availabilityStart);
-const availabilityContext = vm.createContext({ drivers, daysUntil: () => 365 });
+const availabilityContext = vm.createContext({ drivers, daysUntil: () => 365, CapacityOwnership });
 vm.runInContext(source.slice(availabilityStart, availabilityEnd), availabilityContext);
 drivers[0].driverState = "运输中";
 assert.equal(availabilityContext.enabledOwnDrivers().length, 4, "transporting drivers remain enabled in driver master data");

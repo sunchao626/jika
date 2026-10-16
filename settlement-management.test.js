@@ -26,7 +26,7 @@ assert.match(app, /result === "approved"[\s\S]*postApprovedDriverExpensesToFinan
 assert.match(app, /record\.costPostedAt/);
 
 assert.match(settlement, /dispatch\.status === "已完成"/);
-assert.match(settlement, /vehicle\?\.ownership !== "外协"/);
+assert.match(settlement, /dispatch\.carrierTypeSnapshot/);
 assert.match(settlement, /statementNo:/);
 assert.match(settlement, /销项发票/);
 assert.match(settlement, /进项发票/);

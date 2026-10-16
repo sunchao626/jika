@@ -64,7 +64,7 @@
       const vehicle = vehicles.find((item) => item.plateNo === dispatch.vehicleId);
       const sourceId = `${direction}:${waybill.waybillNo}`;
       if (used.has(sourceId)) return null;
-      if (direction === "payable" && vehicle?.ownership !== "外协") return null;
+      if (direction === "payable" && (dispatch.carrierTypeSnapshot || vehicle?.capacityOwnership || (vehicle?.ownership === "外协" ? "三方" : "自营")) !== "三方") return null;
       const feeAmount = direction === "receivable"
         ? summedFee(waybill, "receivableFees") || number(waybill.receivable || dispatch.estimatedRevenue)
         : summedFee(waybill, "payableFees", "供应商") || summedFee(waybill, "payableFees");
@@ -72,7 +72,7 @@
       const amount = direction === "payable" ? snapshotPrice || feeAmount || number(waybill.payable || route.baseFreight) : feeAmount;
       const counterparty = direction === "receivable"
         ? waybill.customerName || dispatch.customerName || route.customerName || "未设置客户"
-        : dispatch.thirdPartyCarrierSnapshot || route.thirdPartyCarrier || vehicle?.fleetName || vehicle?.fleet || waybill.carrier || "未设置承运商";
+        : dispatch.carrierUnitSnapshot || dispatch.thirdPartyCarrierSnapshot || route.thirdPartyCarrier || vehicle?.fleetName || vehicle?.fleet || waybill.carrier || "未设置承运商";
       return {
         sourceId, direction, waybillNo: waybill.waybillNo, customerName: waybill.customerName || dispatch.customerName || "-",
         projectId: waybill.projectId || dispatch.projectId || "", projectName: waybill.projectName || dispatch.projectName || "未分配项目",
@@ -81,6 +81,8 @@
         pricingMethod: dispatch.thirdPartyPricingMethodSnapshot || route.thirdPartyPricingMethod || "perTrip",
         settlementCycle: dispatch.thirdPartySettlementCycleSnapshot || route.thirdPartySettlementCycle || "-",
         invoiceRequired: direction === "receivable" || dispatch.thirdPartyInvoiceRequiredSnapshot !== false,
+        capacityOwnership: dispatch.capacityOwnershipSnapshot || "待确定",
+        capacityOwnershipTooltip: dispatch.capacityOwnershipTooltipSnapshot || "",
       };
     }).filter(Boolean);
   }
@@ -105,7 +107,8 @@
     const direction = String(data.get("direction") || "receivable");
     const projectId = String(data.get("projectId") || "");
     const keyword = String(data.get("keyword") || "").trim().toLowerCase();
-    return completedSettlementRows(direction).filter((row) => (!projectId || row.projectId === projectId) && (!keyword || [row.waybillNo, row.customerName, row.projectName, row.counterparty, row.driverName].join(" ").toLowerCase().includes(keyword)));
+    const capacityOwnership = String(data.get("capacityOwnership") || "");
+    return completedSettlementRows(direction).filter((row) => (!projectId || row.projectId === projectId) && (!capacityOwnership || row.capacityOwnership === capacityOwnership) && (!keyword || [row.waybillNo, row.customerName, row.projectName, row.counterparty, row.driverName].join(" ").toLowerCase().includes(keyword)));
   }
 
   function statusFromAmount(total, recorded, labels) {
@@ -148,7 +151,7 @@
     const body = document.querySelector("#settlementPendingBody");
     const validIds = new Set(rows.map((row) => row.sourceId));
     [...selectedSourceIds].forEach((id) => { if (!validIds.has(id)) selectedSourceIds.delete(id); });
-    body.innerHTML = rows.length ? rows.map((row) => `<tr><td class="check-col"><input class="settlement-source-check" type="checkbox" value="${escapeHtml(row.sourceId)}" ${selectedSourceIds.has(row.sourceId) ? "checked" : ""} /></td><td><strong class="primary-text">${escapeHtml(row.waybillNo)}</strong></td><td>${escapeHtml(row.completedAt)}</td><td><strong>${escapeHtml(row.customerName)}</strong><small>${escapeHtml(row.projectName)}</small></td><td>${escapeHtml(row.routeName)}</td><td><strong>${escapeHtml(row.counterparty)}</strong><small>${row.direction === "receivable" ? "客户应收" : `${escapeHtml(row.settlementCycle)} · ${row.invoiceRequired ? "需票" : "无需票"}`}</small></td><td>${escapeHtml(row.vehicleNo)}<small>${escapeHtml(row.driverName)}</small></td><td class="finance-money-cell">${money(row.amount)}</td></tr>`).join("") : '<tr><td class="empty-table-cell" colspan="8">当前筛选范围内没有可结算的已完成运单</td></tr>';
+    body.innerHTML = rows.length ? rows.map((row) => `<tr><td class="check-col"><input class="settlement-source-check" type="checkbox" value="${escapeHtml(row.sourceId)}" ${selectedSourceIds.has(row.sourceId) ? "checked" : ""} /></td><td><strong class="primary-text">${escapeHtml(row.waybillNo)}</strong></td><td>${escapeHtml(row.completedAt)}</td><td><strong>${escapeHtml(row.customerName)}</strong><small>${escapeHtml(row.projectName)}</small></td><td>${escapeHtml(row.routeName)}</td><td><strong>${escapeHtml(row.counterparty)}</strong><small>${row.direction === "receivable" ? "客户应收" : `${escapeHtml(row.settlementCycle)} · ${row.invoiceRequired ? "需票" : "无需票"}`}</small></td><td>${window.CapacityOwnership?.badgeMarkup?.(row.capacityOwnership, row.capacityOwnershipTooltip) || ""}${escapeHtml(row.vehicleNo)}<small>${escapeHtml(row.driverName)}</small></td><td class="finance-money-cell">${money(row.amount)}</td></tr>`).join("") : '<tr><td class="empty-table-cell" colspan="8">当前筛选范围内没有可结算的已完成运单</td></tr>';
     const selectedCount = [...selectedSourceIds].filter((id) => validIds.has(id)).length;
     document.querySelector("#settlementPendingSummary").textContent = `筛选结果 ${rows.length} 条，已选择 ${selectedCount} 条`;
     document.querySelector("#settlementPendingBadge").textContent = `${rows.length} 条待结算`;

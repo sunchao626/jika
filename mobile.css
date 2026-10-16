@@ -1389,3 +1389,8 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 @media (max-width: 360px) {
   .profile-vehicle-summary { max-width: 122px; }
 }
+.capacity-ownership-badge { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 7px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; font-weight: 700; line-height: 1.2; }
+.capacity-ownership-badge.self { color: #116149; background: #e7f7f0; border-color: #9fd8c4; }
+.capacity-ownership-badge.third { color: #8a4b08; background: #fff4df; border-color: #edc781; }
+.capacity-ownership-badge.mixed { color: #9b2c2c; background: #fff0f0; border-color: #ef9b9b; }
+.capacity-ownership-badge.pending { color: #5c6470; background: #f2f4f7; border-color: #d5dae1; }

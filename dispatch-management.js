@@ -12,6 +12,7 @@
     confirmMatches: page.querySelector("#dispatchManagementConfirmMatches"),
     vehicleDialog: page.querySelector("#dispatchManagementVehicleDialog"),
     vehicleFilter: page.querySelector("#dispatchManagementVehicleFilter"),
+    vehicleOwnershipFilter: page.querySelector("#dispatchManagementVehicleOwnershipFilter"),
     vehicleDriverSearch: page.querySelector("#dispatchManagementVehicleDriverSearch"),
     vehicleList: page.querySelector("#dispatchManagementVehicleList"),
     vehicleCancel: page.querySelector("#dispatchManagementVehicleCancel"),
@@ -46,6 +47,7 @@
     taskDateFilter: page.querySelector("#dispatchManagementTaskDateFilter"),
     taskNumberSearch: page.querySelector("#dispatchManagementTaskNumberSearch"),
     capacityFilter: page.querySelector("#dispatchManagementCapacityFilter"),
+    capacityOwnershipFilter: page.querySelector("#dispatchManagementOwnershipFilter"),
     capacityDriverSearch: page.querySelector("#dispatchManagementCapacityDriverSearch"),
     taskPageText: page.querySelector("#dispatchManagementTaskPageText"),
     capacityPageText: page.querySelector("#dispatchManagementCapacityPageText"),
@@ -219,8 +221,13 @@
         volume: Number(vehicle.cargoVolume) || (String(vehicle.vehicleType || "").includes("半挂") ? 82 : 76),
       };
       resource.displayProgress = getCapacityDisplayProgress(resource, index);
+      resource.ownership = window.CapacityOwnership?.groupSnapshot?.([
+        driver && { ...driver, role: "司机", name: driver.name },
+        { ...vehicle, role: "车辆", name: vehicle.plateNo },
+        trailer && { ...trailer, role: "挂车", name: trailer.plateNo },
+      ], { missingRequired: !driver }) || { type: "待确定", tooltip: "" };
       return resource;
-    }).sort((left, right) => (stateOrder[left.state] ?? 9) - (stateOrder[right.state] ?? 9));
+    }).sort((left, right) => (stateOrder[left.state] ?? 9) - (stateOrder[right.state] ?? 9) || ({ 自营: 0, "自营+三方": 1, 三方: 2 }[left.ownership.type] ?? 9) - ({ 自营: 0, "自营+三方": 1, 三方: 2 }[right.ownership.type] ?? 9));
   }
 
   function getPendingTasks() {
@@ -360,10 +367,11 @@
 
   function renderCapacity(resources, pendingTasks = []) {
     const filter = elements.capacityFilter.value;
+    const ownershipFilter = elements.capacityOwnershipFilter?.value || "";
     const driverSearch = elements.capacityDriverSearch.value.trim().toLocaleLowerCase();
     const filtered = resources.filter((resource) => {
       const driverText = `${resource.driver?.name || ""} ${resource.driver?.phone || ""}`.toLocaleLowerCase();
-      return (!filter || resource.state === filter) && (!driverSearch || driverText.includes(driverSearch));
+      return (!filter || resource.state === filter) && (!driverSearch || driverText.includes(driverSearch)) && (!ownershipFilter || resource.ownership.type === ownershipFilter);
     });
     const totalPages = Math.max(1, Math.ceil(filtered.length / capacityPageSize));
     capacityPage = Math.min(Math.max(1, capacityPage), totalPages);
@@ -383,7 +391,7 @@
       return `<div class="dispatch-capacity-item dispatch-capacity-row state-${state} ${selected ? "selected" : ""} ${focused ? "focused" : ""} ${selectable ? "available" : "unavailable"}" data-capacity-plate="${escapeHtml(vehicle.plateNo)}" tabindex="0" role="button" aria-pressed="${selected}">
         <span class="dispatch-capacity-select"><input type="checkbox" name="dispatchManagementCapacity" value="${escapeHtml(vehicle.plateNo)}" ${selected ? "checked" : ""} ${selectable ? "" : "disabled"} aria-label="选择运力 ${escapeHtml(vehicle.plateNo)}" /></span>
         <span class="dispatch-capacity-match" tabindex="0" aria-describedby="${tooltipId}" aria-label="匹配值 ${match.score}，查看匹配依据"><strong>${match.score}</strong><span class="dispatch-match-tooltip" id="${tooltipId}" role="tooltip"><b>匹配依据</b><span class="dispatch-match-tags">${matchTags.map((tag) => `<em title="${escapeHtml(tag.detail || tag.label)}">${escapeHtml(tag.label)}</em>`).join("")}</span><small>依据“派单配置”当前启用规则计算</small></span></span>
-        <span class="dispatch-capacity-driver"><span><strong title="${escapeHtml(driver?.name || "未绑定司机")}">${escapeHtml(driver?.name || "未绑定司机")}${driver ? `<em class="driver-monthly-accepted">本月 ${monthlyAccepted}</em>` : ""}</strong><small title="${escapeHtml(driver?.phone || "暂无联系电话")}">${escapeHtml(driver?.phone || "暂无联系电话")}</small></span></span>
+        <span class="dispatch-capacity-driver"><span><strong title="${escapeHtml(driver?.name || "未绑定司机")}">${escapeHtml(driver?.name || "未绑定司机")}${driver ? `<em class="driver-monthly-accepted">本月 ${monthlyAccepted}</em>` : ""}</strong><small title="${escapeHtml(driver?.phone || "暂无联系电话")}">${escapeHtml(driver?.phone || "暂无联系电话")}</small>${window.CapacityOwnership?.badgeMarkup?.(resource.ownership.type, resource.ownership.tooltip) || ""}</span></span>
         <span class="dispatch-capacity-vehicle"><strong title="${escapeHtml(vehicle.plateNo || "未绑定车辆")}">${escapeHtml(vehicle.plateNo || "未绑定车辆")}</strong><small title="${escapeHtml(trailer ? `${trailer.plateNo} · ${trailer.trailerType || "挂车"}` : "未绑定挂车")}">${escapeHtml(trailer ? `${trailer.plateNo} · ${trailer.trailerType || "挂车"}` : "未绑定挂车")}</small></span>
         <span class="dispatch-capacity-progress" title="${escapeHtml(taskLabel)}"><strong title="${escapeHtml(progressLabel)}">${escapeHtml(progressLabel)}</strong><span class="dispatch-capacity-progress-track" role="progressbar" aria-label="${escapeHtml(`${progressLabel} ${displayProgress.progress}%`)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${displayProgress.progress}"><i style="width:${displayProgress.progress}%"></i></span><b>${displayProgress.progress}%</b></span>
       </div>`;
@@ -558,6 +566,7 @@
       currentNode: "待提货",
       pushed: true,
     });
+    if (typeof window.applyCapacitySnapshot === "function") window.applyCapacitySnapshot(task, true);
     task.timeline = Array.isArray(task.timeline) ? task.timeline : [];
     task.timeline.unshift({ node: "已派单", time: now, desc: mode === "auto" ? "系统完成自动匹配并下发派单" : "调度员完成手动选配并下发派单", photos: [] });
     demoAssignments.set(resource.vehicle.plateNo, task);
@@ -635,6 +644,7 @@
     const assignment = pendingDispatchPlan.assignments[vehiclePickerAssignmentIndex];
     if (!assignment) return;
     const status = elements.vehicleFilter.value;
+    const ownershipFilter = elements.vehicleOwnershipFilter?.value || "";
     const search = elements.vehicleDriverSearch.value.trim().toLocaleLowerCase();
     const reservedPlates = new Set(pendingDispatchPlan.assignments
       .filter((item, index) => index !== vehiclePickerAssignmentIndex)
@@ -642,6 +652,7 @@
     const resources = getCapacityResources().filter((resource) => {
       const driverText = `${resource.driver?.name || ""} ${resource.driver?.phone || ""}`.toLocaleLowerCase();
       return (!status || resource.state === status)
+        && (!ownershipFilter || resource.ownership.type === ownershipFilter)
         && (!search || driverText.includes(search))
         && (!reservedPlates.has(resource.vehicle.plateNo) || resource.vehicle.plateNo === assignment.resource.vehicle.plateNo);
     });
@@ -650,7 +661,7 @@
       const selected = assignment.resource.vehicle.plateNo === resource.vehicle.plateNo;
       const trailer = resource.trailer ? `${resource.trailer.plateNo} · ${resource.trailer.trailerType || "挂车"}` : "未绑定挂车";
       return `<button class="dispatch-vehicle-option ${selected ? "selected" : ""}" type="button" data-picker-plate="${escapeHtml(resource.vehicle.plateNo)}" ${selectable ? "" : "disabled"}>
-        <span><strong>${escapeHtml(resource.driver?.name || "未绑定司机")}</strong><small>${escapeHtml(resource.driver?.phone || "暂无联系电话")}</small></span>
+        <span><strong>${escapeHtml(resource.driver?.name || "未绑定司机")}</strong><small>${escapeHtml(resource.driver?.phone || "暂无联系电话")}</small>${window.CapacityOwnership?.badgeMarkup?.(resource.ownership.type, resource.ownership.tooltip) || ""}</span>
         <span><strong>${escapeHtml(resource.vehicle.plateNo)}</strong><small>${escapeHtml(trailer)}</small></span>
         <em class="dispatch-resource-state state-${escapeHtml(resource.state)}">${escapeHtml(resource.state)}</em>
       </button>`;
@@ -662,6 +673,7 @@
     if (!pendingDispatchPlan?.assignments[index]) return;
     vehiclePickerAssignmentIndex = index;
     elements.vehicleFilter.value = "";
+    if (elements.vehicleOwnershipFilter) elements.vehicleOwnershipFilter.value = "";
     elements.vehicleDriverSearch.value = "";
     renderVehiclePicker();
     if (!elements.vehicleDialog.open) elements.vehicleDialog.showModal();
@@ -795,6 +807,7 @@
     if (assignment) assignment.note = input.value;
   });
   elements.vehicleFilter.addEventListener("change", renderVehiclePicker);
+  elements.vehicleOwnershipFilter?.addEventListener("change", renderVehiclePicker);
   elements.vehicleDriverSearch.addEventListener("input", renderVehiclePicker);
   elements.vehicleCancel.addEventListener("click", () => elements.vehicleDialog.close());
   elements.vehicleList.addEventListener("click", (event) => {
@@ -824,6 +837,7 @@
   elements.capacityDriverSearch.addEventListener("input", () => { capacityPage = 1; render(); });
   elements.taskPageSize.addEventListener("change", () => { taskPage = 1; render(); });
   elements.capacityFilter.addEventListener("change", () => { capacityPage = 1; render(); });
+  elements.capacityOwnershipFilter?.addEventListener("change", () => { capacityPage = 1; render(); });
   elements.taskPrev.addEventListener("click", () => { taskPage -= 1; render(); });
   elements.taskNext.addEventListener("click", () => { taskPage += 1; render(); });
   elements.capacityPrev.addEventListener("click", () => { capacityPage -= 1; render(); });

@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
+const CapacityOwnership = require("./capacity-ownership.js");
 
 const html = fs.readFileSync("index.html", "utf8");
 const start = html.indexOf('id="routeForm"');
@@ -20,6 +21,7 @@ const routes = [
   { routeCode: "XL-HZ-003" }, { routeCode: "XL-SZ-004" },
 ];
 const context = vm.createContext({
+  CapacityOwnership,
   fixedRoutes: routes,
   routeForm: {},
   FormData: class { get(name) { return name === "routeName" ? "新线路" : ""; } },

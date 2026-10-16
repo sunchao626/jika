@@ -145,7 +145,7 @@ assert.match(script, /querySelectorAll\("\[required\]"\)/);
 const mobilePlanConfig = script.slice(script.indexOf('  plan: {'), script.indexOf('\n  },', script.indexOf('  plan: {')));
 assert.doesNotMatch(mobilePlanConfig, /派单方式|提前量|dispatchMode|dispatchAdvanceMinutes/);
 assert.match(css, /\.mobile-field input:invalid\.touched/);
-for (const fieldName of ["routeState", "commissionType", "ownership", "vehicleState", "gender", "driverState", "customerStatus"]) {
+for (const fieldName of ["routeState", "commissionType", "capacityOwnership", "vehicleState", "gender", "driverState", "customerStatus"]) {
   assert.match(script, new RegExp(`name: "${fieldName}"[^\n]*required: true`), `${fieldName} 缺少必填标识`);
 }
 assert.match(script, /updateWaybillCustomer/);

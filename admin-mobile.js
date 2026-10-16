@@ -46,7 +46,7 @@ const moduleCatalog = {
   },
   vehicle: {
     title: "车辆档案管理", eyebrow: "车辆管理", icon: "truck", primary: "新增车辆",
-    filters: ["全部", "在用", "维修中", "停用"], listFieldLimit: 6,
+    filters: ["全部", "自营", "三方", "自营+三方", "在用", "维修中", "停用"], listFieldLimit: 6,
     items: [
       { id: "浙B·K7812", title: "集装箱牵引车", subtitle: "宁波港区集卡车队", status: "在用", statusClass: "success", fields: [["司机", "王海"], ["当前状态", "运输中"], ["审验到期", "2026-10-18"], ["保险到期", "2026-10-05"]], note: "港区短驳主力车辆" },
       { id: "沪D·A9021", title: "重型半挂牵引车", subtitle: "临港集卡车队", status: "在用", statusClass: "success", fields: [["司机", "赵亮"], ["当前状态", "已派单"], ["审验到期", "2026-09-28"], ["保险到期", "2026-11-12"]], note: "临港主力运力" },
@@ -56,7 +56,7 @@ const moduleCatalog = {
   },
   driver: {
     title: "司机档案", eyebrow: "司机管理", icon: "user-round", primary: "新增司机",
-    filters: ["全部", "空闲", "运输中", "停用"], listFieldLimit: 6,
+    filters: ["全部", "自营", "三方", "自营+三方", "空闲", "运输中", "停用"], listFieldLimit: 6,
     items: [
       { id: "SJ-1001", title: "王海", subtitle: "宁波一队 · 138****8881", status: "运输中", statusClass: "", fields: [["准驾车型", "A2"], ["车辆", "浙B·K7812"], ["认证", "已认证"], ["证件到期", "2027-05-18"]], note: "自有司机" },
       { id: "SJ-1002", title: "赵亮", subtitle: "临港车队 · 139****6662", status: "运输中", statusClass: "", fields: [["准驾车型", "A2"], ["车辆", "沪D·A9021"], ["认证", "已认证"], ["证件到期", "2026-09-28"]], note: "自有司机" },
@@ -89,11 +89,11 @@ const moduleCatalog = {
   },
   capacity: {
     title: "运力管理", eyebrow: "计划与派单", icon: "gauge", primary: "查看运力",
-    filters: ["全部", "闲置", "运输中", "维修中", "停用"], listFieldLimit: 6, items: [],
+    filters: ["全部", "自营", "三方", "自营+三方", "闲置", "运输中", "维修中", "停用"], listFieldLimit: 6, items: [],
   },
   trailer: {
     title: "挂车档案", eyebrow: "车辆管理", icon: "container", primary: "新增挂车",
-    filters: ["全部", "在用", "停用", "维修中"], listFieldLimit: 6, items: [],
+    filters: ["全部", "自营", "三方", "自营+三方", "在用", "停用", "维修中"], listFieldLimit: 6, items: [],
   },
 };
 
@@ -146,7 +146,8 @@ const mobileFormDefinitions = {
         { name: "vin", label: "车架号", required: true }, { name: "engineNo", label: "发动机号", required: true },
         { name: "driver", label: "驾驶员", required: true }, { name: "fleet", label: "所属车队" },
         { name: "fleetName", label: "车队名称" },
-        { name: "ownership", label: "车辆所属", type: "select", required: true, options: ["自有", "外协"] },
+        { name: "capacityOwnership", label: "运力归属", type: "select", required: true, options: ["自营", "三方"] },
+        { name: "supplierName", label: "三方供应商", type: "select", options: [["", "自营无需选择"], ...window.CapacityOwnership.readSuppliers().filter((item) => item.status === "启用").map((item) => [item.name, item.name])] },
         { name: "vehicleState", label: "车辆状态", type: "select", required: true, options: ["在用", "停用", "维修中"] },
       ] },
       { title: "车辆参数", hint: "载重、油耗与技术等级", fields: [
@@ -172,7 +173,7 @@ const mobileFormDefinitions = {
     ],
   },
   driver: {
-    intro: "建立自有司机基础资料、驾驶证、从业资格证和结算信息。",
+    intro: "建立司机基础资料、运力归属、驾驶证、从业资格证和结算信息。",
     sections: [
       { title: "基础信息", hint: "司机身份与车队归属", fields: [
         { name: "name", label: "姓名", required: true }, { name: "gender", label: "性别", type: "select", required: true, options: ["男", "女"] },
@@ -183,7 +184,8 @@ const mobileFormDefinitions = {
         { name: "emergencyPhone", label: "紧急联系电话", type: "tel", required: true, pattern: "1[0-9]{10}", inputmode: "numeric" },
         { name: "entryDate", label: "入职日期", type: "date", required: true },
         { name: "driverState", label: "司机状态", type: "select", required: true, options: ["空闲", "运输中", "停用"] },
-        { name: "driverType", label: "司机类型", type: "select", options: ["自有司机", "外协司机"] },
+        { name: "capacityOwnership", label: "运力归属", type: "select", required: true, options: ["自营", "三方"] },
+        { name: "supplierName", label: "三方供应商", type: "select", options: [["", "自营无需选择"], ...window.CapacityOwnership.readSuppliers().filter((item) => item.status === "启用").map((item) => [item.name, item.name])] },
         { name: "certificationStatus", label: "认证状态", type: "select", options: [["unverified", "未认证"], ["pending", "审核中"], ["verified", "已认证"], ["rejected", "已驳回"]] },
         { name: "fleet", label: "所属车队", required: true },
       ] },
@@ -238,7 +240,8 @@ const mobileFormDefinitions = {
     sections: [{ title: "挂车档案", hint: "身份、归属与证照", fields: [
       { name: "plateNo", label: "挂车车牌", required: true }, { name: "trailerType", label: "挂车类型", required: true },
       { name: "vin", label: "车架号", required: true }, { name: "fleet", label: "所属车队" },
-      { name: "ownership", label: "车辆所属", type: "select", required: true, options: ["自有", "外协"] },
+      { name: "capacityOwnership", label: "运力归属", type: "select", required: true, options: ["自营", "三方"] },
+      { name: "supplierName", label: "三方供应商", type: "select", options: [["", "自营无需选择"], ...window.CapacityOwnership.readSuppliers().filter((item) => item.status === "启用").map((item) => [item.name, item.name])] },
       { name: "trailerState", label: "挂车状态", type: "select", required: true, options: ["在用", "停用", "维修中"] },
       { name: "registrationCertNo", label: "车辆登记证号" }, { name: "permitNo", label: "营运证号", required: true },
       { name: "operatingPermitExpiry", label: "营运证有效期", type: "date" }, { name: "inspectionDue", label: "审验到期", type: "date" },
@@ -408,9 +411,12 @@ function loadSharedCatalog() {
   });
   if (dispatches.length) moduleCatalog.dispatch.items = dispatches.map((dispatch) => ({
     id: dispatch.id, title: dispatch.routeName || "未指定线路", subtitle: dispatch.waybillNo || "-", status: dispatch.status || "待派单", statusClass: sharedStatusClass(dispatch.status), fields: [["司机", dispatch.driverName || "待分配"], ["车辆", dispatch.vehicleId || "待分配"], ["挂车", dispatch.trailerId || "未绑定"], ["当前节点", dispatch.currentNode || "待派单"], ["派单方式", dispatch.dispatchMode === "auto" ? "自动派单" : dispatch.dispatchMode === "manual" ? "手动派单" : "待分配"], ["派单时间", dispatch.dispatchTime || "-"]], note: dispatch.note || "", raw: dispatch }));
-  if (vehicles.length) moduleCatalog.vehicle.items = vehicles.map((vehicle) => ({ id: vehicle.plateNo, title: vehicle.vehicleType || "集装箱牵引车", subtitle: vehicle.fleetName || vehicle.fleet || "未设置车队", status: vehicle.vehicleState || "停用", statusClass: sharedStatusClass(vehicle.vehicleState), fields: [["司机", vehicle.driver || "未绑定"], ["挂车", vehicle.trailerId || "未绑定"], ["VIN", vehicle.vin || "-"], ["营运证号", vehicle.permitNo || "-"], ["审验到期", vehicle.inspectionDue || "-"], ["保险到期", vehicle.insuranceDue || "-"]], note: vehicle.remark || "", raw: vehicle }));
-  if (trailers.length) moduleCatalog.trailer.items = trailers.map((trailer) => ({ id: trailer.id, title: trailer.plateNo, subtitle: trailer.trailerType || "挂车", status: trailer.trailerState || "停用", statusClass: sharedStatusClass(trailer.trailerState), fields: [["车架号", trailer.vin || "-"], ["车辆所属", trailer.ownership || "-"], ["所属车队", trailer.fleet || "-"], ["营运证号", trailer.permitNo || "-"], ["审验到期", trailer.inspectionDue || "-"], ["保险到期", trailer.insuranceDue || "-"]], note: trailer.remark || "", raw: trailer }));
-  if (drivers.length) moduleCatalog.driver.items = drivers.map((driver) => ({ id: driver.id, title: driver.name, subtitle: `${driver.fleet || "未设置车队"} · ${driver.phone || "-"}`, status: driver.driverState || "停用", statusClass: sharedStatusClass(driver.driverState), fields: [["司机编号", driver.id], ["司机类型", driver.driverType || "-"], ["准驾车型", driver.licenseClass || "A2"], ["车辆", driver.vehiclePlate || driver.vehicle || "未绑定"], ["认证状态", certificationStatusLabel(driver.certificationStatus)], ["驾驶证到期", driver.licenseExpiry || "-"]], note: driver.remark || "", raw: driver }));
+  vehicles.forEach((item) => window.CapacityOwnership.normalizeResource(item, "vehicle"));
+  trailers.forEach((item) => window.CapacityOwnership.normalizeResource(item, "trailer"));
+  drivers.forEach((item) => window.CapacityOwnership.normalizeResource(item, "driver"));
+  if (vehicles.length) moduleCatalog.vehicle.items = vehicles.map((vehicle) => ({ id: vehicle.plateNo, title: vehicle.vehicleType || "集装箱牵引车", subtitle: vehicle.fleetName || vehicle.fleet || "未设置车队", status: vehicle.vehicleState || "停用", statusClass: sharedStatusClass(vehicle.vehicleState), fields: [["运力归属", vehicle.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(vehicle)], ["司机", vehicle.driver || "未绑定"], ["挂车", vehicle.trailerId || "未绑定"], ["VIN", vehicle.vin || "-"], ["营运证号", vehicle.permitNo || "-"]], note: vehicle.remark || "", raw: vehicle }));
+  if (trailers.length) moduleCatalog.trailer.items = trailers.map((trailer) => ({ id: trailer.id, title: trailer.plateNo, subtitle: trailer.trailerType || "挂车", status: trailer.trailerState || "停用", statusClass: sharedStatusClass(trailer.trailerState), fields: [["运力归属", trailer.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(trailer)], ["车架号", trailer.vin || "-"], ["所属车队", trailer.fleet || "-"], ["营运证号", trailer.permitNo || "-"], ["审验到期", trailer.inspectionDue || "-"]], note: trailer.remark || "", raw: trailer }));
+  if (drivers.length) moduleCatalog.driver.items = drivers.map((driver) => ({ id: driver.id, title: driver.name, subtitle: `${driver.fleet || "未设置车队"} · ${driver.phone || "-"}`, status: driver.driverState || "停用", statusClass: sharedStatusClass(driver.driverState), fields: [["运力归属", driver.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(driver)], ["司机编号", driver.id], ["准驾车型", driver.licenseClass || "A2"], ["车辆", driver.vehiclePlate || driver.vehicle || "未绑定"], ["认证状态", certificationStatusLabel(driver.certificationStatus)]], note: driver.remark || "", raw: driver }));
   if (customers.length) moduleCatalog.customer.items = customers.map((customer) => ({ id: customer.customerNo, title: customer.customerName, subtitle: `简称：${customer.shortName || "-"}`, status: customer.customerStatus || "启用", statusClass: sharedStatusClass(customer.customerStatus), fields: [["客户编号", customer.customerNo], ["客户类型", customer.customerType || "-"], ["联系人", customer.contactName || "-"], ["手机", customer.mobile || "-"], ["结算周期", customer.settlementCycle || "-"], ["默认装货地址", customer.loadAddress || "-"]], note: customer.remark || "", raw: customer }));
   const groups = new Map();
   waybills.forEach((waybill) => { const id = waybill.planTaskId || `PT-LEGACY-${waybill.waybillNo}`; const group = groups.get(id) || { id, no: waybill.planTaskNo || id, first: waybill, rows: [] }; group.rows.push(waybill); groups.set(id, group); });
@@ -516,13 +522,16 @@ function rebuildCapacityCatalog(dispatches = []) {
       const vehicle = item.raw || { plateNo: item.id, vehicleType: item.title, fleetName: item.subtitle, vehicleState: item.status };
       const active = dispatches.find((dispatch) => dispatch.vehicleId === vehicle.plateNo && ["已派单", "运输中"].includes(dispatch.status));
       const status = vehicle.vehicleState === "维修中" ? "维修中" : vehicle.vehicleState === "停用" ? "停用" : active ? "运输中" : "闲置";
-      return { id: `vehicle-${vehicle.plateNo}`, title: vehicle.plateNo, subtitle: vehicle.vehicleType || "车辆", status, statusClass: sharedStatusClass(status), fields: [["运力类型", "车辆"], ["司机", active?.driverName || vehicle.driver || "未绑定"], ["挂车", vehicle.trailerId || "未绑定"], ["当前任务", active?.waybillNo || "无"], ["车队", vehicle.fleet || vehicle.fleetName || "-"], ["审验到期", vehicle.inspectionDue || "-"]], note: active?.routeName || "当前无执行任务", raw: vehicle };
+      const driver = moduleCatalog.driver.items.find((entry) => entry.id === active?.driverId)?.raw;
+      const trailer = moduleCatalog.trailer.items.find((entry) => entry.id === vehicle.trailerId)?.raw;
+      const ownership = window.CapacityOwnership.groupSnapshot([driver && { ...driver, role: "司机", name: driver.name }, { ...vehicle, role: "车辆", name: vehicle.plateNo }, trailer && { ...trailer, role: "挂车", name: trailer.plateNo }], { missingRequired: !driver });
+      return { id: `vehicle-${vehicle.plateNo}`, title: vehicle.plateNo, subtitle: vehicle.vehicleType || "车辆", status, statusClass: sharedStatusClass(status), fields: [["运力归属", ownership.type], ["运力类型", "车辆"], ["司机", active?.driverName || vehicle.driver || "未绑定"], ["挂车", vehicle.trailerId || "未绑定"], ["当前任务", active?.waybillNo || "无"], ["所属单位", window.CapacityOwnership.organizationName(vehicle)]], note: active?.routeName || ownership.tooltip || "当前无执行任务", raw: { ...vehicle, capacityOwnershipSnapshot: ownership.type } };
     }),
     ...drivers.map((item) => {
       const driver = item.raw || { id: item.id, name: item.title, driverState: item.status, fleet: item.subtitle };
       const active = dispatches.find((dispatch) => dispatch.driverId === driver.id && ["已派单", "运输中"].includes(dispatch.status));
       const status = active ? "运输中" : driver.driverState === "运输中" ? "运输中" : driver.driverState === "停用" ? "停用" : "闲置";
-      return { id: `driver-${driver.id}`, title: driver.name, subtitle: "司机运力", status, statusClass: sharedStatusClass(status), fields: [["运力类型", "司机"], ["司机编号", driver.id], ["车辆", active?.vehicleId || driver.vehiclePlate || driver.vehicle || "未绑定"], ["当前任务", active?.waybillNo || "无"], ["车队", driver.fleet || "-"], ["准驾车型", driver.licenseClass || "-"]], note: active?.routeName || "司机运力状态", raw: driver };
+      return { id: `driver-${driver.id}`, title: driver.name, subtitle: "司机运力", status, statusClass: sharedStatusClass(status), fields: [["运力归属", driver.capacityOwnership], ["运力类型", "司机"], ["司机编号", driver.id], ["车辆", active?.vehicleId || driver.vehiclePlate || driver.vehicle || "未绑定"], ["当前任务", active?.waybillNo || "无"], ["所属单位", window.CapacityOwnership.organizationName(driver)]], note: active?.routeName || "司机运力状态", raw: driver };
     }),
   ];
 }
@@ -596,8 +605,8 @@ function dispatchEntryMarkup() {
       </div></fieldset>
     </div></section>
     <section class="mobile-form-section"><header class="mobile-form-section-heading"><span>03</span><div><strong>调度安排</strong><small>选择司机、车辆和挂车</small></div></header><div class="mobile-form-grid">
-      ${fieldMarkup({ name: "driverId", label: "司机", type: "select", required: true, disabled: true, options: [["", "请选择司机"], ...moduleCatalog.driver.items.filter((item) => item.status !== "停用").map((item) => [item.id, item.title])] })}
-      ${fieldMarkup({ name: "vehicleId", label: "车辆", type: "select", required: true, disabled: true, options: [["", "请选择车辆"], ...moduleCatalog.vehicle.items.filter((item) => item.status === "在用").map((item) => [item.id, item.id])] })}
+      ${fieldMarkup({ name: "driverId", label: "司机", type: "select", required: true, disabled: true, options: [["", "请选择司机"], ...window.CapacityOwnership.sortSelfFirst(moduleCatalog.driver.items.filter((item) => item.status !== "停用"), (item) => item.raw?.capacityOwnership).map((item) => [item.id, `【${item.raw?.capacityOwnership || "待确定"}】${item.title}${item.raw?.capacityOwnership === "三方" ? ` / ${window.CapacityOwnership.organizationName(item.raw)}` : ""}`])] })}
+      ${fieldMarkup({ name: "vehicleId", label: "车辆", type: "select", required: true, disabled: true, options: [["", "请选择车辆"], ...window.CapacityOwnership.sortSelfFirst(moduleCatalog.vehicle.items.filter((item) => item.status === "在用"), (item) => item.raw?.capacityOwnership).map((item) => [item.id, `【${item.raw?.capacityOwnership || "待确定"}】${item.id}${item.raw?.capacityOwnership === "三方" ? ` / ${window.CapacityOwnership.organizationName(item.raw)}` : ""}`])] })}
       ${fieldMarkup({ name: "trailerId", label: "挂车", type: "select", options: trailerOptions })}
       ${fieldMarkup({ name: "vehicleType", label: "车辆动力类型", type: "select", options: ["燃油车", "LNG", "新能源车"] })}
       ${fieldMarkup({ name: "consignee", label: "收货人" })}
@@ -1042,6 +1051,10 @@ function renderWorkbench() {
 
 function moduleStatusMatches(item, filter) {
   if (filter === "全部") return true;
+  if (["自营", "三方", "自营+三方"].includes(filter)) {
+    const ownership = window.CapacityOwnership.normalizeType(item.raw?.capacityOwnershipSnapshot || item.raw?.capacityOwnership || item.raw?.ownership || item.raw?.driverType);
+    return filter === "自营+三方" && !item.raw?.capacityOwnershipSnapshot ? ["自营", "三方"].includes(ownership) : ownership === filter;
+  }
   if (filter === "空闲") return item.fields.some(([, value]) => value === "已完工") || item.status === "空闲";
   if (filter === "保险即将到期" || filter === "审验即将到期" || filter === "已过期") return item.status === filter;
   return item.status === filter;
@@ -1535,17 +1548,20 @@ function buildAssetRecord(moduleName, values) {
   const oldRaw = state.entryOriginalRaw || {};
   const raw = { ...oldRaw, ...values, id: assetRecordId(moduleName, values) || oldRaw.id };
   if (moduleName === "vehicle") {
+    window.CapacityOwnership.normalizeResource(raw, "vehicle");
     raw.plateNo = values.plateNo;
     const status = values.vehicleState || "停用";
-    return { id: raw.plateNo, title: values.vehicleType || "集装箱牵引车", subtitle: values.fleetName || values.fleet || "未设置车队", status, statusClass: sharedStatusClass(status), fields: [["车队", values.fleetName || values.fleet || "-"], ["驾驶员", values.driver || "未绑定"], ["挂车", values.trailerId || "未绑定"], ["车辆所属", values.ownership || "-"], ["车架号", values.vin || "-"], ["营运证号", values.permitNo || "-"], ["审验到期", values.inspectionDue || "-"], ["保险到期", values.insuranceDue || "-"]], note: values.remark || "", raw };
+    return { id: raw.plateNo, title: values.vehicleType || "集装箱牵引车", subtitle: values.fleetName || values.fleet || "未设置车队", status, statusClass: sharedStatusClass(status), fields: [["运力归属", raw.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(raw)], ["车队", values.fleetName || values.fleet || "-"], ["驾驶员", values.driver || "未绑定"], ["挂车", values.trailerId || "未绑定"], ["车架号", values.vin || "-"]], note: values.remark || "", raw };
   }
   if (moduleName === "trailer") {
+    window.CapacityOwnership.normalizeResource(raw, "trailer");
     const status = values.trailerState || "停用";
-    return { id: raw.id, title: values.plateNo, subtitle: values.trailerType || "挂车", status, statusClass: sharedStatusClass(status), fields: [["挂车类型", values.trailerType || "-"], ["车架号", values.vin || "-"], ["车辆所属", values.ownership || "-"], ["所属车队", values.fleet || "-"], ["营运证号", values.permitNo || "-"], ["审验到期", values.inspectionDue || "-"], ["保险到期", values.insuranceDue || "-"]], note: values.remark || "", raw };
+    return { id: raw.id, title: values.plateNo, subtitle: values.trailerType || "挂车", status, statusClass: sharedStatusClass(status), fields: [["运力归属", raw.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(raw)], ["挂车类型", values.trailerType || "-"], ["车架号", values.vin || "-"], ["所属车队", values.fleet || "-"], ["营运证号", values.permitNo || "-"]], note: values.remark || "", raw };
   }
   if (moduleName === "driver") {
+    window.CapacityOwnership.normalizeResource(raw, "driver");
     const status = values.driverState || "停用";
-    return { id: raw.id, title: values.name, subtitle: `${values.fleet || "未设置车队"} · ${values.phone || "-"}`, status, statusClass: sharedStatusClass(status), fields: [["司机编号", raw.id], ["司机类型", values.driverType || "-"], ["准驾车型", values.licenseClass || "-"], ["车辆", values.vehiclePlate || values.vehicle || "未绑定"], ["认证状态", certificationStatusLabel(values.certificationStatus)], ["驾驶证到期", values.licenseExpiry || "-"]], note: values.remark || "", raw };
+    return { id: raw.id, title: values.name, subtitle: `${values.fleet || "未设置车队"} · ${values.phone || "-"}`, status, statusClass: sharedStatusClass(status), fields: [["运力归属", raw.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(raw)], ["司机编号", raw.id], ["准驾车型", values.licenseClass || "-"], ["车辆", values.vehiclePlate || values.vehicle || "未绑定"], ["认证状态", certificationStatusLabel(values.certificationStatus)]], note: values.remark || "", raw };
   }
   if (moduleName === "customer") {
     raw.customerNo = values.customerNo || oldRaw.customerNo;
@@ -1562,7 +1578,7 @@ const detailFieldLabels = {
   commercialInsuranceNo: "商业险单号", commercialInsuranceExpiry: "商业险有效期", mandatoryInsuranceNo: "强制险单号", mandatoryInsuranceExpiry: "强制险有效期",
   cargoInsuranceNo: "货物险单号", cargoInsuranceExpiry: "货物险有效期", inspectionDue: "审验到期", insuranceDue: "保险到期", attachments: "附件资料",
   name: "姓名", gender: "性别", idCard: "身份证号码", phone: "联系电话", address: "住址", emergencyContact: "紧急联系人", emergencyPhone: "紧急联系电话",
-  entryDate: "入职日期", driverType: "司机类型", driverState: "司机状态", certificationStatus: "认证状态", licenseNo: "驾驶证号", licenseClass: "准驾车型",
+  entryDate: "入职日期", driverType: "司机类型", capacityOwnership: "运力归属", supplierName: "三方供应商", organizationName: "所属单位", driverState: "司机状态", certificationStatus: "认证状态", licenseNo: "驾驶证号", licenseClass: "准驾车型",
   licenseIssueDate: "驾驶证发证日期", licenseExpiry: "驾驶证有效期", licenseAttachment: "驾驶证附件", qualificationNo: "从业资格证号", qualificationExpiry: "从业资格证有效期",
   qualificationAttachment: "从业资格证附件", bankCard: "银行卡号", bankName: "开户银行", vehiclePlate: "关联车辆", vehiclePlateNo: "关联车辆",
   trailerType: "挂车类型", ownership: "车辆所属", trailerState: "挂车状态", insuranceNo: "保险单号", customerNo: "客户编号", customerName: "客户全称",
@@ -1752,6 +1768,22 @@ function buildDispatchRecord(values) {
     boxType, boxNo1, sealNo1, boxNo2, sealNo2,
     consignee: values.consignee || "", arrivalTime: values.arrivalTime || "", arrivalLocation: values.arrivalLocation || "", note: values.note || "", pushed: true, timeline,
   };
+  const trailerRaw = moduleCatalog.trailer.items.find((item) => item.id === raw.trailerId)?.raw;
+  const ownership = window.CapacityOwnership.groupSnapshot([
+    { ...driverRaw, role: "司机", name: raw.driverName },
+    { ...vehicleRaw, role: "车辆", name: raw.vehicleId },
+    trailerRaw && { ...trailerRaw, role: "挂车", name: trailerRaw.plateNo },
+  ]);
+  Object.assign(raw, {
+    capacityOwnershipSnapshot: ownership.type,
+    capacityOwnershipDetailSnapshot: ownership.resources,
+    capacityOwnershipTooltipSnapshot: ownership.tooltip,
+    driverOrganizationSnapshot: window.CapacityOwnership.organizationName(driverRaw),
+    vehicleOrganizationSnapshot: window.CapacityOwnership.organizationName(vehicleRaw),
+    trailerOrganizationSnapshot: trailerRaw ? window.CapacityOwnership.organizationName(trailerRaw) : "未绑定",
+    carrierTypeSnapshot: vehicleRaw.capacityOwnership,
+    carrierUnitSnapshot: window.CapacityOwnership.organizationName(vehicleRaw),
+  });
   if (waybill?.raw) Object.assign(waybill.raw, {
     boxType, boxNo1, sealNo1, boxNo2, sealNo2,
     containers: [
@@ -1762,7 +1794,7 @@ function buildDispatchRecord(values) {
   if (waybill?.raw) Object.assign(waybill.raw, { dispatchDate: raw.dispatchTime.slice(0, 10), plateNo: raw.vehicleId, driverId: raw.driverId, driverName: raw.driverName, trailerId: raw.trailerId, routeMileageSnapshot: raw.routeMileageSnapshot });
   return {
     id, title: raw.routeName || "未指定线路", subtitle: raw.waybillNo, status: raw.status, statusClass: sharedStatusClass(raw.status),
-    fields: [["司机", raw.driverName || "待分配"], ["车辆", raw.vehicleId || "待分配"], ["挂车", raw.trailerId || "未绑定"], ["当前节点", raw.currentNode], ["派单方式", dispatchModeLabel(raw.dispatchMode)], ["派单时间", raw.dispatchTime || "-"]],
+    fields: [["运力归属", raw.capacityOwnershipSnapshot], ["司机", raw.driverName || "待分配"], ["车辆", raw.vehicleId || "待分配"], ["挂车", raw.trailerId || "未绑定"], ["当前节点", raw.currentNode], ["派单方式", dispatchModeLabel(raw.dispatchMode)]],
     note: raw.note || "已推送至司机端", raw,
   };
 }
@@ -1870,6 +1902,18 @@ function saveEntry(event) {
   if (state.entryModule === "dispatch" && state.entryEditId) values.waybillId = state.entryOriginalRaw?.waybillNo || state.entryOriginalRaw?.waybillId || "";
   values.needReceipt = form.elements.needReceipt?.checked || false;
   values.receivedReceipt = form.elements.receivedReceipt?.checked || false;
+  if (["vehicle", "trailer", "driver"].includes(state.entryModule)) {
+    const type = window.CapacityOwnership.normalizeType(values.capacityOwnership);
+    if (type === "三方") {
+      const supplier = window.CapacityOwnership.findSupplier(values.supplierName);
+      if (!supplier || supplier.status !== "启用") { showToast("三方运力必须选择已启用的供应商档案"); return; }
+      values.supplierId = supplier.id;
+      values.supplierName = supplier.name;
+    } else {
+      values.supplierId = "";
+      values.supplierName = "";
+    }
+  }
   if (state.entryModule === "auto") {
     const settings = { ...values, enabled: form.elements.enabled.checked, retry: form.elements.retry.checked };
     localStorage.setItem(AUTO_SETTINGS_KEY, JSON.stringify(settings));

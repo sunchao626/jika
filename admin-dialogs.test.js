@@ -5,7 +5,7 @@ const vm = require("node:vm");
 const html = fs.readFileSync("index.html", "utf8");
 const vehicle = html.slice(html.indexOf('id="vehicleDialog"'), html.indexOf('id="deleteVehicleDialog"'));
 for (const field of [
-  "plateNo", "vehicleType", "vin", "engineNo", "driver", "fleet", "fleetName", "ownership",
+  "plateNo", "vehicleType", "vin", "engineNo", "driver", "fleet", "fleetName", "capacityOwnership", "supplierName",
   "vehicleState", "curbWeight", "fuelConsumption", "ratedLoad", "registrationCertNo",
   "technicalLevel", "technicalLevelExpiry", "drivingLicenseNo", "drivingLicenseExpiry",
   "permitNo", "operatingPermitExpiry", "inspectionDue", "drivingLicense", "operatingPermit",
