@@ -5860,6 +5860,7 @@ function openPlanTaskDialog(mode = "single") {
   planTaskBatchInput.value = "";
   renderPlanTaskList();
   setPlanTaskMode(mode);
+  window.PlanTaskArchive?.beginForm?.("", "");
   window.lucide?.createIcons();
   planTaskDialog.showModal();
 }
@@ -5893,11 +5894,13 @@ function openEditPlanTaskDialog(planTaskId) {
   planTaskBatchInput.value = "";
   renderPlanTaskList();
   setPlanTaskMode("edit");
+  window.PlanTaskArchive?.beginForm?.(group.id, group.taskNo);
   planTaskDialog.showModal();
 }
 
 function closePlanTaskDialog() {
   if (planTaskDialog.open) planTaskDialog.close();
+  window.PlanTaskArchive?.discardForm?.();
   planTaskForm.reset();
   planTaskBatchInput.value = "";
   planTaskListItems = [];
@@ -6334,7 +6337,7 @@ document.querySelector("#downloadPlanTaskTemplateBtn").addEventListener("click",
   link.click();
   URL.revokeObjectURL(link.href);
 });
-planTaskForm.addEventListener("submit", (event) => {
+planTaskForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(planTaskForm);
   let rows;
@@ -6357,6 +6360,14 @@ planTaskForm.addEventListener("submit", (event) => {
         return;
       }
       const planTaskId = editingPlanTaskId;
+      const group = getPlanTaskGroups(waybills).find((item) => item.id === planTaskId);
+      try {
+        await window.PlanTaskArchive?.commitForm?.(planTaskId, group?.taskNo || group?.first?.planTaskNo || planTaskId);
+      } catch (error) {
+        console.error(error);
+        showApplicationAlert("计划信息已保存，但档案附件保存失败，请保留当前页面后重试。");
+        return;
+      }
       closePlanTaskDialog();
       renderRows(filterRows(new FormData(queryForm)));
       renderDispatchPage(getFilteredDispatches());
@@ -6370,6 +6381,22 @@ planTaskForm.addEventListener("submit", (event) => {
   if (!result.created.length) {
     showApplicationAlert(result.errors.join("\n") || "请先填写计划任务信息");
     return;
+  }
+  if (planTaskForm.dataset.mode !== "batch") {
+    const createdPlanTask = result.created[0];
+    try {
+      await window.PlanTaskArchive?.commitForm?.(createdPlanTask.planTaskId, createdPlanTask.planTaskNo);
+    } catch (error) {
+      console.error(error);
+      const createdWaybillNos = new Set(result.created.map((item) => item.waybillNo));
+      for (let index = waybills.length - 1; index >= 0; index -= 1) if (createdWaybillNos.has(waybills[index].waybillNo)) waybills.splice(index, 1);
+      for (let index = dispatches.length - 1; index >= 0; index -= 1) if (createdWaybillNos.has(dispatches[index].waybillNo)) dispatches.splice(index, 1);
+      createdWaybillNos.forEach((waybillNo) => delete waybillRouteMap[waybillNo]);
+      saveWaybills();
+      saveDispatches();
+      showApplicationAlert("档案附件保存失败，本次计划任务未创建，请检查浏览器存储空间后重试。");
+      return;
+    }
   }
   closePlanTaskDialog();
   refreshAfterPlanTaskCreate(result.created);

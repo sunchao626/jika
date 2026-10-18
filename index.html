@@ -2051,6 +2051,11 @@
               <div class="plan-task-section-title plan-task-list-heading"><span class="section-index">03</span><div><h3>任务清单 <small id="planTaskListCount">1 项</small></h3><p>每项任务可单独调整固定线路和柜型</p></div><button class="icon-btn plan-task-list-toggle" id="planTaskListToggleBtn" type="button" aria-expanded="true" aria-controls="planTaskListBody" title="收起任务清单"><i data-lucide="chevron-up" aria-hidden="true"></i></button></div>
               <div id="planTaskListBody"><div class="plan-task-list" id="planTaskList"></div></div>
             </section>
+            <section class="plan-task-section plan-task-form-archive" id="planTaskFormArchiveSection">
+              <div class="plan-task-section-title"><span class="section-index">04</span><div><h3>档案附件 <small id="planTaskFormArchiveCount">0 个</small></h3><p>上传合同、委托资料、箱货资料、回单或其他业务文件</p></div></div>
+              <div class="plan-task-form-archive-toolbar"><label class="field"><span class="field-label">附件分类</span><select id="planTaskFormArchiveCategory"></select></label><label class="btn quiet plan-task-form-file-picker"><i data-lucide="paperclip" aria-hidden="true"></i>选择附件<input id="planTaskFormArchiveFiles" type="file" multiple /></label><span>业务数量不限制，单个文件不超过 25 MB</span></div>
+              <div class="plan-task-form-archive-list" id="planTaskFormArchiveList" aria-live="polite"><div class="plan-archive-upload-empty">可在创建计划任务前先添加档案附件</div></div>
+            </section>
           </section>
           <section class="plan-task-mode" id="planTaskBatchMode" hidden>
             <div class="plan-task-section"><div class="plan-task-section-title"><span class="section-index">01</span><div><h3>批量导入计划任务</h3><p>每行一条大任务，可通过数量生成多条子运单</p></div></div><div class="plan-import-tools"><label class="btn quiet file-picker"><i data-lucide="upload" class="dashboard-icon" aria-hidden="true"></i>选择 CSV 文件<input id="planTaskCsvFile" type="file" accept=".csv,text/csv" /></label><button class="btn quiet" id="downloadPlanTaskTemplateBtn" type="button"><i data-lucide="download" class="dashboard-icon" aria-hidden="true"></i>下载模板</button></div><textarea id="planTaskBatchInput" name="batchInput" rows="8" placeholder="执行时间,线路,柜型,客户名称,项目名称,任务类型,运单数量,箱号1,铅封号1,箱号2,铅封号2\n2026-09-28 08:00,,40HQ,华贸,比亚迪,提空装货,3,,,,"></textarea><small class="plan-import-tip">首行为表头可省略；固定线路、箱号和铅封号均可留空；每条子任务最多两组箱号/铅封号。</small>

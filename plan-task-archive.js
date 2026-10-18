@@ -113,6 +113,25 @@
     });
   }
 
+  async function applyRecordChanges(removedIds, addedRecords) {
+    const database = await openDatabase();
+    if (!database) {
+      const removed = new Set(removedIds);
+      for (let index = memoryRecords.length - 1; index >= 0; index -= 1) if (removed.has(memoryRecords[index].id)) memoryRecords.splice(index, 1);
+      memoryRecords.push(...addedRecords);
+      return;
+    }
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      removedIds.forEach((id) => store.delete(id));
+      addedRecords.forEach((record) => store.put(record));
+      transaction.addEventListener("complete", resolve);
+      transaction.addEventListener("error", () => reject(transaction.error));
+      transaction.addEventListener("abort", () => reject(transaction.error));
+    });
+  }
+
   function createManager() {
     if (typeof document === "undefined") return null;
     const uploadDialog = document.querySelector("#planArchiveUploadDialog");
@@ -126,13 +145,26 @@
     const previewMeta = document.querySelector("#planArchivePreviewMeta");
     const previewBody = document.querySelector("#planArchivePreviewBody");
     const previewDownload = document.querySelector("#downloadPlanArchivePreview");
+    const formArchiveSection = document.querySelector("#planTaskFormArchiveSection");
+    const formArchiveCategory = document.querySelector("#planTaskFormArchiveCategory");
+    const formArchiveFiles = document.querySelector("#planTaskFormArchiveFiles");
+    const formArchiveList = document.querySelector("#planTaskFormArchiveList");
+    const formArchiveCount = document.querySelector("#planTaskFormArchiveCount");
     let activePlanTaskId = "";
     let activeTaskNo = "";
     let activeRoot = null;
     let activeObjectUrl = "";
     let previewRecordId = "";
+    let previewRecordCache = null;
+    let formSessionToken = 0;
+    let formPlanTaskId = "";
+    let formTaskNo = "";
+    let formExistingRecords = [];
+    let formStagedRecords = [];
+    let formRemovedIds = new Set();
 
     uploadCategory.innerHTML = CATEGORIES.map((category) => `<option>${escapeHtml(category)}</option>`).join("");
+    if (formArchiveCategory) formArchiveCategory.innerHTML = CATEGORIES.map((category) => `<option>${escapeHtml(category)}</option>`).join("");
 
     function recordAudit(action, content, attachment, changes = []) {
       root.OperationLogManager?.record?.({
@@ -205,6 +237,7 @@
       if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
       activeObjectUrl = "";
       previewRecordId = "";
+      previewRecordCache = null;
       previewBody.innerHTML = "";
     }
 
@@ -238,8 +271,7 @@
       }
     });
 
-    async function download(id, audit = true) {
-      const record = await getRecord(id);
+    function downloadRecord(record, audit = true) {
       if (!record?.blob) return;
       const url = URL.createObjectURL(record.blob);
       const link = document.createElement("a");
@@ -250,11 +282,16 @@
       if (audit) recordAudit("export", `下载计划任务 ${activeTaskNo} 的档案附件 ${record.name}`, record);
     }
 
-    async function preview(id) {
+    async function download(id, audit = true) {
       const record = await getRecord(id);
-      if (!record) return;
+      downloadRecord(record, audit);
+    }
+
+    async function showPreview(record, id = "") {
+      if (!record?.blob) return;
       closePreview();
       previewRecordId = id;
+      previewRecordCache = record;
       previewTitle.textContent = record.name;
       previewMeta.textContent = `${record.category} · ${formatFileSize(record.size)} · ${record.uploadedBy}上传`;
       const kind = previewKind(record);
@@ -269,6 +306,11 @@
       }
       if (typeof previewDialog.showModal === "function") previewDialog.showModal(); else previewDialog.setAttribute("open", "");
       root.lucide?.createIcons();
+    }
+
+    async function preview(id) {
+      const record = await getRecord(id);
+      return showPreview(record, id);
     }
 
     async function handleListAction(event) {
@@ -288,14 +330,112 @@
       else if (root.confirm(`确定删除附件“${record?.name || "该文件"}”吗？`)) remove();
     }
 
+    function formRecords() {
+      return [
+        ...formExistingRecords.filter((record) => !formRemovedIds.has(record.id)).map((record) => ({ ...record, formSource: "existing" })),
+        ...formStagedRecords.map((record) => ({ ...record, formSource: "staged" })),
+      ];
+    }
+
+    function renderForm() {
+      if (!formArchiveList || !formArchiveCount) return;
+      const records = formRecords();
+      formArchiveCount.textContent = `${records.length} 个`;
+      formArchiveList.innerHTML = records.length ? records.map((record) => {
+        const kind = previewKind(record);
+        const icon = kind === "image" ? "image" : kind === "pdf" ? "file-text" : kind === "text" ? "file-code-2" : "file-archive";
+        const status = record.formSource === "staged" ? "待保存" : `${escapeHtml(record.uploadedBy || "张调度")} · ${escapeHtml(record.uploadedAt || "已归档")}`;
+        return `<article class="plan-task-form-archive-item" data-form-archive-id="${escapeHtml(record.id)}" data-form-archive-source="${record.formSource}"><div class="plan-archive-file-icon ${kind}"><i data-lucide="${icon}" aria-hidden="true"></i></div><div class="plan-archive-file-main"><strong title="${escapeHtml(record.name)}">${escapeHtml(record.name)}</strong><div><span class="plan-archive-category">${escapeHtml(record.category)}</span><span>${escapeHtml(formatFileSize(record.size))}</span><span>${status}</span></div></div><div class="plan-archive-actions"><button class="link-btn" data-form-archive-preview type="button">${kind === "download" ? "查看信息" : "预览"}</button><button class="link-btn" data-form-archive-download type="button">下载</button><button class="link-btn delete-btn" data-form-archive-remove type="button">移除</button></div></article>`;
+      }).join("") : `<div class="plan-archive-upload-empty">${formPlanTaskId ? "该计划暂未归档附件，可在本次编辑中添加" : "可在创建计划任务前先添加档案附件"}</div>`;
+      root.lucide?.createIcons();
+    }
+
+    function getFormRecord(id, source) {
+      return (source === "staged" ? formStagedRecords : formExistingRecords).find((record) => record.id === id) || null;
+    }
+
+    async function beginForm(planTaskId = "", taskNo = "") {
+      const token = ++formSessionToken;
+      formPlanTaskId = clean(planTaskId);
+      formTaskNo = clean(taskNo);
+      formExistingRecords = [];
+      formStagedRecords = [];
+      formRemovedIds = new Set();
+      if (formArchiveFiles) formArchiveFiles.value = "";
+      if (formArchiveList) formArchiveList.innerHTML = '<div class="plan-archive-upload-empty">正在读取档案附件…</div>';
+      if (formArchiveCount) formArchiveCount.textContent = "读取中";
+      if (formPlanTaskId) {
+        const records = await listRecords(formPlanTaskId);
+        if (token !== formSessionToken) return;
+        formExistingRecords = records;
+        activePlanTaskId = formPlanTaskId;
+        activeTaskNo = formTaskNo;
+      }
+      renderForm();
+    }
+
+    function discardForm() {
+      formSessionToken += 1;
+      formPlanTaskId = "";
+      formTaskNo = "";
+      formExistingRecords = [];
+      formStagedRecords = [];
+      formRemovedIds = new Set();
+      if (formArchiveFiles) formArchiveFiles.value = "";
+      renderForm();
+    }
+
+    async function commitForm(planTaskId, taskNo) {
+      const targetPlanTaskId = clean(planTaskId);
+      const targetTaskNo = clean(taskNo);
+      if (!targetPlanTaskId) throw new Error("缺少计划任务编号，无法保存档案附件");
+      const removedRecords = formExistingRecords.filter((record) => formRemovedIds.has(record.id));
+      const uploadedAt = new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-");
+      const addedRecords = formStagedRecords.map((record) => ({ ...record, id: record.id.replace("PTA-STAGED", "PTA"), planTaskId: targetPlanTaskId, taskNo: targetTaskNo, uploadedAt, uploadedBy: "张调度" }));
+      if (!removedRecords.length && !addedRecords.length) {
+        discardForm();
+        return { added: 0, removed: 0 };
+      }
+      await applyRecordChanges(removedRecords.map((record) => record.id), addedRecords);
+      activePlanTaskId = targetPlanTaskId;
+      activeTaskNo = targetTaskNo;
+      if (addedRecords.length) recordAudit("create", `为计划任务 ${targetTaskNo} 上传 ${addedRecords.length} 个档案附件`, addedRecords[0], [{ field: "attachment", before: "-", after: addedRecords.map((item) => item.name).join("、") }]);
+      if (removedRecords.length) recordAudit("delete", `从计划任务 ${targetTaskNo} 移除 ${removedRecords.length} 个档案附件`, removedRecords[0], [{ field: "attachment", before: removedRecords.map((item) => item.name).join("、"), after: "已删除" }]);
+      discardForm();
+      return { added: addedRecords.length, removed: removedRecords.length };
+    }
+
+    formArchiveFiles?.addEventListener("change", () => {
+      const files = [...(formArchiveFiles.files || [])];
+      const oversized = files.filter((file) => file.size > MAX_FILE_SIZE);
+      const category = formArchiveCategory?.value || "其他";
+      files.filter((file) => file.size <= MAX_FILE_SIZE).forEach((file) => formStagedRecords.push({ id: `PTA-STAGED-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, name: file.name, type: file.type, size: file.size, category, blob: file }));
+      formArchiveFiles.value = "";
+      renderForm();
+      if (oversized.length) showNotice(`${oversized.map((file) => file.name).join("、")} 超过单文件 25 MB 限制，未加入附件。`);
+    });
+
+    formArchiveList?.addEventListener("click", async (event) => {
+      const item = event.target.closest("[data-form-archive-id]");
+      if (!item) return;
+      const record = getFormRecord(item.dataset.formArchiveId, item.dataset.formArchiveSource);
+      if (!record) return;
+      if (event.target.closest("[data-form-archive-preview]")) return showPreview(record, item.dataset.formArchiveSource === "existing" ? record.id : "");
+      if (event.target.closest("[data-form-archive-download]")) return downloadRecord(record, item.dataset.formArchiveSource === "existing");
+      if (!event.target.closest("[data-form-archive-remove]")) return;
+      if (item.dataset.formArchiveSource === "existing") formRemovedIds.add(record.id);
+      else formStagedRecords = formStagedRecords.filter((entry) => entry.id !== record.id);
+      renderForm();
+    });
+
     document.querySelector("#cancelPlanArchiveUpload").addEventListener("click", closeUpload);
     document.querySelector("#closePlanArchiveUpload").addEventListener("click", closeUpload);
     uploadDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeUpload(); });
     document.querySelector("#closePlanArchivePreview").addEventListener("click", closePreview);
     document.querySelector("#closePlanArchivePreviewFooter").addEventListener("click", closePreview);
     previewDialog.addEventListener("cancel", (event) => { event.preventDefault(); closePreview(); });
-    previewDownload.addEventListener("click", () => previewRecordId && download(previewRecordId));
-    return { mount, render, listRecords };
+    previewDownload.addEventListener("click", () => previewRecordCache && downloadRecord(previewRecordCache, Boolean(previewRecordId)));
+    return { mount, render, listRecords, beginForm, discardForm, commitForm };
   }
 
   const manager = createManager();

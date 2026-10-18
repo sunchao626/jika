@@ -17,6 +17,23 @@ test("plan task detail exposes a general archive attachment workspace", () => {
   assert.match(styles, /\.plan-archive-preview-body/);
 });
 
+test("create and edit forms share transactional archive attachments", () => {
+  const source = fs.readFileSync("plan-task-archive.js", "utf8");
+  assert.match(html, /id="planTaskFormArchiveSection"/);
+  assert.match(html, /id="planTaskFormArchiveFiles"[^>]*multiple/);
+  assert.match(html, /id="planTaskFormArchiveCategory"/);
+  assert.match(html, /id="planTaskFormArchiveList"/);
+  assert.match(app, /PlanTaskArchive\?\.beginForm\?\.\("", ""\)/);
+  assert.match(app, /PlanTaskArchive\?\.beginForm\?\.\(group\.id, group\.taskNo\)/);
+  assert.match(app, /await window\.PlanTaskArchive\?\.commitForm\?\.\(createdPlanTask\.planTaskId, createdPlanTask\.planTaskNo\)/);
+  assert.match(app, /PlanTaskArchive\?\.discardForm\?\.\(\)/);
+  assert.match(source, /function beginForm\(/);
+  assert.match(source, /function commitForm\(/);
+  assert.match(source, /function discardForm\(/);
+  assert.match(source, /function applyRecordChanges\(/);
+  assert.match(styles, /\.plan-task-form-archive/);
+});
+
 test("archive categories cover general business files rather than contracts only", () => {
   for (const category of ["合同资料", "委托资料", "箱货资料", "报关资料", "签收回单", "结算票据", "现场凭证", "其他"]) {
     assert.ok(api.CATEGORIES.includes(category));
