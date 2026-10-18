@@ -12,15 +12,18 @@
     { group: "车辆管理", id: "trailers", name: "挂车档案管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "车辆管理", id: "repairs", name: "车辆维修管理", actions: ["view", "create", "edit", "special"], special: "维修审核" },
     { group: "司机管理", id: "drivers", name: "司机档案管理", actions: ["view", "create", "edit", "delete", "export"] },
-    { group: "财务管理", id: "finance", name: "运输成本台账", actions: ["view", "edit", "export", "special"], special: "费用审核" },
-    { group: "财务管理", id: "driverExpenses", name: "司机费用上报", actions: ["view", "special", "export"], special: "费用审核" },
-    { group: "财务管理", id: "settlements", name: "结算管理", actions: ["view", "create", "edit", "export", "special"], special: "结算确认" },
+    { group: "数据看板", id: "finance", name: "运输成本台账", actions: ["view", "edit", "export", "special"], special: "费用审核" },
+    { group: "结算管理", id: "driverExpenses", name: "司机费用上报", actions: ["view", "special", "export"], special: "费用审核" },
+    { group: "结算管理", id: "settlements", name: "结算中心", actions: ["view", "create", "edit", "export", "special"], special: "结算确认" },
+    { group: "系统配置", id: "platformConfig", name: "平台配置", actions: ["view", "edit", "special"], special: "发布配置" },
     { group: "系统配置", id: "customers", name: "客户管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "系统配置", id: "reminders", name: "消息提醒模板", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "announcements", name: "公告管理", actions: ["view", "create", "edit", "delete"] },
+    { group: "系统配置", id: "feedbackManagement", name: "意见反馈管理", actions: ["view", "edit", "export", "special"], special: "处理与回复" },
     { group: "系统配置", id: "photoRequirements", name: "司机拍照要求", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "autoDispatchConfig", name: "自动派单配置", actions: ["view", "edit", "special"], special: "规则配置" },
     { group: "系统配置", id: "userAccess", name: "用户与权限", actions: ["view", "create", "edit", "delete"] },
+    { group: "系统配置", id: "operationLogs", name: "操作日志", actions: ["view"] },
   ];
   const EMPTY_PERMISSIONS = () => Object.fromEntries(MODULES.map((module) => [module.id, Object.fromEntries(module.actions.map((action) => [action, false]))]));
   const ALL_PERMISSIONS = () => Object.fromEntries(MODULES.map((module) => [module.id, Object.fromEntries(module.actions.map((action) => [action, true]))]));
@@ -222,6 +225,27 @@
     state = save(state);
     render();
     if (message) showFeedback(message);
+    if (message && window.OperationLogManager?.record) {
+      const currentUser = state.users.find((user) => user.isCurrentUser);
+      const currentRole = state.roles.find((role) => role.id === currentUser?.roleId);
+      const actionId = message.includes("新增") ? "create" : message.includes("删除") ? "delete" : message.includes("复制") ? "create" : "permission";
+      window.OperationLogManager.record({
+        moduleId: "userAccess",
+        moduleName: "用户与权限",
+        actionId,
+        actionName: actionId === "create" ? "新增" : actionId === "delete" ? "删除" : "权限变更",
+        operatorId: currentUser?.id || "user-current",
+        operatorName: currentUser?.name || "当前用户",
+        operatorAccount: currentUser?.account || "-",
+        roleName: currentRole?.name || "-",
+        targetType: "权限配置",
+        targetId: "USER-ACCESS",
+        targetLabel: "用户与角色配置",
+        content: message,
+        result: "success",
+        changes: [],
+      });
+    }
   }
   function showFeedback(message) {
     feedback.textContent = message;
@@ -318,7 +342,10 @@
   function dataOptions() {
     const snapshot = window.AdminDataBridge?.read?.() || {};
     const customers = window.AdminDataBridge?.readCustomers?.() || [];
-    const customerOptions = customers.map((item) => ({ id: item.customerId || item.id || item.customerNo, name: item.customerName || item.fullName || item.name })).filter((item) => item.id && item.name);
+    const customerOptions = customers
+      .filter((item) => !item.businessRole || String(item.businessRole).split("+").includes("客户"))
+      .map((item) => ({ id: item.customerId || item.id || item.customerNo, name: item.customerName || item.fullName || item.name }))
+      .filter((item) => item.id && item.name);
     const projects = new Map();
     (snapshot.waybills || []).forEach((item) => { if (item.projectId && item.projectName) projects.set(item.projectId, item.projectName); });
     const routes = (snapshot.fixedRoutes || []).map((item) => ({ id: item.id, name: item.routeName || item.name })).filter((item) => item.id && item.name);

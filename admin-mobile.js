@@ -69,10 +69,10 @@ const moduleCatalog = {
     title: "客户管理", eyebrow: "基础资料", icon: "building-2", primary: "新增客户",
     filters: ["全部", "启用", "停用"], listFieldLimit: 6,
     items: [
-      { id: "KH-1008", title: "宁波远海供应链有限公司", subtitle: "简称：宁波远海", status: "启用", statusClass: "success", fields: [["客户类型", "第三方物流 / 供应链公司"], ["联系人", "李经理"], ["手机", "13800001008"], ["结算周期", "月结30天"]], note: "默认装货地址：宁波北仑港区二期" },
-      { id: "KH-1022", title: "上海嘉航国际物流有限公司", subtitle: "简称：上海嘉航", status: "启用", statusClass: "success", fields: [["客户类型", "国际货运代理（货代）"], ["联系人", "陈主管"], ["手机", "13900001022"], ["结算周期", "月结15天"]], note: "默认装货地址：上海洋山港" },
-      { id: "KH-1035", title: "杭州联贸进出口有限公司", subtitle: "简称：杭州联贸", status: "启用", statusClass: "success", fields: [["客户类型", "跨境电商物流商"], ["联系人", "周女士"], ["手机", "13600001035"], ["结算周期", "月结30天"]], note: "默认装货地址：杭州萧山仓" },
-      { id: "KH-1120", title: "上海港联贸易有限公司", subtitle: "简称：上海港联", status: "停用", statusClass: "muted", fields: [["客户类型", "跨境电商物流商"], ["联系人", "何经理"], ["手机", "13100001120"], ["结算周期", "月结60天"]], note: "默认装货地址：上海外高桥" },
+      { id: "KH-1008", title: "宁波远海供应链有限公司", subtitle: "简称：宁波远海", status: "启用", statusClass: "success", businessRole: "客户", fields: [["单位角色", "客户"], ["客户类型", "第三方物流 / 供应链公司"], ["联系人", "李经理"], ["手机", "13800001008"], ["结算周期", "月结30天"]], note: "默认装货地址：宁波北仑港区二期" },
+      { id: "KH-1022", title: "上海嘉航国际物流有限公司", subtitle: "简称：上海嘉航", status: "启用", statusClass: "success", businessRole: "客户", fields: [["单位角色", "客户"], ["客户类型", "国际货运代理（货代）"], ["联系人", "陈主管"], ["手机", "13900001022"], ["结算周期", "月结15天"]], note: "默认装货地址：上海洋山港" },
+      { id: "KH-1035", title: "杭州联贸进出口有限公司", subtitle: "简称：杭州联贸", status: "启用", statusClass: "success", businessRole: "客户", fields: [["单位角色", "客户"], ["客户类型", "跨境电商物流商"], ["联系人", "周女士"], ["手机", "13600001035"], ["结算周期", "月结30天"]], note: "默认装货地址：杭州萧山仓" },
+      { id: "KH-1120", title: "上海港联贸易有限公司", subtitle: "简称：上海港联", status: "停用", statusClass: "muted", businessRole: "客户", fields: [["单位角色", "客户"], ["客户类型", "跨境电商物流商"], ["联系人", "何经理"], ["手机", "13100001120"], ["结算周期", "月结60天"]], note: "默认装货地址：上海外高桥" },
     ],
   },
   reminder: {
@@ -207,12 +207,13 @@ const mobileFormDefinitions = {
     ],
   },
   customer: {
-    intro: "完善客户资料后，新建运单可直接选择并自动带出常用地址。",
+    intro: "客户与三方供应商统一建档，单位角色决定其可用于哪些业务。",
     sections: [
-      { title: "基础信息", hint: "客户主体和可用状态", fields: [
-        { name: "customerNo", label: "客户编号", readonly: true, hint: "系统自动生成，无需填写" },
-        { name: "customerName", label: "客户全称", required: true, full: true, placeholder: "营业执照上的企业全称" },
+      { title: "基础信息", hint: "往来单位主体、角色和可用状态", fields: [
+        { name: "customerNo", label: "单位编号", readonly: true, hint: "系统自动生成，无需填写" },
+        { name: "customerName", label: "单位全称", required: true, full: true, placeholder: "营业执照上的企业全称" },
         { name: "shortName", label: "简称" },
+        { name: "businessRole", label: "单位角色", type: "select", required: true, options: ["客户", "三方供应商", "客户+三方供应商"] },
         { name: "customerType", label: "客户类型", type: "select", required: true, options: [["", "请选择"], "直客", "货代", "贸易企业", "国际货运代理（货代）", "船公司 / 船代", "第三方物流 / 供应链公司", "跨境电商物流商"] },
         { name: "creditCode", label: "统一社会信用代码", required: true, full: true, pattern: "[0-9A-Z]{18}", maxlength: "18", hint: "18 位数字或大写字母" },
         { name: "customerStatus", label: "客户状态", type: "select", required: true, options: ["启用", "停用"] },
@@ -263,10 +264,9 @@ const mobileFormDefinitions = {
   },
 };
 
-const state = { currentView: "workbench", currentModule: "", moduleFilter: "全部", messageFilter: "all", search: "", detailItem: null, entryModule: "", entryEditId: "", entryOriginalId: "", entryOriginalRaw: null, profilePage: "" };
+const state = { currentView: "workbench", currentModule: "", moduleFilter: "全部", messageFilter: "all", search: "", detailItem: null, entryModule: "", entryEditId: "", entryOriginalId: "", entryOriginalRaw: null, profilePage: "", feedbackTab: "submit" };
 const MANAGER_PROFILE_STORAGE_KEY = "container-logistics-manager-profile-v1";
 const MANAGER_NOTIFICATION_STORAGE_KEY = "container-logistics-manager-notifications-v1";
-const MANAGER_FEEDBACK_STORAGE_KEY = "container-logistics-manager-feedback-v1";
 const defaultManagerProfile = { name: "张调度", phone: "13866686688", department: "运营中心", role: "调度管理员", account: "ZD-1008", avatar: "" };
 const defaultManagerNotifications = { task: true, warning: true, system: false };
 const reportPlanRecords = [
@@ -351,7 +351,9 @@ function formIntro(icon, text) {
 
 function genericEntryMarkup(moduleName) {
   const definition = mobileFormDefinitions[moduleName];
-  return `${formIntro(moduleCatalog[moduleName].icon, definition.intro)}${definition.sections.map(sectionMarkup).join("")}`;
+  const suppliers = [["", "自营无需选择"], ...window.CapacityOwnership.readSuppliers().filter((item) => item.status === "启用").map((item) => [item.name, item.name])];
+  const sections = definition.sections.map((section) => ({ ...section, fields: section.fields.map((field) => field.name === "supplierName" ? { ...field, options: suppliers } : field) }));
+  return `${formIntro(moduleCatalog[moduleName].icon, definition.intro)}${sections.map(sectionMarkup).join("")}`;
 }
 
 function routeInfo(item) {
@@ -374,6 +376,11 @@ function customerInfo(item) {
   };
   const [loadAddress = "", unloadAddress = ""] = defaults[item.title] || ["", ""];
   return { customerName: item.title, loadAddress, unloadAddress };
+}
+
+function customerHasRole(item, role) {
+  const value = String(item?.raw?.businessRole || item?.businessRole || "客户");
+  return value.split("+").includes(role);
 }
 
 function nextBusinessId(prefix, count) {
@@ -417,7 +424,7 @@ function loadSharedCatalog() {
   if (vehicles.length) moduleCatalog.vehicle.items = vehicles.map((vehicle) => ({ id: vehicle.plateNo, title: vehicle.vehicleType || "集装箱牵引车", subtitle: vehicle.fleetName || vehicle.fleet || "未设置车队", status: vehicle.vehicleState || "停用", statusClass: sharedStatusClass(vehicle.vehicleState), fields: [["运力归属", vehicle.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(vehicle)], ["司机", vehicle.driver || "未绑定"], ["挂车", vehicle.trailerId || "未绑定"], ["VIN", vehicle.vin || "-"], ["营运证号", vehicle.permitNo || "-"]], note: vehicle.remark || "", raw: vehicle }));
   if (trailers.length) moduleCatalog.trailer.items = trailers.map((trailer) => ({ id: trailer.id, title: trailer.plateNo, subtitle: trailer.trailerType || "挂车", status: trailer.trailerState || "停用", statusClass: sharedStatusClass(trailer.trailerState), fields: [["运力归属", trailer.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(trailer)], ["车架号", trailer.vin || "-"], ["所属车队", trailer.fleet || "-"], ["营运证号", trailer.permitNo || "-"], ["审验到期", trailer.inspectionDue || "-"]], note: trailer.remark || "", raw: trailer }));
   if (drivers.length) moduleCatalog.driver.items = drivers.map((driver) => ({ id: driver.id, title: driver.name, subtitle: `${driver.fleet || "未设置车队"} · ${driver.phone || "-"}`, status: driver.driverState || "停用", statusClass: sharedStatusClass(driver.driverState), fields: [["运力归属", driver.capacityOwnership], ["所属单位", window.CapacityOwnership.organizationName(driver)], ["司机编号", driver.id], ["准驾车型", driver.licenseClass || "A2"], ["车辆", driver.vehiclePlate || driver.vehicle || "未绑定"], ["认证状态", certificationStatusLabel(driver.certificationStatus)]], note: driver.remark || "", raw: driver }));
-  if (customers.length) moduleCatalog.customer.items = customers.map((customer) => ({ id: customer.customerNo, title: customer.customerName, subtitle: `简称：${customer.shortName || "-"}`, status: customer.customerStatus || "启用", statusClass: sharedStatusClass(customer.customerStatus), fields: [["客户编号", customer.customerNo], ["客户类型", customer.customerType || "-"], ["联系人", customer.contactName || "-"], ["手机", customer.mobile || "-"], ["结算周期", customer.settlementCycle || "-"], ["默认装货地址", customer.loadAddress || "-"]], note: customer.remark || "", raw: customer }));
+  if (customers.length) moduleCatalog.customer.items = customers.map((customer) => ({ id: customer.customerNo, title: customer.customerName, subtitle: `简称：${customer.shortName || "-"}`, status: customer.customerStatus || "启用", statusClass: sharedStatusClass(customer.customerStatus), fields: [["单位编号", customer.customerNo], ["单位角色", customer.businessRole || "客户"], ["客户类型", customer.customerType || "-"], ["联系人", customer.contactName || "-"], ["手机", customer.mobile || "-"], ["结算周期", customer.settlementCycle || "-"]], note: customer.remark || "", raw: customer }));
   const groups = new Map();
   waybills.forEach((waybill) => { const id = waybill.planTaskId || `PT-LEGACY-${waybill.waybillNo}`; const group = groups.get(id) || { id, no: waybill.planTaskNo || id, first: waybill, rows: [] }; group.rows.push(waybill); groups.set(id, group); });
   moduleCatalog.plan.items = [...groups.values()].map((group) => {
@@ -564,7 +571,7 @@ function feeCardMarkup(type) {
 function waybillEntryMarkup() {
   const waybillNo = nextBusinessId("WB", moduleCatalog.waybill.items.length);
   const routeOptions = [["", "请选择固定线路"], ...moduleCatalog.route.items.filter((item) => item.status === "启用").map((item) => [item.id, item.title])];
-  const customerOptions = [["", "请选择客户"], ...moduleCatalog.customer.items.filter((item) => item.status === "启用").map((item) => [item.id, item.title])];
+  const customerOptions = [["", "请选择客户"], ...moduleCatalog.customer.items.filter((item) => item.status === "启用" && customerHasRole(item, "客户")).map((item) => [item.id, item.title])];
   return `${formIntro("file-plus-2", "运单号与接单日期自动生成，客户和线路可联动带出业务信息。")}
     <section class="mobile-form-section"><header class="mobile-form-section-heading"><span>01</span><div><strong>业务信息</strong><small>客户委托、箱货资料和回单要求</small></div></header>
       <div class="generated-strip"><div><span>运单号</span><strong id="mobileGeneratedWaybillNo">${waybillNo}</strong></div><div><span>接单日期</span><strong>${localDate()}</strong></div></div>
@@ -719,12 +726,32 @@ function securityPageMarkup() {
 }
 
 function helpPageMarkup() {
-  return `<section class="profile-page-intro"><span><i data-lucide="circle-help"></i></span><div><strong>帮助与反馈</strong><small>查看使用说明，或提交遇到的问题</small></div></section>
+  const records = window.FeedbackManager.bySubmitter("manager", managerProfile.account);
+  const categories = window.FeedbackManager.categories("manager");
+  const statusMeta = window.FeedbackManager.STATUS_META;
+  const tabs = `<div class="feedback-mobile-tabs" role="tablist" aria-label="管理端反馈视图"><button class="${state.feedbackTab === "submit" ? "active" : ""}" data-manager-feedback-tab="submit" type="button" role="tab" aria-selected="${state.feedbackTab === "submit"}">提交反馈</button><button class="${state.feedbackTab === "history" ? "active" : ""}" data-manager-feedback-tab="history" type="button" role="tab" aria-selected="${state.feedbackTab === "history"}">我的反馈${records.length ? `（${records.length}）` : ""}</button></div>`;
+  if (state.feedbackTab === "history") {
+    return `<div class="manager-feedback-page feedback-mobile-page">${tabs}<div class="feedback-history-list">${records.length ? records.map((item) => {
+      const status = statusMeta[item.status];
+      return `<article class="feedback-history-card"><header><span><strong>${h(item.categoryLabel)}</strong><small>${h(item.id)} · ${h(item.createdAt)}</small></span><em class="feedback-status ${status.className}">${status.label}</em></header><p>${h(item.description)}</p><div class="feedback-history-meta"><span>${h(item.relatedLabel || "未关联模块")}</span><span>${item.attachments.length ? `${item.attachments.length} 个附件` : "无附件"}</span></div>${item.publicReply ? `<div class="feedback-history-reply"><strong>处理回复：</strong>${h(item.publicReply)}</div>` : ""}</article>`;
+    }).join("") : '<div class="feedback-history-empty"><i data-lucide="message-square-dashed"></i><strong>暂无反馈记录</strong><span>提交后的处理状态会显示在这里</span></div>'}</div></div>`;
+  }
+  return `<div class="manager-feedback-page feedback-mobile-page">${tabs}
+    <section class="profile-page-intro"><span><i data-lucide="circle-help"></i></span><div><strong>帮助与反馈</strong><small>反馈将进入 PC 后台统一处理</small></div></section>
     <section class="profile-settings-card">
       <div class="profile-setting-row"><span><i data-lucide="book-open"></i></span><span class="profile-setting-copy"><strong>使用指南</strong><small>工作台、报表、消息和账号设置说明</small></span><em class="profile-setting-value">管理端 1.0</em></div>
       <div class="profile-setting-row"><span><i data-lucide="file-lock-2"></i></span><span class="profile-setting-copy"><strong>隐私与协议</strong><small>账号数据仅用于业务协同</small></span><em class="profile-setting-value">已同意</em></div>
     </section>
-    <form id="managerFeedbackForm" class="profile-feedback"><span>问题反馈</span><textarea name="feedback" maxlength="300" placeholder="请简要描述遇到的问题" required></textarea><button class="profile-page-button" type="submit">提交反馈</button></form>`;
+    <form id="managerFeedbackForm" class="feedback-form-card">
+      <div class="feedback-form-intro"><span><i data-lucide="message-square-plus"></i></span><div><strong>提交问题或建议</strong><small>账号、部门和角色信息会自动记录</small></div></div>
+      <label class="feedback-field"><span>问题类型</span><select name="categoryCode" required><option value="">请选择问题类型</option>${categories.map((item) => `<option value="${h(item.code)}">${h(item.label)}</option>`).join("")}</select></label>
+      <label class="feedback-field"><span>相关功能模块 <em>选填</em></span><select name="relatedId"><option value="">不关联模块</option><option value="workbench">工作台</option><option value="waybill">计划与任务</option><option value="dispatch">任务派单</option><option value="capacity">运力管理</option><option value="archive">车辆、司机与客户档案</option><option value="finance">财务与结算</option><option value="reports">数据报表</option><option value="access">用户与权限</option><option value="messages">消息与公告</option></select></label>
+      <label class="feedback-field"><span>业务编号 <em>选填</em></span><input name="businessId" maxlength="60" placeholder="例如运单号、派单号或车辆编号" /></label>
+      <label class="feedback-field"><span>问题描述 <em data-manager-feedback-count>0/1000</em></span><textarea name="description" rows="5" minlength="10" maxlength="1000" placeholder="请描述发生了什么、期望如何改进，至少填写 10 个字" required></textarea></label>
+      <label class="feedback-field"><span>图片或视频 <em>选填</em></span><label class="feedback-upload"><input name="attachments" type="file" accept="image/*,video/mp4,video/quicktime" multiple /><span class="feedback-upload-icon"><i data-lucide="image-plus"></i></span><span><strong>上传截图或视频</strong><small>最多 9 个附件，视频最多 2 个；图片≤10MB，视频≤100MB</small></span></label><small class="feedback-file-summary" data-manager-feedback-files>尚未选择附件</small></label>
+      <label class="feedback-field"><span>联系电话</span><input name="contactPhone" inputmode="tel" maxlength="11" value="${h(managerProfile.phone)}" required /></label>
+      <button class="feedback-submit-button" type="submit">提交意见反馈</button>
+    </form></div>`;
 }
 
 function openProfileSubpage(action) {
@@ -1004,12 +1031,10 @@ function renderReports() {
 
 function switchView(view) {
   state.currentView = view;
-  closeManagerDrawer();
   if ($("#managerProfileSubpage").classList.contains("open")) closeProfileSubpage(true);
   $(".manager-shell").classList.remove("subpage-open");
   $$(".manager-view").forEach((item) => item.classList.toggle("active", item.id === `${view}View`));
   $$("#managerBottomNav button").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
-  $("#managerDrawerButton").hidden = view !== "workbench";
   $("#managerTitle").textContent = { workbench: "工作台", reports: "数据报表", messages: "消息", profile: "我的" }[view];
   $("#headerEyebrow").textContent = view === "workbench" ? "集卡物流管理端" : view === "reports" ? "运营数据概览" : view === "messages" ? "任务与预警通知" : "运营中心账号";
   if (view === "messages") renderMessages();
@@ -1020,23 +1045,6 @@ function switchView(view) {
   $("#managerEntryView").setAttribute("aria-hidden", "true");
   $("#managerProfileSubpage").classList.remove("open");
   $("#managerProfileSubpage").setAttribute("aria-hidden", "true");
-}
-
-function openManagerDrawer() {
-  renderManagerDrawer();
-  $("#managerDrawer").classList.add("open");
-  $("#managerDrawerOverlay").classList.add("open");
-  $("#managerDrawer").setAttribute("aria-hidden", "false");
-  $("#managerDrawerOverlay").setAttribute("aria-hidden", "false");
-}
-
-function closeManagerDrawer() {
-  const drawer = $("#managerDrawer");
-  if (!drawer) return;
-  drawer.classList.remove("open");
-  $("#managerDrawerOverlay").classList.remove("open");
-  drawer.setAttribute("aria-hidden", "true");
-  $("#managerDrawerOverlay").setAttribute("aria-hidden", "true");
 }
 
 function renderWorkbench() {
@@ -1203,6 +1211,19 @@ function setupEntryBehavior(moduleName) {
   if (moduleName === "dispatch") updateDispatchSummary();
   if (moduleName === "waybill") { updateWaybillCustomer(); loadWaybillRouteDefaults(); }
   if (moduleName === "auto") updateAutoMode();
+  if (moduleName === "customer") {
+    const customerRequired = ["customerType", "creditCode", "contactName", "mobile", "loadAddress", "unloadAddress", "settlementCycle"];
+    const syncCustomerRole = () => {
+      const supplierOnly = form.elements.businessRole?.value === "三方供应商";
+      customerRequired.forEach((name) => {
+        if (!form.elements[name]) return;
+        form.elements[name].required = !supplierOnly;
+        form.elements[name].closest(".mobile-field")?.classList.toggle("required", !supplierOnly);
+      });
+    };
+    form.elements.businessRole?.addEventListener("change", syncCustomerRole);
+    syncCustomerRole();
+  }
   form.querySelectorAll("[required]").forEach((control) => control.addEventListener("invalid", () => control.classList.add("touched")));
   if (moduleName === "route") {
     form.addEventListener("change", (event) => {
@@ -1298,7 +1319,10 @@ function openEntry(moduleName, recordId = "") {
   }
   if (moduleName === "customer") {
     if (existing?.raw?.customerNo) $("#managerEntryForm").elements.customerNo.value = existing.raw.customerNo;
-    else if (!existing) $("#managerEntryForm").elements.customerNo.value = generateMobileCustomerNo();
+    else if (!existing) {
+      $("#managerEntryForm").elements.customerNo.value = generateMobileCustomerNo();
+      $("#managerEntryForm").elements.businessRole.value = "客户";
+    }
   }
   if (moduleName === "waybill") {
     $("#managerEntryForm").elements.waybillNo.value = $("#mobileGeneratedWaybillNo").textContent;
@@ -1355,7 +1379,7 @@ function populateMobileRouteOptions(customerId = "", projectId = "") {
   if (!form?.elements.customerId) return;
   const accounts = window.AdminDataBridge?.read?.()?.routeAccounts || [];
   const customerNames = new Map(accounts.map((item) => [item.customerId, item.customerName]));
-  const customers = moduleCatalog.customer.items.map((item) => ({ id: item.id, name: item.title }));
+  const customers = moduleCatalog.customer.items.filter((item) => customerHasRole(item, "客户")).map((item) => ({ id: item.id, name: item.title }));
   accounts.forEach((item) => { if (!customers.some((customer) => customer.id === item.customerId)) customers.push({ id: item.customerId, name: item.customerName || item.customerId }); });
   moduleCatalog.route.items.forEach((route) => {
     const raw = route.raw || {};
@@ -1566,7 +1590,7 @@ function buildAssetRecord(moduleName, values) {
   if (moduleName === "customer") {
     raw.customerNo = values.customerNo || oldRaw.customerNo;
     const status = values.customerStatus || "启用";
-    return { id: raw.customerNo, title: values.customerName, subtitle: `简称：${values.shortName || "-"}`, status, statusClass: sharedStatusClass(status), fields: [["客户编号", raw.customerNo], ["客户类型", values.customerType || "-"], ["统一社会信用代码", values.creditCode || "-"], ["联系人", values.contactName || "-"], ["手机", values.mobile || "-"], ["结算周期", values.settlementCycle || "-"], ["默认装货地址", values.loadAddress || "-"], ["默认卸货地址", values.unloadAddress || "-"]], note: values.remark || "", raw };
+    return { id: raw.customerNo, title: values.customerName, subtitle: `简称：${values.shortName || "-"}`, status, statusClass: sharedStatusClass(status), fields: [["单位编号", raw.customerNo], ["单位角色", values.businessRole || "客户"], ["客户类型", values.customerType || "-"], ["统一社会信用代码", values.creditCode || "-"], ["联系人", values.contactName || "-"], ["手机", values.mobile || "-"], ["结算周期", values.settlementCycle || "-"], ["默认装货地址", values.loadAddress || "-"]], note: values.remark || "", raw };
   }
   return null;
 }
@@ -1578,11 +1602,11 @@ const detailFieldLabels = {
   commercialInsuranceNo: "商业险单号", commercialInsuranceExpiry: "商业险有效期", mandatoryInsuranceNo: "强制险单号", mandatoryInsuranceExpiry: "强制险有效期",
   cargoInsuranceNo: "货物险单号", cargoInsuranceExpiry: "货物险有效期", inspectionDue: "审验到期", insuranceDue: "保险到期", attachments: "附件资料",
   name: "姓名", gender: "性别", idCard: "身份证号码", phone: "联系电话", address: "住址", emergencyContact: "紧急联系人", emergencyPhone: "紧急联系电话",
-  entryDate: "入职日期", driverType: "司机类型", capacityOwnership: "运力归属", supplierName: "三方供应商", organizationName: "所属单位", driverState: "司机状态", certificationStatus: "认证状态", licenseNo: "驾驶证号", licenseClass: "准驾车型",
+  entryDate: "入职日期", driverType: "司机类型", capacityOwnership: "运力归属", supplierName: "三方供应商", organizationName: "所属单位", businessRole: "单位角色", driverState: "司机状态", certificationStatus: "认证状态", licenseNo: "驾驶证号", licenseClass: "准驾车型",
   licenseIssueDate: "驾驶证发证日期", licenseExpiry: "驾驶证有效期", licenseAttachment: "驾驶证附件", qualificationNo: "从业资格证号", qualificationExpiry: "从业资格证有效期",
   qualificationAttachment: "从业资格证附件", bankCard: "银行卡号", bankName: "开户银行", vehiclePlate: "关联车辆", vehiclePlateNo: "关联车辆",
-  trailerType: "挂车类型", ownership: "车辆所属", trailerState: "挂车状态", insuranceNo: "保险单号", customerNo: "客户编号", customerName: "客户全称",
-  shortName: "简称", customerType: "客户类型", creditCode: "统一社会信用代码", customerStatus: "客户状态", contactName: "主要联系人", mobile: "手机",
+  trailerType: "挂车类型", ownership: "车辆所属", trailerState: "挂车状态", insuranceNo: "保险单号", customerNo: "单位编号", customerName: "单位全称",
+  shortName: "简称", customerType: "客户类型", creditCode: "统一社会信用代码", customerStatus: "单位状态", contactName: "主要联系人", mobile: "手机",
   email: "邮箱", registeredAddress: "注册地址", loadAddress: "默认装货地址", unloadAddress: "默认卸货地址", settlementCycle: "结算周期", invoiceTitle: "开票抬头",
   taxNo: "税号", bankAccount: "银行账号", remark: "备注", driver: "驾驶员", vehicleState: "车辆状态",
 };
@@ -1680,12 +1704,11 @@ function updateWorkbenchCounts() {
   const transitCount = moduleCatalog.dispatch.items.filter((item) => item.status === "运输中").length;
   const idleVehicleCount = moduleCatalog.capacity.items.filter((item) => item.status === "闲置").length;
   const alertCount = moduleCatalog.reminder.items.filter((item) => item.status === "已过期").length + messages.filter((item) => item.unread && item.type === "warning").length;
-  const unreadCount = messages.filter((item) => item.unread).length;
   const labels = {
     waybill: `${moduleCatalog.waybill.items.length} 条记录`, plan: `${moduleCatalog.plan.items.length} 个任务`, route: `${moduleCatalog.route.items.length} 条线路`, "dispatch-management": `${moduleCatalog["dispatch-management"].items.filter((item) => item.status === "待匹配").length} 条待匹配`,
     dispatch: `${pendingDispatchCount} 条待派单`,
     capacity: `${moduleCatalog.capacity.items.length} 条运力`, vehicle: `${moduleCatalog.vehicle.items.length} 台车辆`, trailer: `${moduleCatalog.trailer.items.length} 台挂车`, driver: `${moduleCatalog.driver.items.length} 名司机`,
-    customer: `${moduleCatalog.customer.items.length} 家客户`, reminder: `${moduleCatalog.reminder.items.length} 项待处理`,
+    customer: `${moduleCatalog.customer.items.length} 家往来单位`, reminder: `${moduleCatalog.reminder.items.length} 项待处理`,
   };
   Object.entries(labels).forEach(([moduleName, label]) => {
     const node = $(`#moduleGrid [data-open-module="${moduleName}"] small`);
@@ -1695,33 +1718,6 @@ function updateWorkbenchCounts() {
   $("#workbenchTransitCount").textContent = transitCount;
   $("#workbenchIdleCount").textContent = idleVehicleCount;
   $("#workbenchAlertCount").textContent = alertCount;
-  const messageCount = $("#headerMessageButton span");
-  if (messageCount) { messageCount.textContent = unreadCount; messageCount.hidden = unreadCount === 0; }
-  renderManagerDrawer();
-}
-
-function renderManagerDrawer() {
-  const shortcuts = [
-    ["plan", "计划与任务", "clipboard-list", "blue"],
-    ["route", "固定线路管理", "route", "purple"],
-    ["dispatch-management", "任务派单", "list-checks", "cyan"],
-    ["dispatch", "派单列表", "send", "cyan"],
-    ["capacity", "运力管理", "gauge", "cyan"],
-    ["vehicle", "车辆档案管理", "truck", "green"],
-    ["trailer", "挂车档案", "container", "green"],
-    ["driver", "司机档案", "user-round", "indigo"],
-    ["customer", "客户管理", "building-2", "rose"],
-  ];
-  $("#managerDrawerLinks").innerHTML = shortcuts.map(([moduleName, label, icon, style]) => `
-    <button class="manager-drawer-link" data-open-module="${moduleName}" type="button">
-      <span class="manager-drawer-icon ${style}"><i data-lucide="${icon}"></i></span><span><strong>${label}</strong><small>${moduleCatalog[moduleName]?.items.length || 0} 项</small></span><i data-lucide="chevron-right"></i>
-    </button>`).join("");
-  const reminderItems = messages.filter((item) => item.unread).slice(0, 3);
-  $("#managerDrawerReminders").innerHTML = reminderItems.length ? reminderItems.map((item) => `
-    <button class="manager-drawer-reminder" data-drawer-message="${h(item.id)}" type="button">
-      <span class="manager-drawer-reminder-icon ${item.style}"><i data-lucide="${h(item.icon)}"></i></span><span><strong>${h(item.title)}</strong><small>${h(item.desc)}</small><time>${h(item.time)}</time></span><b>›</b>
-    </button>`).join("") : `<div class="manager-drawer-empty"><i data-lucide="check-check"></i><span>当前没有未读提醒</span></div>`;
-  refreshIcons();
 }
 
 function buildDispatchRecord(values) {
@@ -1887,7 +1883,12 @@ function publishMobileRecord(moduleName, item) {
   if (moduleName === "vehicle") { raw.plateNo = raw.plateNo || item.id; const oldPlate = state.entryOriginalRaw?.plateNo; snapshot.vehicles = [raw, ...(snapshot.vehicles || []).filter((entry) => entry.plateNo !== raw.plateNo && entry.plateNo !== oldPlate)]; }
   if (moduleName === "trailer") { raw.id = raw.id || item.id; const oldId = state.entryOriginalRaw?.id; snapshot.trailers = [raw, ...(snapshot.trailers || []).filter((entry) => entry.id !== raw.id && entry.id !== oldId)]; }
   if (moduleName === "driver") { raw.id = raw.id || item.id; const oldId = state.entryOriginalRaw?.id; snapshot.drivers = [raw, ...(snapshot.drivers || []).filter((entry) => entry.id !== raw.id && entry.id !== oldId)]; }
-  if (moduleName === "customer") { raw.customerNo = raw.customerNo || item.id; const oldNo = state.entryOriginalRaw?.customerNo; snapshot.customers = [raw, ...(snapshot.customers || []).filter((entry) => entry.customerNo !== raw.customerNo && entry.customerNo !== oldNo)]; }
+  if (moduleName === "customer") {
+    raw.customerNo = raw.customerNo || item.id;
+    const oldNo = state.entryOriginalRaw?.customerNo;
+    snapshot.customers = [raw, ...(snapshot.customers || []).filter((entry) => entry.customerNo !== raw.customerNo && entry.customerNo !== oldNo)];
+    localStorage.setItem(window.AdminDataBridge.CUSTOMER_STORAGE_KEY, JSON.stringify(snapshot.customers));
+  }
   window.AdminDataBridge.write(snapshot);
 }
 
@@ -1906,7 +1907,7 @@ function saveEntry(event) {
     const type = window.CapacityOwnership.normalizeType(values.capacityOwnership);
     if (type === "三方") {
       const supplier = window.CapacityOwnership.findSupplier(values.supplierName);
-      if (!supplier || supplier.status !== "启用") { showToast("三方运力必须选择已启用的供应商档案"); return; }
+      if (!supplier || supplier.status !== "启用") { showToast("请从客户管理选择已启用的三方供应商"); return; }
       values.supplierId = supplier.id;
       values.supplierName = supplier.name;
     } else {
@@ -2016,8 +2017,6 @@ document.addEventListener("click", (event) => {
   const tabTarget = event.target.closest("[data-tab-target]");
   const quickAction = event.target.closest("[data-quick-action]");
   const profileAction = event.target.closest("[data-profile-action]");
-  const drawerMessage = event.target.closest("[data-drawer-message]");
-  const drawerAction = event.target.closest("[data-drawer-action]");
   const editRoute = event.target.closest("[data-edit-route]");
   if (editRoute) {
     openEntry("route", editRoute.dataset.editRoute);
@@ -2028,24 +2027,7 @@ document.addEventListener("click", (event) => {
     openEntry(editAsset.dataset.editModule, editAsset.dataset.editId);
     return;
   }
-  if (drawerMessage) {
-    const message = messages.find((item) => item.id === drawerMessage.dataset.drawerMessage);
-    if (message) {
-      message.unread = false;
-      closeManagerDrawer();
-      if (message.module === "auto") openAutoControl(); else openModule(message.module);
-      renderMessages();
-      renderManagerDrawer();
-    }
-    return;
-  }
-  if (drawerAction?.dataset.drawerAction === "messages") {
-    closeManagerDrawer();
-    switchView("messages");
-    return;
-  }
   if (moduleButton) {
-    closeManagerDrawer();
     const name = moduleButton.dataset.openModule;
     if (name === "auto") openAutoControl(); else openModule(name, moduleButton.dataset.filter || "全部");
   }
@@ -2058,17 +2040,12 @@ document.addEventListener("click", (event) => {
   if (profileAction) openProfileSubpage(profileAction.dataset.profileAction);
 });
 
-$("#headerMessageButton").addEventListener("click", () => switchView("messages"));
-$("#managerDrawerButton").addEventListener("click", openManagerDrawer);
-$("#managerDrawerClose").addEventListener("click", closeManagerDrawer);
-$("#managerDrawerOverlay").addEventListener("click", closeManagerDrawer);
 document.addEventListener("keydown", (event) => {
   const entryOpen = $("#managerEntryView").classList.contains("open");
   const profileOpen = $("#managerProfileSubpage").classList.contains("open");
   if (event.key === "Escape") {
     if (profileOpen) closeProfileSubpage();
     else if (entryOpen) closeEntry();
-    else closeManagerDrawer();
     return;
   }
   if (event.key !== "Tab" || !entryOpen) return;
@@ -2080,6 +2057,13 @@ document.addEventListener("keydown", (event) => {
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
 window.addEventListener("storage", (event) => {
+  if (event.key === window.FeedbackManager.STORAGE_KEY) {
+    if (state.profilePage === "help" && $("#managerProfileSubpage").classList.contains("open")) {
+      $("#profileSubpageContent").innerHTML = helpPageMarkup();
+      refreshIcons();
+    }
+    return;
+  }
   if (event.key === MANAGER_PROFILE_STORAGE_KEY) {
     managerProfile = readManagerProfile();
     renderManagerProfile();
@@ -2122,18 +2106,45 @@ $("#managerEntryForm").addEventListener("submit", saveEntry);
 $("#profileSubpageBack").addEventListener("click", () => closeProfileSubpage());
 
 $("#profileSubpageContent").addEventListener("click", (event) => {
+  const feedbackTab = event.target.closest("[data-manager-feedback-tab]");
+  if (feedbackTab) {
+    state.feedbackTab = feedbackTab.dataset.managerFeedbackTab;
+    $("#profileSubpageContent").innerHTML = helpPageMarkup();
+    $("#profileSubpageContent").scrollTop = 0;
+    refreshIcons();
+    return;
+  }
   if (event.target.closest("[data-profile-cancel]")) { closeProfileSubpage(); return; }
   const nestedAction = event.target.closest("[data-profile-nested-action]");
   if (nestedAction) openProfileSubpage(nestedAction.dataset.profileNestedAction);
 });
 
 $("#profileSubpageContent").addEventListener("input", (event) => {
+  const feedbackDescription = event.target.closest("#managerFeedbackForm textarea[name='description']");
+  if (feedbackDescription) {
+    const counter = feedbackDescription.closest(".feedback-field").querySelector("[data-manager-feedback-count]");
+    if (counter) counter.textContent = `${feedbackDescription.value.length}/1000`;
+    return;
+  }
   if (!event.target.closest("#managerProfileForm")) return;
   if (event.target.name === "phone") event.target.value = event.target.value.replace(/\D/g, "").slice(0, 11);
   syncProfileEditorState();
 });
 
 $("#profileSubpageContent").addEventListener("change", (event) => {
+  const feedbackFiles = event.target.closest("#managerFeedbackForm input[name='attachments']");
+  if (feedbackFiles) {
+    const validation = window.FeedbackManager.validateFiles(feedbackFiles.files);
+    const summary = feedbackFiles.closest(".feedback-field").querySelector("[data-manager-feedback-files]");
+    if (validation.error) {
+      feedbackFiles.value = "";
+      summary.textContent = validation.error;
+      showToast(validation.error);
+      return;
+    }
+    summary.textContent = validation.files.length ? `已选择 ${validation.files.length} 个附件：${validation.files.map((file) => file.name).join("、")}` : "尚未选择附件";
+    return;
+  }
   if (event.target.matches("[data-notification-setting]")) {
     managerNotifications[event.target.dataset.notificationSetting] = event.target.checked;
     localStorage.setItem(MANAGER_NOTIFICATION_STORAGE_KEY, JSON.stringify(managerNotifications));
@@ -2157,20 +2168,56 @@ $("#profileSubpageContent").addEventListener("change", (event) => {
   reader.readAsDataURL(file);
 });
 
-$("#profileSubpageContent").addEventListener("submit", (event) => {
+$("#profileSubpageContent").addEventListener("submit", async (event) => {
   if (event.target.id === "managerProfileForm") { saveManagerProfile(event); return; }
   if (event.target.id !== "managerFeedbackForm") return;
   event.preventDefault();
-  const feedback = event.target.elements.feedback.value.trim();
-  if (!feedback) { event.target.elements.feedback.focus(); return; }
-  let records = [];
-  try { records = JSON.parse(localStorage.getItem(MANAGER_FEEDBACK_STORAGE_KEY) || "[]"); }
-  catch (error) { records = []; }
-  const next = Array.isArray(records) ? records : [];
-  next.push({ content: feedback, createdAt: new Date().toISOString() });
-  localStorage.setItem(MANAGER_FEEDBACK_STORAGE_KEY, JSON.stringify(next.slice(-20)));
-  event.target.reset();
-  showToast("反馈已记录");
+  const form = event.target;
+  const values = new FormData(form);
+  const description = String(values.get("description") || "").trim();
+  const contactPhone = String(values.get("contactPhone") || "").trim();
+  if (description.length < 10) { form.elements.description.focus(); showToast("问题描述至少填写 10 个字"); return; }
+  if (!/^1[3-9]\d{9}$/.test(contactPhone)) { form.elements.contactPhone.focus(); showToast("请输入正确的 11 位联系电话"); return; }
+  const validation = window.FeedbackManager.validateFiles(form.elements.attachments.files);
+  if (validation.error) { showToast(validation.error); return; }
+  const button = form.querySelector("[type='submit']");
+  button.disabled = true;
+  button.textContent = validation.files.length ? "正在上传附件…" : "正在提交…";
+  const relatedOption = form.elements.relatedId.selectedOptions[0];
+  const businessId = String(values.get("businessId") || "").trim();
+  const feedbackId = window.FeedbackManager.makeId();
+  try {
+    const attachments = await window.FeedbackManager.saveAttachments(feedbackId, validation.files);
+    window.FeedbackManager.create({
+      id: feedbackId,
+      source: "manager",
+      submitterId: managerProfile.account,
+      submitterName: managerProfile.name,
+      submitterPhone: managerProfile.phone,
+      submitterAccount: managerProfile.account,
+      submitterRole: managerProfile.role,
+      submitterDepartment: managerProfile.department,
+      categoryCode: String(values.get("categoryCode") || ""),
+      description,
+      contactPhone,
+      relatedType: values.get("relatedId") ? "module" : businessId ? "business" : "",
+      relatedId: businessId || String(values.get("relatedId") || ""),
+      relatedLabel: [relatedOption?.value ? relatedOption.textContent : "", businessId].filter(Boolean).join(" · "),
+      attachments,
+      clientVersion: "管理端 1.0",
+      deviceInfo: String(navigator.userAgent || "移动设备").slice(0, 120),
+    });
+    state.feedbackTab = "history";
+    $("#profileSubpageContent").innerHTML = helpPageMarkup();
+    $("#profileSubpageContent").scrollTop = 0;
+    refreshIcons();
+    showToast(`反馈已提交：${feedbackId}`);
+  } catch (error) {
+    console.error("管理端意见反馈提交失败。", error);
+    button.disabled = false;
+    button.textContent = "提交意见反馈";
+    showToast(error.message || "反馈提交失败，请重试");
+  }
 });
 
 $("#managerEntryContent").addEventListener("click", (event) => {
@@ -2248,7 +2295,7 @@ $("#messageList").addEventListener("click", (event) => {
   if (message.module === "auto") openAutoControl(); else openModule(message.module);
   renderMessages();
 });
-$("#readAllButton").addEventListener("click", () => { messages.forEach((item) => { item.unread = false; }); renderMessages(); renderManagerDrawer(); renderWorkbench(); updateWorkbenchCounts(); showToast("消息已全部标记为已读"); });
+$("#readAllButton").addEventListener("click", () => { messages.forEach((item) => { item.unread = false; }); renderMessages(); renderWorkbench(); updateWorkbenchCounts(); showToast("消息已全部标记为已读"); });
 
 loadSharedCatalog();
 loadCreatedRecords();

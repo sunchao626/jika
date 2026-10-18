@@ -75,8 +75,6 @@ button { cursor: pointer; }
 }
 
 .icon-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.notification-button { position: relative; }
-.notification-dot { position: absolute; top: 8px; right: 8px; width: 7px; height: 7px; border: 2px solid white; border-radius: 50%; background: var(--danger); }
 
 .mobile-main {
   position: relative;
@@ -255,7 +253,6 @@ button { cursor: pointer; }
 .profile-name-line button.rejected { background: #fff0f1; color: #d75563; }
 .profile-copy p { margin: 5px 0 4px; overflow: hidden; color: #6e7a8e; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .profile-copy small { color: #9aa4b5; }
-.profile-edit { border: 0; border-radius: 8px; padding: 7px 9px; background: #eef3fd; color: var(--primary); font-size: 10px; }
 
 .version-text { margin: 20px 0 0; color: #b1b9c6; font-size: 9px; text-align: center; }
 
@@ -264,7 +261,6 @@ button { cursor: pointer; }
 .profile-hero { margin: 0 2px; padding: 12px 4px 18px; }
 .avatar { width: 56px; height: 56px; border: 0; border-radius: 16px; background: var(--primary); box-shadow: 0 8px 18px rgba(53,106,230,.2); }
 .profile-copy small { font-size: 10px; }
-.profile-edit { min-width: 44px; min-height: 32px; border-radius: 8px; font-weight: 700; }
 
 .profile-order-panel,
 .profile-menu-group { overflow: hidden; border: 1px solid #e9edf4; border-radius: 14px; background: white; box-shadow: 0 7px 22px rgba(34,48,79,.045); }
@@ -680,15 +676,6 @@ button { cursor: pointer; }
 .upload-icon { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 8px; background: #e6edfc; color: var(--primary); font-size: 18px; }
 .upload-box strong { margin-top: 6px; font-size: 10px; }
 .upload-box small { margin-top: 3px; color: #a2adbd; font-size: 8px; }
-.compact-sheet { padding: 0 18px calc(18px + var(--safe-bottom)); }
-.driver-options { display: grid; gap: 8px; }
-.driver-option { display: flex; width: 100%; min-height: 52px; align-items: center; gap: 11px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 11px; background: white; text-align: left; }
-.driver-option .avatar-mini { display: grid; width: 35px; height: 35px; place-items: center; border-radius: 10px; background: #edf3ff; color: var(--primary); font-weight: 800; }
-.driver-option span { flex: 1; color: var(--text); font-size: 11px; }
-.driver-option span strong { display: block; color: var(--ink); font-size: 12px; }
-.driver-option span small { display: block; margin-top: 3px; color: var(--muted); }
-.driver-option.active { border-color: var(--primary); background: #f8faff; }
-.driver-option em { color: var(--primary); font-size: 10px; font-style: normal; }
 
 .toast { position: absolute; z-index: 80; right: 24px; bottom: calc(86px + var(--safe-bottom)); left: 24px; visibility: hidden; transform: translateY(8px); border-radius: 12px; padding: 12px 15px; color: white; background: rgba(24,34,53,.92); opacity: 0; font-size: 11px; line-height: 1.5; text-align: center; transition: .2s ease; }
 .toast.show { visibility: visible; transform: translateY(0); opacity: 1; }
@@ -820,7 +807,6 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 }
 
 .icon-button svg { width: 22px; height: 22px; stroke-width: 1.9; }
-.notification-dot { top: 8px; right: 7px; width: 8px; height: 8px; border-width: 2px; background: #ff6479; }
 
 .mobile-main { z-index: 1; }
 .mobile-view { padding: 14px 16px calc(102px + var(--safe-bottom)); }
@@ -969,7 +955,6 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 .profile-name-line button { border-radius: 11px; padding: 5px 8px; }
 .profile-copy p { color: #71748a; font-size: 11px; }
 .profile-copy small { color: #999bad; }
-.profile-edit { min-width: 48px; min-height: 34px; border: 1px solid #e4e2ff; border-radius: 17px; background: rgba(255,255,255,.72); }
 
 .profile-order-panel,
 .profile-menu-group { border-radius: 20px; }
@@ -1131,9 +1116,6 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 .photo-slot { border-color: #e5e4f0; border-radius: 12px; }
 .photo-slot.selected { border-color: #b8e4ce; background: #f4fbf7; }
 .upload-icon { border-radius: 50%; background: #e7e5ff; }
-.driver-option { min-height: 58px; border-color: #ececf3; border-radius: 17px; padding: 9px 12px; }
-.driver-option .avatar-mini { border-radius: 50%; background: #efeeff; }
-.driver-option.active { border-color: #c4bffc; background: #f7f6ff; }
 
 .toast {
   right: 36px;
@@ -1167,7 +1149,6 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 }
 
 /* Driver message center */
-.notification-dot[hidden],
 .nav-message-badge[hidden] { display: none; }
 .driver-message-tabs {
   display: grid;
@@ -1394,3 +1375,91 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 .capacity-ownership-badge.third { color: #8a4b08; background: #fff4df; border-color: #edc781; }
 .capacity-ownership-badge.mixed { color: #9b2c2c; background: #fff0f0; border-color: #ef9b9b; }
 .capacity-ownership-badge.pending { color: #5c6470; background: #f2f4f7; border-color: #d5dae1; }
+
+/* Driver profile actions, vehicle editing and credential attachments. */
+.mobile-header .header-copy { margin-left: 0; }
+.profile-menu-list button > small { flex: 0 0 auto; color: #8f99aa; font-size: 9px; font-weight: 500; }
+.vehicle-summary > div:nth-child(2) { min-width: 0; flex: 1; }
+.vehicle-summary-actions { display: flex; flex: 0 0 auto; gap: 7px; }
+.vehicle-summary-actions button { min-width: 48px; height: 32px; border: 1px solid rgba(255,255,255,.38); border-radius: 16px; padding: 0 10px; color: #fff; background: rgba(255,255,255,.14); font-size: 10px; font-weight: 700; }
+.vehicle-summary-actions button:disabled { cursor: not-allowed; opacity: .55; }
+.vehicle-summary-actions button:last-child { border-color: #fff; color: var(--primary); background: #fff; }
+.profile-credential-section > h2 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.profile-credential-section > h2 button { border: 0; padding: 3px 0; color: var(--primary); background: transparent; font-size: 10px; font-weight: 700; }
+.credential-document-list { display: grid; gap: 0; }
+.credential-document-card { border-bottom: 1px solid #eef1f5; padding: 14px 16px; }
+.credential-document-card:last-child { border-bottom: 0; }
+.credential-document-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.credential-document-card > header div { min-width: 0; }
+.credential-document-card > header strong,
+.credential-document-card > header span { display: block; overflow-wrap: anywhere; }
+.credential-document-card > header strong { color: #405069; font-size: 12px; }
+.credential-document-card > header span { margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.credential-document-card > header em { flex: 0 0 auto; border-radius: 8px; padding: 4px 7px; color: #6459e9; background: #efeeff; font-size: 8px; font-style: normal; }
+.credential-attachment-list { display: grid; gap: 7px; margin-top: 10px; }
+.credential-attachment-list button { display: grid; min-height: 40px; grid-template-columns: 19px minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 1px solid #e6e8f2; border-radius: 11px; padding: 7px 9px; color: #596078; background: #fafaff; text-align: left; }
+.credential-attachment-list button i,
+.credential-attachment-list button svg { width: 17px; height: 17px; color: var(--primary); stroke-width: 1.8; }
+.credential-attachment-list button span { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.credential-attachment-list button b { color: var(--primary); font-size: 9px; }
+.credential-empty { display: block; border: 1px dashed #ddddea; border-radius: 10px; padding: 11px; color: #a0a2b3; background: #fafafd; font-size: 9px; text-align: center; }
+.credential-document-list.compact .credential-document-card { padding-top: 12px; padding-bottom: 12px; }
+.certification-change-notice { margin: 12px 2px 0; border-radius: 12px; padding: 11px 13px; color: #8a632f; background: #fff7eb; font-size: 9px; line-height: 1.65; }
+.credential-pdf-preview { grid-column: 1 / -1; width: 100%; height: min(68dvh, 620px); border: 0; border-radius: 10px; background: #f4f5f8; }
+.credential-image-preview { grid-column: 1 / -1; }
+.credential-image-preview img { max-height: 64dvh; aspect-ratio: auto; }
+.credential-preview-empty { display: flex; grid-column: 1 / -1; min-height: 160px; align-items: center; justify-content: center; flex-direction: column; gap: 7px; color: var(--muted); font-size: 10px; }
+.credential-preview-empty strong { color: var(--ink); font-size: 13px; }
+
+@media (max-width: 360px) {
+  .vehicle-summary { flex-wrap: wrap; }
+  .vehicle-summary-actions { width: 100%; justify-content: flex-end; padding-left: 58px; }
+  .profile-menu-list button > small { display: none; }
+  .certification-upload-grid { grid-template-columns: 1fr; }
+}
+
+/* Driver credential upload stays inside the certification page and previews in place. */
+.certification-form .info-section + .info-section { margin-top: 12px; }
+.credential-upload-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.credential-upload-heading strong { color: var(--ink); font-size: 13px; }
+.credential-upload-heading span { color: var(--muted); font-size: 9px; text-align: right; }
+.credential-upload-card-grid { grid-template-columns: 1fr; gap: 14px; margin-top: 0; }
+.credential-upload-card { overflow: hidden; border: 1px solid #e2e4ee; border-radius: 16px; background: #fff; box-shadow: 0 5px 18px rgba(48, 52, 92, .05); }
+.credential-upload-card > header { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: 10px; padding: 0 13px; }
+.credential-upload-card > header strong { color: #3f4356; font-size: 11px; }
+.credential-upload-card > header em { border-radius: 10px; padding: 3px 7px; color: #b55a35; background: #fff1ea; font-size: 8px; font-style: normal; }
+.credential-upload-card.has-files > header em { color: #267557; background: #eaf8f1; }
+.credential-upload-card > input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.credential-card-stage { padding: 0 12px; }
+.credential-card-empty,
+.credential-card-preview { display: flex; width: 100%; min-height: 142px; align-items: center; justify-content: center; flex-direction: column; border: 1px dashed #c8c9da; border-radius: 13px; padding: 16px; color: #5f6172; background: #f8f8fc; text-align: center; }
+.credential-card-empty { cursor: pointer; }
+.credential-card-empty i,
+.credential-card-empty svg { width: 28px; height: 28px; margin-bottom: 9px; color: #66687a; stroke-width: 1.7; }
+.credential-card-empty strong { font-size: 11px; }
+.credential-card-empty span { margin-top: 6px; color: #999bab; font-size: 8px; }
+.credential-card-empty.readonly { cursor: default; }
+.credential-card-preview { position: relative; overflow: hidden; border-style: solid; padding: 0; cursor: zoom-in; background: #eeeef5; }
+.credential-card-asset { display: flex; width: 100%; min-height: 142px; align-items: center; justify-content: center; }
+.credential-card-asset img { width: 100%; height: 142px; object-fit: contain; background: #ececf2; }
+.credential-card-asset i,
+.credential-card-asset svg { width: 38px; height: 38px; color: #77798c; stroke-width: 1.6; }
+.credential-card-preview-copy { position: absolute; right: 0; bottom: 0; left: 0; display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; color: #fff; background: rgba(34, 36, 50, .74); text-align: left; }
+.credential-card-preview-copy strong { min-width: 0; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.credential-card-preview-copy small { flex: 0 0 auto; color: rgba(255,255,255,.82); font-size: 8px; }
+.credential-upload-card > footer { display: flex; min-height: 41px; align-items: center; justify-content: center; gap: 20px; padding: 5px 12px; color: #9698a8; font-size: 8px; }
+.credential-upload-card > footer label,
+.credential-upload-card > footer button { display: inline-flex; height: 30px; align-items: center; gap: 5px; border: 0; padding: 0 6px; color: var(--primary); background: transparent; font-size: 9px; font-weight: 700; cursor: pointer; }
+.credential-upload-card > footer button { color: #c35d64; }
+.credential-upload-card > footer i,
+.credential-upload-card > footer svg { width: 13px; height: 13px; }
+.credential-preview-section { padding-bottom: 16px; }
+.credential-readonly-grid .credential-upload-card { box-shadow: none; }
+.credential-readonly-grid .credential-card-stage { padding-bottom: 12px; }
+
+@media (max-width: 360px) {
+  .credential-card-empty,
+  .credential-card-preview,
+  .credential-card-asset { min-height: 128px; }
+  .credential-card-asset img { height: 128px; }
+}

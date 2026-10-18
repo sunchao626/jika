@@ -64,6 +64,20 @@
     }
   }
 
+  async function deletePhotos(ids) {
+    const normalizedIds = [...new Set((ids || []).filter(Boolean))];
+    if (!normalizedIds.length) return;
+    const database = await openPhotoDatabase();
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(PHOTO_STORE, "readwrite");
+      const store = transaction.objectStore(PHOTO_STORE);
+      normalizedIds.forEach((id) => store.delete(id));
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error || new Error("图片删除失败"));
+      transaction.onabort = () => reject(transaction.error || new Error("图片删除已取消"));
+    }).finally(() => database.close());
+  }
+
   function replace(target, source) {
     target.splice(0, target.length, ...clone(source));
     return target;
@@ -75,5 +89,5 @@
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
-  window.DispatchStore = { STORAGE_KEY, load, save, replace, nowText, savePhotos, getPhoto };
+  window.DispatchStore = { STORAGE_KEY, load, save, replace, nowText, savePhotos, getPhoto, deletePhotos };
 })();

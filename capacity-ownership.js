@@ -3,7 +3,10 @@
 
   const TYPES = Object.freeze({ SELF: "自营", THIRD: "三方", MIXED: "自营+三方", PENDING: "待确定" });
   const STORAGE_KEY = "container-logistics-third-party-suppliers-v1";
-  const SELF_ORGANIZATION = "本公司";
+  const CUSTOMER_STORAGE_KEY = "container-logistics-customers-v1";
+  const SUPPLIER_ROLE = "三方供应商";
+  const SELF_ORGANIZATION = "万物时空";
+  const LEGACY_SELF_ORGANIZATION = "本公司";
   const seedSuppliers = [
     { id: "SUP-001", name: "临港外协集卡车队", status: "启用", contact: "赵经理", phone: "021-68000021", remark: "上海临港集卡运力" },
     { id: "SUP-002", name: "杭州危险品运输车队", status: "启用", contact: "陈经理", phone: "0571-88002190", remark: "杭州危险品及普货运力" },
@@ -11,6 +14,15 @@
 
   function text(value) {
     return String(value ?? "").trim();
+  }
+
+  function normalizeOrganizationName(value) {
+    const organization = text(value);
+    return organization === LEGACY_SELF_ORGANIZATION ? SELF_ORGANIZATION : organization;
+  }
+
+  function normalizeOrganizationText(value) {
+    return String(value ?? "").replaceAll(LEGACY_SELF_ORGANIZATION, SELF_ORGANIZATION);
   }
 
   function escapeHtml(value) {
@@ -30,40 +42,59 @@
     return source || TYPES.PENDING;
   }
 
-  function readSuppliers() {
+  function readLegacySuppliers() {
     try {
       const records = JSON.parse(global.localStorage?.getItem(STORAGE_KEY) || "null");
-      if (Array.isArray(records) && records.length) return records;
+      if (Array.isArray(records)) return records;
     } catch {}
     return seedSuppliers.map((item) => ({ ...item }));
   }
 
-  function saveSuppliers(records) {
-    const normalized = (records || []).map((item, index) => ({
-      id: text(item.id) || `SUP-${String(index + 1).padStart(3, "0")}`,
-      name: text(item.name), status: text(item.status) || "启用", contact: text(item.contact),
-      phone: text(item.phone), remark: text(item.remark),
-    })).filter((item) => item.name);
-    global.localStorage?.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    return normalized;
+  function customerRoles(customer = {}) {
+    if (Array.isArray(customer.businessRoles)) return customer.businessRoles.map(text);
+    const role = text(customer.businessRole);
+    if (role === "客户+三方供应商") return ["客户", SUPPLIER_ROLE];
+    return role ? [role] : ["客户"];
+  }
+
+  function supplierFromCustomer(customer = {}) {
+    return {
+      id: text(customer.customerNo || customer.id),
+      name: text(customer.customerName || customer.name),
+      status: text(customer.customerStatus || customer.status) || "启用",
+      contact: text(customer.contactName || customer.contact),
+      phone: text(customer.mobile || customer.phone),
+      remark: text(customer.remark),
+      customerNo: text(customer.customerNo || customer.id),
+      legacySupplierId: text(customer.legacySupplierId),
+    };
+  }
+
+  function readCustomers() {
+    try {
+      const customers = JSON.parse(global.localStorage?.getItem(CUSTOMER_STORAGE_KEY) || "null");
+      return Array.isArray(customers) ? customers : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function readSuppliers() {
+    const customerRecords = readCustomers();
+    const result = customerRecords.filter((item) => customerRoles(item).includes(SUPPLIER_ROLE)).map(supplierFromCustomer).filter((item) => item.id && item.name);
+    if (!customerRecords.length) return readLegacySuppliers();
+    readLegacySuppliers().forEach((legacy) => {
+      const migrated = customerRecords.some((item) => text(item.legacySupplierId).toLowerCase() === text(legacy.id).toLowerCase() || text(item.customerName).toLowerCase() === text(legacy.name).toLowerCase());
+      if (migrated) return;
+      result.push({ ...legacy });
+    });
+    return result;
   }
 
   function findSupplier(value, records = readSuppliers()) {
     const target = text(value).toLowerCase();
-    return records.find((item) => [item.id, item.name].some((candidate) => text(candidate).toLowerCase() === target));
-  }
-
-  function ensureSupplier(name, detail = {}) {
-    const supplierName = text(name);
-    if (!supplierName) return null;
-    const records = readSuppliers();
-    const existing = findSupplier(supplierName, records);
-    if (existing) return existing;
-    const sequence = records.reduce((max, item) => Math.max(max, Number(text(item.id).replace(/\D/g, "")) || 0), 0) + 1;
-    const supplier = { id: `SUP-${String(sequence).padStart(3, "0")}`, name: supplierName, status: "启用", contact: "", phone: "", remark: "历史档案自动归集", ...detail };
-    records.push(supplier);
-    saveSuppliers(records);
-    return supplier;
+    if (!target) return undefined;
+    return records.find((item) => [item.id, item.customerNo, item.legacySupplierId, item.name].some((candidate) => text(candidate).toLowerCase() === target));
   }
 
   function organizationName(record = {}) {
@@ -85,7 +116,7 @@
     supplierName = legacyAliases[supplierName] || supplierName;
     let supplierId = capacityOwnership === TYPES.THIRD ? text(record.supplierId) : "";
     if (supplierName || supplierId) {
-      const supplier = findSupplier(supplierId) || findSupplier(supplierName) || ensureSupplier(supplierName);
+      const supplier = findSupplier(supplierId) || findSupplier(supplierName);
       supplierId = supplier?.id || supplierId;
       supplierName = supplier?.name || supplierName;
     }
@@ -121,7 +152,7 @@
   function badgeMarkup(value, tooltip = "") {
     const type = normalizeType(value);
     const className = type === TYPES.SELF ? "self" : type === TYPES.THIRD ? "third" : type === TYPES.MIXED ? "mixed" : "pending";
-    const title = tooltip ? ` title="${escapeHtml(tooltip)}"` : "";
+    const title = tooltip ? ` title="${escapeHtml(normalizeOrganizationText(tooltip))}"` : "";
     return `<span class="capacity-ownership-badge ${className}"${title}>${escapeHtml(type)}</span>`;
   }
 
@@ -130,7 +161,7 @@
     return [...records].sort((left, right) => (priority[normalizeType(typeGetter(left))] ?? 9) - (priority[normalizeType(typeGetter(right))] ?? 9));
   }
 
-  global.CapacityOwnership = Object.freeze({ TYPES, STORAGE_KEY, SELF_ORGANIZATION, normalizeType, normalizeResource, organizationName, groupSnapshot, matchesFilter, badgeMarkup, sortSelfFirst, readSuppliers, saveSuppliers, findSupplier, ensureSupplier, escapeHtml });
+  global.CapacityOwnership = Object.freeze({ TYPES, STORAGE_KEY, CUSTOMER_STORAGE_KEY, SUPPLIER_ROLE, SELF_ORGANIZATION, normalizeType, normalizeOrganizationName, normalizeOrganizationText, normalizeResource, organizationName, groupSnapshot, matchesFilter, badgeMarkup, sortSelfFirst, readSuppliers, findSupplier, escapeHtml });
 })(typeof window !== "undefined" ? window : globalThis);
 
 if (typeof module !== "undefined" && module.exports) module.exports = globalThis.CapacityOwnership;

@@ -46,6 +46,7 @@ assert.equal(pending.timeline.length, 0);
 const noRoute = context.createPendingDispatch({ ...waybill, waybillNo: "WB20260921002" }, null);
 assert.equal(noRoute.routeName, "未指定线路");
 assert.equal(noRoute.estimatedRevenue, 2800);
-assert.match(source, /const pending = dispatches\.find\(\(item\) => item\.waybillNo === waybill\.waybillNo && item\.status === "待派单"\);\s*if \(pending\) Object\.assign\(pending, assigned\)/);
+assert.match(source, /const pending = dispatches\.find\(\(item\) => item\.waybillNo === waybill\.waybillNo && item\.status === "待派单"\);\s*const savedDispatch = pending \|\| \{ id: `PD-\$\{Date\.now\(\)\}`, \.\.\.assigned \};\s*if \(pending\) Object\.assign\(pending, assigned\);\s*else dispatches\.unshift\(savedDispatch\)/);
+assert.match(source, /DispatchOperationLog\?\.record\(savedDispatch, \{[\s\S]*?action: "创建并推送派单"[\s\S]*?changes: \[/);
 assert.match(source, /saveWaybills\(\);\s*createPendingDispatch\(newWaybill, route\)/);
 console.log("Waybill to pending dispatch test passed");

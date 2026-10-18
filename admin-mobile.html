@@ -7,13 +7,12 @@
     <title>集卡物流管理端</title>
     <link rel="stylesheet" href="admin-mobile.css" />
     <link rel="stylesheet" href="design-tokens.css" />
+    <link rel="stylesheet" href="feedback-management.css" />
   </head>
   <body>
     <div class="manager-shell">
       <header class="manager-header" id="managerHeader">
-        <button class="manager-drawer-toggle" id="managerDrawerButton" type="button" aria-label="打开工作台导航"><i data-lucide="menu"></i></button>
         <div class="manager-header-copy"><span class="manager-eyebrow" id="headerEyebrow">集卡物流管理端</span><h1 id="managerTitle">工作台</h1></div>
-        <button class="header-icon" id="headerMessageButton" type="button" aria-label="消息中心"><i data-lucide="bell"></i><span>3</span></button>
       </header>
 
       <main class="manager-main">
@@ -154,24 +153,6 @@
         </section>
       </main>
 
-      <div class="manager-drawer-overlay" id="managerDrawerOverlay" aria-hidden="true"></div>
-      <aside class="manager-drawer" id="managerDrawer" aria-hidden="true" aria-label="工作台侧边导航">
-        <header class="manager-drawer-header">
-          <div class="manager-drawer-brand"><span class="manager-drawer-logo"><i data-lucide="layout-dashboard"></i></span><div><strong>工作台导航</strong><small>集卡物流管理端</small></div></div>
-          <button class="manager-drawer-close" id="managerDrawerClose" type="button" aria-label="关闭导航"><i data-lucide="x"></i></button>
-        </header>
-        <div class="manager-drawer-scroll">
-          <section class="manager-drawer-section">
-            <div class="manager-drawer-heading"><span>常用功能</span><small>业务快捷入口</small></div>
-            <div class="manager-drawer-links" id="managerDrawerLinks"></div>
-          </section>
-          <section class="manager-drawer-section manager-drawer-reminder-section">
-            <div class="manager-drawer-heading"><span>我的提醒</span><button type="button" data-drawer-action="messages">查看全部 <b>›</b></button></div>
-            <div class="manager-drawer-reminders" id="managerDrawerReminders"></div>
-          </section>
-        </div>
-      </aside>
-
       <nav class="manager-bottom-nav" id="managerBottomNav" aria-label="主导航">
         <button class="active" data-view="workbench" type="button"><span><i data-lucide="layout-dashboard"></i></span><strong>工作台</strong></button>
         <button data-view="reports" type="button"><span><i data-lucide="chart-no-axes-combined"></i></span><strong>报表</strong></button>
@@ -184,6 +165,8 @@
     <script src="vendor/lucide.min.js"></script>
     <script src="capacity-ownership.js"></script>
     <script src="admin-data-bridge.js"></script>
+    <script src="feedback-management.js"></script>
     <script src="admin-mobile.js"></script>
+    <script src="platform-config.js"></script>
   </body>
 </html>

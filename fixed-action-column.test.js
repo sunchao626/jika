@@ -10,7 +10,7 @@ const styles = fs.readFileSync("styles.css", "utf8");
 [
   'aria-label="固定线路列表"',
   'aria-label="派单列表"',
-  'aria-label="客户档案列表"',
+  'aria-label="往来单位档案列表"',
   'aria-label="车辆档案列表"',
   'aria-label="司机信息列表"',
 ].forEach((label) => {

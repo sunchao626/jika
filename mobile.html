@@ -7,21 +7,15 @@
     <title>集卡司机端</title>
     <link rel="stylesheet" href="mobile.css" />
     <link rel="stylesheet" href="design-tokens.css" />
+    <link rel="stylesheet" href="feedback-management.css" />
   </head>
   <body>
     <div class="phone-shell">
       <header class="mobile-header" id="mobileHeader">
-        <button class="icon-button drawer-toggle" id="taskDrawerButton" type="button" aria-label="打开接单总览">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-        </button>
         <div class="header-copy">
           <span class="eyebrow" id="headerEyebrow">集卡司机端</span>
           <h1 id="mobileTitle">接单</h1>
         </div>
-        <button class="icon-button notification-button" id="notificationButton" type="button" aria-label="打开消息中心">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
-          <span class="notification-dot" id="headerMessageDot" hidden></span>
-        </button>
       </header>
 
       <main class="mobile-main">
@@ -69,7 +63,6 @@
                 <button data-profile-page="personal" type="button">基础信息 <b>›</b></button>
               </div>
             </div>
-            <button class="profile-edit" id="switchDriverButton" type="button" aria-label="切换演示司机">切换</button>
           </div>
 
           <section class="profile-order-panel">
@@ -85,7 +78,8 @@
             <div class="profile-menu-list">
               <button data-profile-page="expenses" type="button"><span class="profile-menu-icon purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M8 8h8M8 12h2M14 12h2M8 16h2M14 16h2"/></svg></span><span>费用上报</span><b>›</b></button>
               <button class="profile-vehicle-row" data-profile-page="vehicle" type="button"><span class="profile-menu-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V8l2-3h10l2 3v8M5 11h14M7 16v2M17 16v2"/><circle cx="8" cy="14" r="1"/><circle cx="16" cy="14" r="1"/></svg></span><span>车辆信息</span><span class="profile-vehicle-summary"><strong id="profileVehiclePlate">暂未分配</strong><small id="profileVehicleDescription">暂无车辆信息</small></span><b>›</b></button>
-              <button data-profile-page="service" type="button"><span class="profile-menu-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 16 0v5a2 2 0 0 1-2 2h-2v-7h4M4 12v5h4v-5H4M12 20h4"/></svg></span><span>联系调度</span><b>›</b></button>
+              <button data-call-service type="button"><span class="profile-menu-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 16 0v5a2 2 0 0 1-2 2h-2v-7h4M4 12v5h4v-5H4M12 20h4"/></svg></span><span>客服电话</span><small>400-800-6688</small><b>›</b></button>
+              <button data-profile-page="feedback" type="button"><span class="profile-menu-icon orange"><i data-lucide="message-square-plus" aria-hidden="true"></i></span><span>意见反馈</span><small>问题与建议</small><b>›</b></button>
               <button data-profile-page="settings" type="button"><span class="profile-menu-icon gray"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 0 0-1.7-1L14.5 3h-5L9 6.1a8 8 0 0 0-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 0 0 0 2l-2.1 1.5 2 3.4 2.4-1a8 8 0 0 0 1.7 1l.5 3.1h5l.5-3.1a8 8 0 0 0 1.7-1l2.4 1 2-3.4L19 13a7 7 0 0 0 .1-1Z"/></svg></span><span>系统设置</span><b>›</b></button>
             </div>
           </section>
@@ -117,32 +111,6 @@
           <div class="subpage-scroll" id="subpageContent"></div>
         </section>
       </main>
-
-      <div class="task-drawer-overlay" id="taskDrawerOverlay" aria-hidden="true"></div>
-      <aside class="task-drawer" id="taskDrawer" aria-hidden="true" aria-label="接单总览">
-        <header class="task-drawer-header">
-          <div class="drawer-driver">
-            <div class="drawer-avatar" id="drawerAvatar">赵</div>
-            <div>
-              <strong id="drawerDriverName">赵亮</strong>
-              <span id="drawerDriverMeta">自有司机 · 临港车队</span>
-            </div>
-          </div>
-          <button class="drawer-close" id="taskDrawerClose" type="button" aria-label="关闭接单总览">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
-          </button>
-        </header>
-        <div class="task-drawer-scroll">
-          <section class="drawer-section drawer-overview-section">
-            <div class="drawer-section-heading"><div><span>接单总览</span><strong>我的运输任务</strong></div><span class="drawer-date" id="drawerTodayLabel">今天</span></div>
-            <div class="drawer-stats" id="drawerStats"></div>
-          </section>
-          <section class="drawer-section drawer-record-section">
-            <div class="drawer-section-heading"><div><span>最近记录</span><strong>我的运单</strong></div><button type="button" data-drawer-action="orders">查看全部 <b>›</b></button></div>
-            <div class="drawer-record-list" id="drawerRecordList"></div>
-          </section>
-        </div>
-      </aside>
 
       <nav class="bottom-nav" id="bottomNav" aria-label="主导航">
         <button class="active" data-view="tasks" type="button">
@@ -198,12 +166,6 @@
         </div>
       </dialog>
 
-      <dialog class="bottom-sheet compact-sheet" id="driverDialog">
-        <div class="sheet-handle"></div>
-        <header><div><strong>切换演示司机</strong><span>用于查看不同司机的派单数据</span></div><button class="sheet-close" type="button">×</button></header>
-        <div class="driver-options" id="driverOptions"></div>
-      </dialog>
-
       <div class="toast" id="toast" role="status"></div>
     </div>
 
@@ -215,6 +177,8 @@
     <script src="dispatch-task-nodes.js"></script>
     <script src="photo-requirements.js"></script>
     <script src="expense-report.js"></script>
+    <script src="feedback-management.js"></script>
     <script src="mobile.js"></script>
+    <script src="platform-config.js"></script>
   </body>
 </html>

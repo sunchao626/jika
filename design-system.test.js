@@ -33,7 +33,8 @@ for (const id of ["workbenchPendingCount", "workbenchTransitCount", "workbenchId
 }
 assert.match(manager, /class="metric-card"[^>]*data-open-module="dispatch"/);
 assert.match(desktop, /class="dispatch-stat metric-card/);
-assert.match(driverScript, /class="drawer-stat metric-card/);
+assert.doesNotMatch(driver, /id="taskDrawerButton"|class="task-drawer"/);
+assert.doesNotMatch(driverScript, /renderTaskDrawer|openTaskDrawer/);
 assert.match(read("dispatch-management.js"), /dispatch-management-stat metric-card/);
 
 assert.match(manager, /id="managerEntryView" role="dialog" aria-modal="true"/);

@@ -123,6 +123,22 @@
     return { invoiceAmount, paymentAmount, invoiceStatus: statusFromAmount(order.totalAmount, invoiceAmount, order.type === "receivable" ? ["未开票", "部分开票", "已开票"] : ["未收票", "部分收票", "已收票"]), paymentStatus: statusFromAmount(order.totalAmount, paymentAmount, order.type === "receivable" ? ["未收款", "部分收款", "已收款"] : ["未付款", "部分付款", "已付款"]) };
   }
 
+  function filteredOrderRows() {
+    return orders.filter((order) => {
+      if (activeOrderFilter === "receivable" || activeOrderFilter === "payable") return order.type === activeOrderFilter;
+      if (activeOrderFilter === "receivable-unpaid") return order.type === "receivable" && orderTotals(order).paymentAmount + 0.005 < number(order.totalAmount);
+      if (activeOrderFilter === "payable-unpaid") return order.type === "payable" && orderTotals(order).paymentAmount + 0.005 < number(order.totalAmount);
+      return true;
+    });
+  }
+
+  function transactionRows() {
+    return orders.flatMap((order) => [
+      ...(order.invoiceRecords || []).map((record) => ({ ...record, order, category: order.type === "receivable" ? "销项发票" : "进项发票" })),
+      ...(order.paymentRecords || []).map((record) => ({ ...record, order, category: order.type === "receivable" ? "收款" : "付款" })),
+    ]).sort((left, right) => String(right.recordDate || "").localeCompare(String(left.recordDate || "")));
+  }
+
   function renderSummary() {
     const receivableRows = completedSettlementRows("receivable");
     const payableRows = completedSettlementRows("payable");
@@ -160,16 +176,12 @@
     checkAll.checked = rows.length > 0 && selectedCount === rows.length;
     checkAll.indeterminate = selectedCount > 0 && selectedCount < rows.length;
     checkAll.disabled = rows.length === 0;
+    refreshExportButtons();
   }
 
   function renderOrders() {
     const body = document.querySelector("#settlementOrderBody");
-    const rows = orders.filter((order) => {
-      if (activeOrderFilter === "receivable" || activeOrderFilter === "payable") return order.type === activeOrderFilter;
-      if (activeOrderFilter === "receivable-unpaid") return order.type === "receivable" && orderTotals(order).paymentAmount + 0.005 < number(order.totalAmount);
-      if (activeOrderFilter === "payable-unpaid") return order.type === "payable" && orderTotals(order).paymentAmount + 0.005 < number(order.totalAmount);
-      return true;
-    });
+    const rows = filteredOrderRows();
     body.innerHTML = rows.length ? rows.map((order) => {
       const totals = orderTotals(order);
       return `<tr><td><strong class="primary-text">${escapeHtml(order.id)}</strong><small>${escapeHtml(order.statementNo)}</small></td><td><span class="settlement-direction ${order.type}">${order.type === "receivable" ? "应收" : "应付"}</span></td><td><strong>${escapeHtml(order.counterparty)}</strong></td><td>${escapeHtml((order.projectNames || []).join(" / ") || "-")}</td><td>${(order.lines || []).length}</td><td class="finance-money-cell">${money(order.totalAmount)}</td><td><span class="settlement-status ${order.reconciliationStatus}">${order.reconciliationStatus === "confirmed" ? "已确认" : "已生成"}</span></td><td>${totals.invoiceStatus}</td><td>${totals.paymentStatus}</td><td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-settlement-view="${escapeHtml(order.id)}" type="button">查看</button>${order.documentStatus === "draft" ? `<button class="link-btn success-link" data-settlement-confirm="${escapeHtml(order.id)}" type="button">确认</button>` : ""}</div></td></tr>`;
@@ -182,6 +194,7 @@
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", String(active));
     });
+    refreshExportButtons();
   }
 
   function activateSummary(key) {
@@ -214,14 +227,80 @@
     const checkAll = document.querySelector("#payrollCheckAll");
     checkAll.checked = rows.length > 0 && selectedPayrollIds.size === rows.length;
     checkAll.indeterminate = selectedPayrollIds.size > 0 && selectedPayrollIds.size < rows.length;
+    refreshExportButtons();
   }
 
   function renderTransactions() {
-    const records = orders.flatMap((order) => [
-      ...(order.invoiceRecords || []).map((record) => ({ ...record, order, category: order.type === "receivable" ? "销项发票" : "进项发票" })),
-      ...(order.paymentRecords || []).map((record) => ({ ...record, order, category: order.type === "receivable" ? "收款" : "付款" })),
-    ]).sort((left, right) => String(right.recordDate || "").localeCompare(String(left.recordDate || "")));
+    const records = transactionRows();
     document.querySelector("#settlementTransactionBody").innerHTML = records.length ? records.map((record) => `<tr><td>${escapeHtml(record.recordDate)}</td><td><strong class="primary-text">${escapeHtml(record.order.id)}</strong></td><td>${escapeHtml(record.order.counterparty)}</td><td>${escapeHtml(record.category)}</td><td>${escapeHtml(record.referenceNo || "-")}</td><td class="finance-money-cell">${money(record.amount)}</td><td>${escapeHtml(record.createdBy || "系统管理员")}</td></tr>`).join("") : '<tr><td class="empty-table-cell" colspan="7">暂无发票或收付款登记</td></tr>';
+    refreshExportButtons();
+  }
+
+  function ensureExportButtons() {
+    const placements = [
+      ["#settlementPendingBody", "pending"],
+      ["#settlementOrderBody", "orders", ".settlement-order-tools"],
+      ["#payrollPendingBody", "payroll-pending"],
+      ["#payrollOrderBody", "payroll-orders"],
+      ["#settlementTransactionBody", "transactions"],
+    ];
+    placements.forEach(([bodySelector, type, targetSelector]) => {
+      const card = document.querySelector(bodySelector)?.closest(".settlement-table-card");
+      const target = targetSelector ? card?.querySelector(targetSelector) : card?.querySelector(".table-summary");
+      if (!target || target.querySelector(`[data-settlement-export="${type}"]`)) return;
+      const button = document.createElement("button");
+      button.className = "btn quiet settlement-export-btn";
+      button.type = "button";
+      button.dataset.settlementExport = type;
+      button.innerHTML = '<i data-lucide="download" aria-hidden="true"></i>导出';
+      target.appendChild(button);
+    });
+  }
+
+  function refreshExportButtons() {
+    document.querySelectorAll("[data-settlement-export]").forEach((button) => {
+      const count = exportDataset(button.dataset.settlementExport).rows.length;
+      button.disabled = count === 0;
+      button.title = count ? `导出当前列表全部 ${count} 条数据` : "当前列表暂无可导出数据";
+    });
+  }
+
+  function exportDataset(type) {
+    if (type === "pending") {
+      const rows = filteredPendingRows();
+      return { name: "待结算明细", description: "当前筛选条件", headers: ["方向", "运单号", "完成时间", "客户", "项目", "线路", "结算对象", "运力归属", "车辆", "司机", "结算金额"], rows: rows.map((row) => [row.direction === "receivable" ? "客户应收" : "外调应付", row.waybillNo, row.completedAt, row.customerName, row.projectName, row.routeName, row.counterparty, row.capacityOwnership, row.vehicleNo, row.driverName, number(row.amount).toFixed(2)]) };
+    }
+    if (type === "orders") {
+      const rows = filteredOrderRows();
+      return { name: "结算单与对账单", description: `筛选类型：${activeOrderFilter}`, headers: ["结算单号", "对账单号", "方向", "结算对象", "项目", "运单数", "结算金额", "对账状态", "发票状态", "资金状态", "生成时间"], rows: rows.map((order) => { const totals = orderTotals(order); return [order.id, order.statementNo, order.type === "receivable" ? "应收" : "应付", order.counterparty, (order.projectNames || []).join(" / "), (order.lines || []).length, number(order.totalAmount).toFixed(2), order.reconciliationStatus === "confirmed" ? "已确认" : "已生成", totals.invoiceStatus, totals.paymentStatus, order.createdAt]; }) };
+    }
+    if (type === "payroll-pending") {
+      const rows = payrollSourceRows();
+      return { name: "驾驶员工资待核算运单", description: "全部待核算记录", headers: ["运单号", "驾驶员", "项目", "线路", "完成时间", "任务提成"], rows: rows.map((row) => [row.waybillNo, row.driverName, row.projectName, row.routeName, row.completedAt, number(row.amount).toFixed(2)]) };
+    }
+    if (type === "payroll-orders") {
+      return { name: "驾驶员工资核算单", description: "全部工资核算单", headers: ["核算单号", "驾驶员", "运单数", "应发金额", "状态", "生成时间", "发放时间"], rows: payrollOrders.map((order) => [order.id, order.driverName, (order.lines || []).length, number(order.totalAmount).toFixed(2), ({ draft: "草稿", confirmed: "已确认", paid: "已发放" })[order.status] || order.status, order.createdAt, order.paidAt || "-"]) };
+    }
+    const rows = transactionRows();
+    return { name: "发票与收付款流水", description: "全部流水记录", headers: ["日期", "结算单号", "结算对象", "业务类型", "票据或流水号", "金额", "登记人", "备注"], rows: rows.map((record) => [record.recordDate, record.order.id, record.order.counterparty, record.category, record.referenceNo || "-", number(record.amount).toFixed(2), record.createdBy || "系统管理员", record.remark || "-"]) };
+  }
+
+  function exportSettlementList(type) {
+    const dataset = exportDataset(type);
+    if (!dataset.rows.length) {
+      if (typeof window.showApplicationAlert === "function") window.showApplicationAlert("当前列表没有可导出的数据。");
+      else window.alert("当前列表没有可导出的数据。");
+      return false;
+    }
+    const escapeCsv = (value) => `"${String(value ?? "").replace(/^([=+\-@])/, "'$1").replaceAll('"', '""')}"`;
+    const csv = [dataset.headers, ...dataset.rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
+    link.download = `${dataset.name}-${today()}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    window.OperationLogManager?.record?.({ moduleId: "settlement", moduleName: "结算中心", actionId: "export", actionName: "导出", operatorId: "user-current", operatorName: "张调度", operatorAccount: "zhangdd", roleName: "调度员", targetType: "结算列表", targetId: type, targetLabel: dataset.name, content: `导出${dataset.name}，${dataset.description}，共 ${dataset.rows.length} 条`, changes: [] });
+    return true;
   }
 
   function createSettlementOrders() {
@@ -337,6 +416,7 @@
   }
 
   function render() {
+    ensureExportButtons();
     populateProjectFilter();
     renderSummary();
     renderPending();
@@ -351,6 +431,10 @@
   document.querySelector("#settlementSummary")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-settlement-summary]");
     if (button) activateSummary(button.dataset.settlementSummary);
+  });
+  document.querySelector("#settlementPage")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-settlement-export]");
+    if (button) exportSettlementList(button.dataset.settlementExport);
   });
   document.querySelector("#settlementPendingQuery")?.addEventListener("input", () => { selectedSourceIds.clear(); renderPending(); });
   document.querySelector("#settlementPendingBody")?.addEventListener("change", (event) => {
@@ -410,5 +494,5 @@
     render();
   });
 
-  window.SettlementManager = { render, completedSettlementRows, payrollSourceRows, orderTotals };
+  window.SettlementManager = { render, completedSettlementRows, payrollSourceRows, orderTotals, exportDataset, exportSettlementList };
 })();

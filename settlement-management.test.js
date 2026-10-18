@@ -6,9 +6,9 @@ const app = fs.readFileSync("app.js", "utf8");
 const settlement = fs.readFileSync("settlement-management.js", "utf8");
 const access = fs.readFileSync("user-access.js", "utf8");
 
-assert.match(html, /data-page="settlement-management"[^>]*>结算管理/);
+assert.match(html, /data-page="settlement-management"[^>]*>结算中心/);
 assert.match(html, /id="settlementPage"/);
-assert.match(app, /"settlement-management": \{ title: "结算管理"/);
+assert.match(app, /"settlement-management": \{ title: "结算中心", kicker: "结算管理 \/ 结算中心"/);
 assert.match(app, /if \(meta\.view === "settlement"\) window\.SettlementManager\?\.render\(\)/);
 
 for (const field of [
@@ -36,9 +36,17 @@ assert.match(settlement, /settledSourceIds/);
 assert.match(settlement, /data-settlement-summary/);
 assert.match(settlement, /function activateSummary/);
 assert.match(settlement, /activeOrderFilter/);
+for (const exportType of ["pending", "orders", "payroll-pending", "payroll-orders", "transactions"]) {
+  assert.match(settlement, new RegExp(`data\\.settlementExport = type|data-settlement-export=\\"\\$\\{type\\}\\"`));
+  assert.ok(settlement.includes(`\"${exportType}\"`), `缺少结算列表导出类型 ${exportType}`);
+}
+assert.match(settlement, /function exportSettlementList\(type\)/);
+assert.match(settlement, /const dataset = exportDataset\(type\)/);
+assert.match(settlement, /text\/csv;charset=utf-8/);
+assert.match(settlement, /OperationLogManager\?\.record/);
 assert.match(html, /data-settlement-order-filter="receivable-unpaid"/);
 assert.match(html, /class="settlement-order-no-col"/);
 assert.match(html, /class="settlement-waybill-col"/);
-assert.match(access, /id: "settlements", name: "结算管理"/);
+assert.match(access, /group: "结算管理", id: "settlements", name: "结算中心"/);
 
 console.log("Settlement management contract test passed");

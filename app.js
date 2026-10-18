@@ -1,14 +1,22 @@
 const CapacityOwnership = window.CapacityOwnership || {
   TYPES: { SELF: "自营", THIRD: "三方", MIXED: "自营+三方", PENDING: "待确定" },
+  SELF_ORGANIZATION: "万物时空",
   normalizeType(value) { return ["自有", "自有司机"].includes(value) ? "自营" : ["外协", "外协司机", "三方司机"].includes(value) ? "三方" : value || "待确定"; },
-  organizationName(record = {}) { return this.normalizeType(record.capacityOwnership || record.ownership || record.driverType) === "自营" ? "本公司" : record.supplierName || record.fleetName || record.fleet || "未配置供应商"; },
+  normalizeOrganizationName(value) { return String(value ?? "").trim(); },
+  normalizeOrganizationText(value) { return String(value ?? ""); },
+  organizationName(record = {}) { return this.normalizeType(record.capacityOwnership || record.ownership || record.driverType) === "自营" ? this.SELF_ORGANIZATION : record.supplierName || record.fleetName || record.fleet || "未配置供应商"; },
   normalizeResource(record = {}, kind = "vehicle") { record.capacityOwnership = this.normalizeType(record.capacityOwnership || record.ownership || record.driverType); record.organizationName = this.organizationName(record); record.supplierName = record.capacityOwnership === "三方" ? record.organizationName : ""; if (kind === "driver") record.driverType = record.capacityOwnership === "三方" ? "三方司机" : "自有司机"; else record.ownership = record.capacityOwnership === "三方" ? "外协" : "自有"; return record; },
   groupSnapshot(resources = [], options = {}) { const list = resources.filter(Boolean).map((item) => ({ role: item.role || "运力", name: item.name || "未选择", type: this.normalizeType(item.capacityOwnership || item.ownership || item.driverType), organizationName: this.organizationName(item), supplierName: item.supplierName || "" })); const types = new Set(list.map((item) => item.type).filter((type) => ["自营", "三方"].includes(type))); const type = options.missingRequired || !types.size ? "待确定" : types.size > 1 ? "自营+三方" : [...types][0]; return { type, resources: list, supplierNames: [...new Set(list.filter((item) => item.type === "三方").map((item) => item.organizationName))], tooltip: list.map((item) => `${item.role}：${item.name} · ${item.organizationName}`).join("\n") }; },
   matchesFilter(value, filter, individualResource = false) { return !filter || (individualResource && this.normalizeType(filter) === "自营+三方" ? ["自营", "三方"].includes(this.normalizeType(value)) : this.normalizeType(value) === this.normalizeType(filter)); },
-  badgeMarkup(value, tooltip = "") { const type = this.normalizeType(value); const className = type === "自营" ? "self" : type === "三方" ? "third" : type === "自营+三方" ? "mixed" : "pending"; return `<span class="capacity-ownership-badge ${className}"${tooltip ? ` title="${String(tooltip).replaceAll('"', '&quot;')}"` : ""}>${type}</span>`; },
+  badgeMarkup(value, tooltip = "") { const type = this.normalizeType(value); const className = type === "自营" ? "self" : type === "三方" ? "third" : type === "自营+三方" ? "mixed" : "pending"; return `<span class="capacity-ownership-badge ${className}"${tooltip ? ` title="${this.normalizeOrganizationText(tooltip).replaceAll('"', '&quot;')}"` : ""}>${type}</span>`; },
   sortSelfFirst(records, getter = (item) => item.capacityOwnership) { const order = { 自营: 0, "自营+三方": 1, 三方: 2, 待确定: 3 }; return [...records].sort((a, b) => (order[this.normalizeType(getter(a))] ?? 9) - (order[this.normalizeType(getter(b))] ?? 9)); },
-  readSuppliers() { return []; }, saveSuppliers(records) { return records; }, findSupplier() { return null; }, ensureSupplier() { return null; },
+  readSuppliers() { return []; }, findSupplier() { return null; },
 };
+
+function organizationDisplayName(value, fallback = "") {
+  const normalized = CapacityOwnership.normalizeOrganizationName(value);
+  return normalized || fallback;
+}
 
 const waybills = [
   {
@@ -267,7 +275,6 @@ function setUserAccountMenu(open) {
 function showUserActionFeedback(action) {
   if (!userActionFeedback) return;
   const messages = {
-    switch: "身份切换功能演示，当前仍为张调度",
     logout: "退出登录功能演示，当前登录状态未改变",
   };
   userActionFeedback.textContent = messages[action] || "操作演示完成";
@@ -358,6 +365,8 @@ const pageViews = {
   autoDispatchConfig: document.querySelector("#autoDispatchConfigPage"),
   photoRequirements: document.querySelector("#photoRequirementPage"),
   userAccess: document.querySelector("#userAccessPage"),
+  operationLogs: document.querySelector("#operationLogPage"),
+  platformConfig: document.querySelector("#platformConfigPage"),
   finance: document.querySelector("#financePage"),
   driverExpenses: document.querySelector("#driverExpensePage"),
   settlement: document.querySelector("#settlementPage"),
@@ -365,7 +374,7 @@ const pageViews = {
   customer: document.querySelector("#customerPage"),
   reminderTemplates: document.querySelector("#reminderTemplatePage"),
   announcements: document.querySelector("#announcementPage"),
-  thirdPartySuppliers: document.querySelector("#thirdPartySupplierPage"),
+  feedbackManagement: document.querySelector("#feedbackManagementPage"),
   vehicle: document.querySelector("#vehiclePage"),
   trailer: document.querySelector("#trailerPage"),
   driver: document.querySelector("#driverPage"),
@@ -384,14 +393,16 @@ const pageMeta = {
   "auto-dispatch-config": { title: "自动派单配置", kicker: "系统配置 / 自动派单", view: "autoDispatchConfig" },
   "photo-requirements": { title: "司机拍照要求", kicker: "系统配置 / 司机拍照要求", view: "photoRequirements" },
   "user-access": { title: "用户与权限", kicker: "系统配置 / 用户与权限", view: "userAccess" },
-  "finance-reports": { title: "运输成本台账", kicker: "财务管理 / 运输成本台账", view: "finance" },
-  "driver-expenses": { title: "司机费用上报", kicker: "财务管理 / 司机费用上报", view: "driverExpenses" },
-  "settlement-management": { title: "结算管理", kicker: "财务管理 / 结算管理", view: "settlement" },
+  "operation-logs": { title: "操作日志", kicker: "系统配置 / 操作日志", view: "operationLogs" },
+  "platform-config": { title: "平台配置", kicker: "系统配置 / 平台配置", view: "platformConfig" },
+  "finance-reports": { title: "运输成本台账", kicker: "数据看板 / 运输成本台账", view: "finance" },
+  "driver-expenses": { title: "司机费用上报", kicker: "结算管理 / 司机费用上报", view: "driverExpenses" },
+  "settlement-management": { title: "结算中心", kicker: "结算管理 / 结算中心", view: "settlement" },
   "vehicle-repairs": { title: "车辆维修管理", kicker: "车辆管理 / 维修台账", view: "vehicleRepairs" },
   "customer-archives": { title: "客户管理", kicker: "系统配置 / 客户管理", view: "customer" },
   "reminder-templates": { title: "消息提醒模板", kicker: "系统配置 / 消息提醒", view: "reminderTemplates" },
   announcements: { title: "公告管理", kicker: "系统配置 / 公告管理", view: "announcements" },
-  "third-party-suppliers": { title: "三方供应商档案", kicker: "系统配置 / 三方供应商档案", view: "thirdPartySuppliers" },
+  "feedback-management": { title: "意见反馈管理", kicker: "系统配置 / 意见反馈管理", view: "feedbackManagement" },
   vehicle: {
     title: "车辆档案管理",
     kicker: "车辆管理 / 车辆档案",
@@ -1025,8 +1036,8 @@ function applyCapacitySnapshot(record, force = false) {
   return record;
 }
 
-function refreshSupplierDatalist() {
-  const list = document.querySelector("#thirdPartySupplierOptions");
+function refreshThirdPartyCustomerDatalist() {
+  const list = document.querySelector("#thirdPartyCustomerOptions");
   if (!list) return;
   list.innerHTML = CapacityOwnership.readSuppliers().filter((item) => item.status !== "停用").map((item) => `<option value="${dashboardEscape(item.name)}">${dashboardEscape(item.id)}</option>`).join("");
 }
@@ -1050,7 +1061,7 @@ function validateCapacityOwnershipForm(form) {
   const input = form.elements.supplierName;
   if (type !== CapacityOwnership.TYPES.THIRD) return true;
   const supplier = CapacityOwnership.findSupplier(input.value);
-  input.setCustomValidity(supplier?.status === "启用" ? "" : "请选择供应商档案中已启用的三方供应商。");
+  input.setCustomValidity(supplier?.status === "启用" ? "" : "请选择客户管理中已启用且具有三方供应商角色的单位。");
   if (!supplier || supplier.status !== "启用") {
     input.reportValidity();
     return false;
@@ -1062,7 +1073,7 @@ function validateCapacityOwnershipForm(form) {
 function capacityFieldsFromForm(form, kind) {
   const type = CapacityOwnership.normalizeType(form.elements.capacityOwnership?.value);
   const supplier = type === CapacityOwnership.TYPES.THIRD ? CapacityOwnership.findSupplier(form.elements.supplierName?.value) : null;
-  const result = { capacityOwnership: type, supplierId: supplier?.id || "", supplierName: supplier?.name || "", organizationName: type === CapacityOwnership.TYPES.SELF ? CapacityOwnership.SELF_ORGANIZATION || "本公司" : supplier?.name || "" };
+  const result = { capacityOwnership: type, supplierId: supplier?.id || "", supplierName: supplier?.name || "", organizationName: type === CapacityOwnership.TYPES.SELF ? CapacityOwnership.SELF_ORGANIZATION || "万物时空" : supplier?.name || "" };
   if (kind === "driver") result.driverType = type === CapacityOwnership.TYPES.THIRD ? "三方司机" : "自有司机";
   else result.ownership = type === CapacityOwnership.TYPES.THIRD ? "外协" : "自有";
   return result;
@@ -1167,7 +1178,6 @@ function publishAdminDataSnapshot() {
     vehicleRepairs: vehicleRepairRecords,
     trailers,
     drivers,
-    thirdPartySuppliers: CapacityOwnership.readSuppliers(),
     routeAccounts: typeof routeAccountCatalog !== "undefined" ? routeAccountCatalog : [],
   });
 }
@@ -1229,6 +1239,18 @@ function createPendingDispatch(waybill, route) {
     pushed: false,
     timeline: [],
   };
+  globalThis.DispatchOperationLog?.record(dispatch, {
+    signature: "pending-created",
+    time: `${waybill.orderDate} 08:00`,
+    category: "system",
+    action: "生成待派单任务",
+    summary: `运单 ${waybill.waybillNo} 进入待派单池，等待调度分配运力`,
+    operatorName: "系统",
+    operatorAccount: "system",
+    operatorRole: "系统",
+    source: "运单状态联动",
+    changes: [{ field: "status", label: "派单状态", before: "计划任务", after: "待派单" }],
+  });
   dispatches.unshift(dispatch);
   saveDispatches();
   return dispatch;
@@ -1285,6 +1307,7 @@ const cancelPlanText = document.querySelector("#cancelPlanText");
 const confirmCancelPlanBtn = document.querySelector("#confirmCancelPlanBtn");
 let cancellingPlanTaskId = "";
 const dispatchDetailEditBtn = document.querySelector("#dispatchDetailEditBtn");
+const dispatchDetailOperationLogBtn = document.querySelector("#dispatchDetailOperationLogBtn");
 const dispatchDetailBackBtn = document.querySelector("#dispatchDetailBackBtn");
 const dispatchPhotoPreviewDialog = document.querySelector("#dispatchPhotoPreviewDialog");
 const dispatchPhotoPreviewBody = document.querySelector("#dispatchPhotoPreviewBody");
@@ -1935,10 +1958,10 @@ function openVehicleForm(mode, plateNo = "") {
         if (vehicleForm.elements[fieldName]) vehicleForm.elements[fieldName].value = vehicle[fieldName] || "";
       }
     );
-    vehicleForm.elements.supplierName.value = CapacityOwnership.organizationName(vehicle) === "本公司" ? "" : CapacityOwnership.organizationName(vehicle);
+    vehicleForm.elements.supplierName.value = vehicle.capacityOwnership === CapacityOwnership.TYPES.THIRD ? CapacityOwnership.organizationName(vehicle) : "";
   }
   if (!vehicle) vehicleForm.elements.capacityOwnership.value = CapacityOwnership.TYPES.SELF;
-  refreshSupplierDatalist();
+  refreshThirdPartyCustomerDatalist();
   syncCapacityOwnershipForm(vehicleForm);
   vehicleForm.elements.vehicleState.disabled = hasOpenRepair;
 
@@ -2087,10 +2110,10 @@ function openTrailerForm(mode, trailerId = "") {
     ["plateNo", "trailerType", "vin", "fleet", "capacityOwnership", "supplierName", "trailerState", "registrationCertNo", "permitNo", "operatingPermitExpiry", "inspectionDue", "insuranceNo", "insuranceDue", "attachments", "remark"].forEach((fieldName) => {
       trailerForm.elements[fieldName].value = trailer[fieldName] || "";
     });
-    trailerForm.elements.supplierName.value = CapacityOwnership.organizationName(trailer) === "本公司" ? "" : CapacityOwnership.organizationName(trailer);
+    trailerForm.elements.supplierName.value = trailer.capacityOwnership === CapacityOwnership.TYPES.THIRD ? CapacityOwnership.organizationName(trailer) : "";
   }
   if (!trailer) trailerForm.elements.capacityOwnership.value = CapacityOwnership.TYPES.SELF;
-  refreshSupplierDatalist();
+  refreshThirdPartyCustomerDatalist();
   syncCapacityOwnershipForm(trailerForm);
   trailerDialog.showModal();
 }
@@ -2447,7 +2470,7 @@ function renderDriverDetail(driver) {
   ];
 
   document.querySelector("#detailDriverTitle").textContent = businessText(driver.name, "测试司机");
-  document.querySelector("#detailDriverMeta").textContent = `${businessText(driver.capacityOwnership, "自营")} · ${businessText(CapacityOwnership.organizationName(driver), "本公司")} / ${businessText(driver.licenseClass, "A2")}`;
+  document.querySelector("#detailDriverMeta").textContent = `${businessText(driver.capacityOwnership, "自营")} · ${businessText(CapacityOwnership.organizationName(driver), "万物时空")} / ${businessText(driver.licenseClass, "A2")}`;
   const detailDriverState = document.querySelector("#detailDriverState");
   detailDriverState.textContent = businessText(driver.driverState, "停用");
   detailDriverState.className = `state-pill ${getDriverStateClass(driver.driverState)}`;
@@ -2549,10 +2572,10 @@ function openDriverForm(mode, driverId = "") {
     ].forEach((fieldName) => {
       driverForm.elements[fieldName].value = businessText(driver[fieldName], "");
     });
-    driverForm.elements.supplierName.value = CapacityOwnership.organizationName(driver) === "本公司" ? "" : CapacityOwnership.organizationName(driver);
+    driverForm.elements.supplierName.value = driver.capacityOwnership === CapacityOwnership.TYPES.THIRD ? CapacityOwnership.organizationName(driver) : "";
   }
   if (!driver) driverForm.elements.capacityOwnership.value = CapacityOwnership.TYPES.SELF;
-  refreshSupplierDatalist();
+  refreshThirdPartyCustomerDatalist();
   syncCapacityOwnershipForm(driverForm);
   driverDialog.showModal();
 }
@@ -3006,7 +3029,7 @@ function renderDispatchRows(rows) {
       <td><input class="dispatch-row-check" data-dispatch-id="${dispatch.id}" type="checkbox" ${selectedDispatchIds.has(dispatch.id) ? "checked" : ""} /></td>
       <td><strong class="primary-text">${dispatch.waybillNo}</strong></td><td>${dispatch.planTaskNo || "-"}</td><td>${dispatch.taskType || "-"}</td><td class="dispatch-capacity-cell">${CapacityOwnership.badgeMarkup(dispatch.capacityOwnershipSnapshot, dispatch.capacityOwnershipTooltipSnapshot)}${renderDispatchCapacityProgress(dispatch)}</td><td><span class="dispatch-mode ${getDispatchMode(dispatch)}">${{ auto: "自动派单", manual: "手动派单", pending: "待分配" }[getDispatchMode(dispatch)]}</span></td><td>${dispatch.routeName || "-"}</td><td><span class="dispatch-vehicle-type">${getDispatchVehicleType(dispatch)}</span></td><td>${dispatch.origin || "-"}</td><td>${dispatch.destination || "-"}</td><td>${dispatch.dispatchTime || "-"}</td>
       <td>${dispatch.driverName}</td><td>${dispatch.phone}</td><td>${dispatch.vehicleId || "-"}</td><td><span class="dispatch-status ${getDispatchStatusClass(dispatch.status)}">${dispatch.status}</span></td><td><span class="dispatch-node">${dispatch.currentNode}</span></td>
-      <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-view-dispatch="${dispatch.id}" type="button">查看</button>${["待派单", "已派单", "运输中"].includes(dispatch.status) ? `<button class="link-btn" data-edit-dispatch="${dispatch.id}" type="button">编辑派单</button>` : ""}${["待派单", "已派单"].includes(dispatch.status) ? `<button class="link-btn delete-btn revoke-btn" data-revoke-dispatch="${dispatch.id}" type="button">撤销</button>` : ""}</div></td>
+      <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-view-dispatch="${dispatch.id}" type="button">查看</button><button class="link-btn dispatch-operation-link" data-operation-log-dispatch="${dispatch.id}" type="button">操作记录</button>${["待派单", "已派单", "运输中"].includes(dispatch.status) ? `<button class="link-btn" data-edit-dispatch="${dispatch.id}" type="button">编辑派单</button>` : ""}${["待派单", "已派单"].includes(dispatch.status) ? `<button class="link-btn delete-btn revoke-btn" data-revoke-dispatch="${dispatch.id}" type="button">撤销</button>` : ""}</div></td>
     </tr>`).join("");
   updateDispatchSelection();
 }
@@ -3627,7 +3650,7 @@ function renderDispatchDetailPage(dispatchId) {
     <div class="dispatch-detail-page-grid">
       <div class="dispatch-detail-page-main">
         <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="file-text" aria-hidden="true"></i><div><h3>运单信息</h3><span>任务与线路基础资料</span></div></div><div class="dispatch-detail-field-grid"><div><span>运单号</span><strong>${dashboardEscape(dispatch.waybillNo || "-")}</strong></div><div><span>计划任务编号</span><strong>${dashboardEscape(dispatch.planTaskNo || waybill?.planTaskNo || "-")}</strong></div><div><span>客户 / 项目</span><strong>${dashboardEscape([dispatch.customerName, dispatch.projectName].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>任务类型</span><strong>${dashboardEscape(taskType)}</strong></div><div><span>派单方式</span><strong>${modeLabel}</strong></div><div><span>箱信息</span><strong>${dashboardEscape(dispatch.boxes || formatWaybillBoxes(waybill || {}) || "-")}</strong></div><div><span>收货人</span><strong>${dashboardEscape(dispatch.consignee || "-")}</strong></div><div><span>到达时间</span><strong>${dashboardEscape(dispatch.arrivalTime || "-")}</strong></div><div><span>到达地点</span><strong>${dashboardEscape(dispatch.arrivalLocation || "-")}</strong></div><div class="wide"><span>还箱地</span><strong>${dashboardEscape(dispatch.loadAddress || "-")}</strong></div><div class="wide"><span>备注</span><strong>${dashboardEscape(dispatch.note || "-")}</strong></div></div></section>
-        <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="truck" aria-hidden="true"></i><div><h3>运力与结算</h3><span>司机、车辆及本次派单金额</span></div></div><div class="dispatch-detail-field-grid"><div><span>运力归属</span><strong>${CapacityOwnership.badgeMarkup(dispatch.capacityOwnershipSnapshot, dispatch.capacityOwnershipTooltipSnapshot)}</strong></div><div><span>承运单位</span><strong>${dashboardEscape(dispatch.carrierUnitSnapshot || "待确定")}</strong></div><div><span>司机</span><strong>${dashboardEscape(dispatch.driverName || "待分配")}</strong></div><div><span>司机所属单位</span><strong>${dashboardEscape(dispatch.driverOrganizationSnapshot || "待确定")}</strong></div><div><span>联系电话</span><strong>${dashboardEscape(dispatch.phone || "-")}</strong></div><div><span>车牌</span><strong>${dashboardEscape(dispatch.vehicleId || "待分配")}</strong></div><div><span>车辆所属单位</span><strong>${dashboardEscape(dispatch.vehicleOrganizationSnapshot || "待确定")}</strong></div><div><span>车型 / 挂车</span><strong>${dashboardEscape([getDispatchVehicleType(dispatch), dispatch.trailerId].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>挂车所属单位</span><strong>${dashboardEscape(dispatch.trailerOrganizationSnapshot || "未绑定")}</strong></div><div><span>预估收入</span><strong class="money-value">${formatMoney(dispatch.estimatedRevenue || 0)}</strong></div><div><span>司机提成</span><strong>${formatMoney(dispatch.commission || 0)}</strong></div></div></section>
+        <section class="dispatch-detail-panel"><div class="dispatch-detail-panel-title"><i data-lucide="truck" aria-hidden="true"></i><div><h3>运力与结算</h3><span>司机、车辆及本次派单金额</span></div></div><div class="dispatch-detail-field-grid"><div><span>运力归属</span><strong>${CapacityOwnership.badgeMarkup(dispatch.capacityOwnershipSnapshot, dispatch.capacityOwnershipTooltipSnapshot)}</strong></div><div><span>承运单位</span><strong>${dashboardEscape(organizationDisplayName(dispatch.carrierUnitSnapshot, "待确定"))}</strong></div><div><span>司机</span><strong>${dashboardEscape(dispatch.driverName || "待分配")}</strong></div><div><span>司机所属单位</span><strong>${dashboardEscape(organizationDisplayName(dispatch.driverOrganizationSnapshot, "待确定"))}</strong></div><div><span>联系电话</span><strong>${dashboardEscape(dispatch.phone || "-")}</strong></div><div><span>车牌</span><strong>${dashboardEscape(dispatch.vehicleId || "待分配")}</strong></div><div><span>车辆所属单位</span><strong>${dashboardEscape(organizationDisplayName(dispatch.vehicleOrganizationSnapshot, "待确定"))}</strong></div><div><span>车型 / 挂车</span><strong>${dashboardEscape([getDispatchVehicleType(dispatch), dispatch.trailerId].filter(Boolean).join(" / ") || "-")}</strong></div><div><span>挂车所属单位</span><strong>${dashboardEscape(organizationDisplayName(dispatch.trailerOrganizationSnapshot, "未绑定"))}</strong></div><div><span>预估收入</span><strong class="money-value">${formatMoney(dispatch.estimatedRevenue || 0)}</strong></div><div><span>司机提成</span><strong>${formatMoney(dispatch.commission || 0)}</strong></div></div></section>
         <section class="dispatch-detail-panel dispatch-route-panel"><div class="dispatch-detail-panel-title"><i data-lucide="route" aria-hidden="true"></i><div><h3>运输路线</h3><span>提箱地、装卸地与还箱地</span></div></div><div class="dispatch-route-line"><div><span>提箱地</span><strong>${dashboardEscape(dispatch.origin || "-")}</strong></div><i data-lucide="arrow-right" aria-hidden="true"></i><div><span>装卸地</span><strong>${dashboardEscape(dispatch.destination || "-")}</strong></div><i data-lucide="arrow-right" aria-hidden="true"></i><div><span>还箱地</span><strong>${dashboardEscape(dispatch.loadAddress || "-")}</strong></div></div></section>
       </div>
       <aside class="dispatch-detail-page-side"><section class="dispatch-detail-panel dispatch-timeline-panel"><div class="dispatch-detail-panel-title"><i data-lucide="history" aria-hidden="true"></i><div><h3>运输节点</h3><span>${timeline.length} 个任务节点 · 后台测试数据</span></div></div><div class="dispatch-detail-timeline">${timeline.map((item) => `<article class="dispatch-node-card ${item.state}"><span class="dispatch-node-dot" aria-hidden="true"></span><div class="dispatch-node-card-head"><div><strong>${dashboardEscape(item.node)}</strong><span>${dashboardEscape(item.time)}</span></div><em>${item.state === "current" ? "进行中" : item.state === "completed" ? "已完成" : item.state === "cancelled" ? "已取消" : "待执行"}</em></div><p>${dashboardEscape(item.desc)}</p>${item.photos.length ? renderDispatchPhotoGallery(item) : ""}</article>`).join("")}</div></section></aside>
@@ -3676,20 +3699,55 @@ function requestRevokeDispatch(dispatchId) {
   if (!dispatch || !["待派单", "已派单"].includes(dispatch.status)) return;
   deletingDispatchId = dispatchId;
   document.querySelector("#revokeDispatchText").textContent = `确认撤销 ${dispatch.waybillNo} 的派单吗？司机小程序单据将同步回收。`;
+  document.querySelector("#revokeDispatchReason").value = "";
+  document.querySelector("#revokeDispatchReasonError").textContent = "";
   revokeDispatchDialog.showModal();
+  setTimeout(() => document.querySelector("#revokeDispatchReason")?.focus(), 0);
 }
 
 function closeRevokeDispatchDialog() {
   if (revokeDispatchDialog.open) revokeDispatchDialog.close();
+  document.querySelector("#revokeDispatchReason").value = "";
+  document.querySelector("#revokeDispatchReasonError").textContent = "";
   deletingDispatchId = "";
+}
+
+function openDispatchOperationLog(dispatchId, trigger) {
+  globalThis.DispatchOperationLogManager?.open(dispatches, dispatchId, trigger);
 }
 
 function revokeDispatch(dispatchId) {
   const dispatch = dispatches.find((item) => item.id === dispatchId);
   if (!dispatch) return;
+  const reason = document.querySelector("#revokeDispatchReason").value.trim();
+  if (!reason) {
+    document.querySelector("#revokeDispatchReasonError").textContent = "请填写撤销原因。";
+    document.querySelector("#revokeDispatchReason").focus();
+    return;
+  }
+  const previousStatus = dispatch.status;
+  const previousNode = dispatch.currentNode;
+  const operationTime = window.DispatchStore.nowText();
   dispatch.status = "取消";
   dispatch.currentNode = "待派单";
-  dispatch.timeline.push({ node: "取消", time: "2026-09-16 11:20", desc: "未开始提货，后台撤销派单并回收小程序单据", photos: [] });
+  dispatch.timeline.push({ node: "取消", time: operationTime, desc: `调度员撤销派单并回收小程序单据，原因：${reason}`, photos: [] });
+  const timelineIndex = dispatch.timeline.length - 1;
+  globalThis.DispatchOperationLog?.record(dispatch, {
+    signature: `timeline:${timelineIndex}:${operationTime}:取消`,
+    time: operationTime,
+    category: "dispatch",
+    action: "撤销派单",
+    summary: `撤销运单 ${dispatch.waybillNo} 的派单，原因：${reason}`,
+    operatorName: "张调度",
+    operatorAccount: "zhangdd",
+    operatorRole: "调度员",
+    source: "运营后台",
+    reason,
+    changes: [
+      { field: "status", label: "派单状态", before: previousStatus, after: "取消" },
+      { field: "node", label: "运输节点", before: previousNode, after: "待派单" },
+    ],
+  });
   syncDriverOperationalStates();
   saveDispatches();
   closeRevokeDispatchDialog();
@@ -4460,9 +4518,9 @@ function getFinanceRow(waybill, dispatch = getFinanceDispatch(waybill.waybillNo)
     capacityOwnership,
     capacityOwnershipTooltip: dispatch.capacityOwnershipTooltipSnapshot || "",
     carrierType,
-    carrier: dispatch.carrierUnitSnapshot || (isThirdParty ? (dispatch.thirdPartyCarrierSnapshot || route.thirdPartyCarrier || vehicle?.fleetName || vehicle?.fleet || waybill.carrier || "外协承运商") : "本公司"),
-    driverOrganization: dispatch.driverOrganizationSnapshot || "待确定",
-    vehicleOrganization: dispatch.vehicleOrganizationSnapshot || (vehicle ? CapacityOwnership.organizationName(vehicle) : "待确定"),
+    carrier: organizationDisplayName(dispatch.carrierUnitSnapshot || (isThirdParty ? (dispatch.thirdPartyCarrierSnapshot || route.thirdPartyCarrier || vehicle?.fleetName || vehicle?.fleet || waybill.carrier || "外协承运商") : CapacityOwnership.SELF_ORGANIZATION)),
+    driverOrganization: organizationDisplayName(dispatch.driverOrganizationSnapshot, "待确定"),
+    vehicleOrganization: organizationDisplayName(dispatch.vehicleOrganizationSnapshot || (vehicle ? CapacityOwnership.organizationName(vehicle) : "待确定")),
     vehicleNo: dispatch.vehicleId || waybill.plateNo || "",
     vehicleType: dispatch.vehicleType || vehicle?.vehicleType || "",
     driverName: dispatch.driverName || waybill.driverName || "",
@@ -4739,8 +4797,8 @@ function getDriverExpenseRows() {
         driverName: driver?.name || item.driverName || "未知司机",
         capacityOwnership: item.capacityOwnershipSnapshot || snapshot.capacityOwnershipSnapshot || snapshot.type || CapacityOwnership.groupSnapshot([driver, vehicle].filter(Boolean)).type,
         capacityOwnershipTooltip: item.capacityOwnershipTooltipSnapshot || dispatch?.capacityOwnershipTooltipSnapshot || "",
-        driverOrganization: item.driverOrganizationSnapshot || dispatch?.driverOrganizationSnapshot || (driver ? CapacityOwnership.organizationName(driver) : "待确定"),
-        vehicleOrganization: item.vehicleOrganizationSnapshot || dispatch?.vehicleOrganizationSnapshot || (vehicle ? CapacityOwnership.organizationName(vehicle) : "待确定"),
+        driverOrganization: organizationDisplayName(item.driverOrganizationSnapshot || dispatch?.driverOrganizationSnapshot || (driver ? CapacityOwnership.organizationName(driver) : "待确定")),
+        vehicleOrganization: organizationDisplayName(item.vehicleOrganizationSnapshot || dispatch?.vehicleOrganizationSnapshot || (vehicle ? CapacityOwnership.organizationName(vehicle) : "待确定")),
       };
     })
     .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
@@ -4977,7 +5035,7 @@ function renderVehicleRepairPage() {
     <td><strong>${dashboardEscape(record.repairNo)}</strong></td>
     <td><strong>${dashboardEscape(record.plateNo)}</strong><small>${dashboardEscape(record.vehicleType || "")}</small></td>
     <td>${CapacityOwnership.badgeMarkup(record.capacityOwnershipSnapshot || vehicles.find((item) => item.plateNo === record.plateNo)?.capacityOwnership)}</td>
-    <td>${dashboardEscape(record.vehicleOrganizationSnapshot || CapacityOwnership.organizationName(vehicles.find((item) => item.plateNo === record.plateNo) || {}))}</td>
+    <td>${dashboardEscape(organizationDisplayName(record.vehicleOrganizationSnapshot || CapacityOwnership.organizationName(vehicles.find((item) => item.plateNo === record.plateNo) || {})))}</td>
     <td><strong>${dashboardEscape(record.category)}</strong><small class="repair-cell-description">${dashboardEscape(record.description)}</small>${record.evidence?.length ? `<small>凭证 ${record.evidence.length} 个</small>` : ""}</td>
     <td>${dashboardEscape(record.repairLocation || "-")}</td>
     <td><strong>${dashboardEscape(record.source)}</strong><small>${dashboardEscape(record.reporterName || record.createdBy || "-")}</small></td>
@@ -5149,7 +5207,7 @@ function exportVehicleRepairReport() {
     const text = String(value ?? "").replace(/^([=+\-@])/, "'$1");
     return `"${text.replaceAll('"', '""')}"`;
   };
-  const rows = getFilteredVehicleRepairs().map((record) => [record.repairNo, record.plateNo, record.vehicleType, record.capacityOwnershipSnapshot, record.vehicleOrganizationSnapshot, record.fleet, record.category, record.description, record.repairLocation, record.source, record.reporterName || record.createdBy, record.reportedAt, record.status, record.repairVendor, record.expectedCost, record.actualCost, record.startedAt, record.completedAt, record.result, (record.evidence || []).map((file) => typeof file === "string" ? file : file.name).join("、"), record.remark]);
+  const rows = getFilteredVehicleRepairs().map((record) => [record.repairNo, record.plateNo, record.vehicleType, record.capacityOwnershipSnapshot, organizationDisplayName(record.vehicleOrganizationSnapshot), record.fleet, record.category, record.description, record.repairLocation, record.source, record.reporterName || record.createdBy, record.reportedAt, record.status, record.repairVendor, record.expectedCost, record.actualCost, record.startedAt, record.completedAt, record.result, (record.evidence || []).map((file) => typeof file === "string" ? file : file.name).join("、"), record.remark]);
   const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
@@ -5170,85 +5228,17 @@ function downloadCapacityArchive(fileName, headers, rows) {
 
 function exportVehicleArchive() {
   const rows = getFilteredVehicles().map((item) => [item.plateNo, item.vehicleType, item.capacityOwnership, CapacityOwnership.organizationName(item), item.supplierId, item.driver, getTrailerLabel(item.trailerId), item.fleet, item.vehicleState, item.vin, item.permitNo, item.inspectionDue, item.insuranceDue]);
-  downloadCapacityArchive("车辆档案", ["车牌号", "车辆类型", "运力归属", "所属单位", "供应商编号", "驾驶员", "默认挂车", "所属车队", "车辆状态", "车架号", "营运证号", "审验到期", "保险到期"], rows);
+  downloadCapacityArchive("车辆档案", ["车牌号", "车辆类型", "运力归属", "所属单位", "单位编号", "驾驶员", "默认挂车", "所属车队", "车辆状态", "车架号", "营运证号", "审验到期", "保险到期"], rows);
 }
 
 function exportTrailerArchive() {
   const rows = getFilteredTrailers().map((item) => [item.plateNo, item.trailerType, item.capacityOwnership, CapacityOwnership.organizationName(item), item.supplierId, item.fleet, item.trailerState, item.vin, item.permitNo, item.inspectionDue, item.insuranceDue]);
-  downloadCapacityArchive("挂车档案", ["挂车车牌", "挂车类型", "运力归属", "所属单位", "供应商编号", "所属车队", "状态", "车架号", "营运证号", "审验到期", "保险到期"], rows);
+  downloadCapacityArchive("挂车档案", ["挂车车牌", "挂车类型", "运力归属", "所属单位", "单位编号", "所属车队", "状态", "车架号", "营运证号", "审验到期", "保险到期"], rows);
 }
 
 function exportDriverArchive() {
   const rows = getFilteredDrivers().map((item) => [item.id, item.name, item.phone, item.capacityOwnership, CapacityOwnership.organizationName(item), item.supplierId, item.driverState, item.fleet, item.idCard, item.licenseClass, item.licenseExpiry, item.qualificationExpiry]);
-  downloadCapacityArchive("司机档案", ["司机编号", "姓名", "联系电话", "运力归属", "所属单位", "供应商编号", "司机状态", "所属车队", "身份证号", "准驾车型", "驾驶证到期", "从业资格证到期"], rows);
-}
-
-let editingThirdPartySupplierId = "";
-
-function getFilteredThirdPartySuppliers() {
-  const form = document.querySelector("#thirdPartySupplierQueryForm");
-  const data = form ? new FormData(form) : new FormData();
-  const keyword = normalize(data.get("keyword"));
-  const status = data.get("status");
-  return CapacityOwnership.readSuppliers().filter((item) =>
-    (!keyword || [item.id, item.name, item.contact, item.phone].some((value) => normalize(value).includes(keyword))) &&
-    (!status || item.status === status)
-  );
-}
-
-function renderThirdPartySupplierPage() {
-  const rows = getFilteredThirdPartySuppliers();
-  const body = document.querySelector("#thirdPartySupplierBody");
-  if (!body) return;
-  body.innerHTML = rows.length ? rows.map((item) => `<tr><td><strong>${dashboardEscape(item.id)}</strong></td><td>${dashboardEscape(item.name)}</td><td>${dashboardEscape(item.contact || "-")}</td><td>${dashboardEscape(item.phone || "-")}</td><td><span class="state-pill ${item.status === "启用" ? "active-state" : "inactive-state"}">${dashboardEscape(item.status)}</span></td><td>${dashboardEscape(item.remark || "-")}</td><td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-edit-third-party-supplier="${dashboardEscape(item.id)}" type="button">编辑</button><button class="link-btn" data-toggle-third-party-supplier="${dashboardEscape(item.id)}" type="button">${item.status === "启用" ? "停用" : "启用"}</button></div></td></tr>`).join("") : '<tr><td class="no-data-cell" colspan="7">暂无符合条件的三方供应商</td></tr>';
-  document.querySelector("#thirdPartySupplierResultText").textContent = `共 ${rows.length} 家供应商`;
-  document.querySelector("#thirdPartySupplierActiveBadge").textContent = `启用 ${CapacityOwnership.readSuppliers().filter((item) => item.status === "启用").length}`;
-  refreshSupplierDatalist();
-}
-
-function openThirdPartySupplierForm(supplierId = "") {
-  const form = document.querySelector("#thirdPartySupplierForm");
-  const supplier = CapacityOwnership.readSuppliers().find((item) => item.id === supplierId);
-  editingThirdPartySupplierId = supplierId;
-  form.reset();
-  document.querySelector("#thirdPartySupplierFormTitle").textContent = supplier ? "编辑三方供应商" : "新增三方供应商";
-  ["name", "contact", "phone", "status", "remark"].forEach((field) => { form.elements[field].value = supplier?.[field] || (field === "status" ? "启用" : ""); });
-  document.querySelector("#thirdPartySupplierDialog").showModal();
-}
-
-function closeThirdPartySupplierForm() {
-  const dialog = document.querySelector("#thirdPartySupplierDialog");
-  if (dialog?.open) dialog.close();
-  editingThirdPartySupplierId = "";
-}
-
-function saveThirdPartySupplier(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const data = Object.fromEntries(new FormData(form).entries());
-  const records = CapacityOwnership.readSuppliers();
-  const duplicate = records.find((item) => normalize(item.name) === normalize(data.name) && item.id !== editingThirdPartySupplierId);
-  form.elements.name.setCustomValidity(duplicate ? "该供应商名称已存在，请直接编辑原档案。" : "");
-  if (duplicate) { form.elements.name.reportValidity(); return; }
-  if (editingThirdPartySupplierId) Object.assign(records.find((item) => item.id === editingThirdPartySupplierId), data);
-  else {
-    const sequence = records.reduce((max, item) => Math.max(max, Number(String(item.id).replace(/\D/g, "")) || 0), 0) + 1;
-    records.unshift({ id: `SUP-${String(sequence).padStart(3, "0")}`, ...data });
-  }
-  CapacityOwnership.saveSuppliers(records);
-  if (editingThirdPartySupplierId) {
-    [vehicles, trailers, drivers].forEach((collection) => collection.forEach((item) => {
-      if (item.supplierId !== editingThirdPartySupplierId) return;
-      item.supplierName = data.name;
-      item.organizationName = data.name;
-    }));
-    saveVehicles();
-    saveTrailers();
-    saveDrivers();
-  }
-  closeThirdPartySupplierForm();
-  renderThirdPartySupplierPage();
-  publishAdminDataSnapshot();
+  downloadCapacityArchive("司机档案", ["司机编号", "姓名", "联系电话", "运力归属", "所属单位", "单位编号", "司机状态", "所属车队", "身份证号", "准驾车型", "驾驶证到期", "从业资格证到期"], rows);
 }
 
 function switchPage(pageName) {
@@ -5257,6 +5247,8 @@ function switchPage(pageName) {
   const activeNavPage = meta.navPage || pageName;
   pageTitle.textContent = meta.title;
   pageKicker.textContent = meta.kicker;
+  const publishedPlatformConfig = window.PlatformConfigManager?.getPublished?.();
+  document.title = `${meta.title} - ${publishedPlatformConfig?.browserTitleSuffix || publishedPlatformConfig?.platformName || "集卡物流系统"}`;
 
   Object.entries(pageViews).forEach(([key, view]) => {
     view.classList.toggle("active", key === meta.view);
@@ -5316,6 +5308,12 @@ function switchPage(pageName) {
   if (meta.view === "userAccess") {
     window.UserAccessManager?.render();
   }
+  if (meta.view === "operationLogs") {
+    window.OperationLogManager?.render();
+  }
+  if (meta.view === "platformConfig") {
+    window.PlatformConfigManager?.render();
+  }
   if (meta.view === "photoRequirements") renderPhotoRequirementConfigPage();
   if (meta.view === "finance") {
     renderFinancePage(getFilteredFinanceRows());
@@ -5334,7 +5332,9 @@ function switchPage(pageName) {
   if (meta.view === "announcements") {
     renderAnnouncementPage(getAnnouncementFiltered());
   }
-  if (meta.view === "thirdPartySuppliers") renderThirdPartySupplierPage();
+  if (meta.view === "feedbackManagement") {
+    document.querySelector("#feedbackManagementPage")?.dispatchEvent(new CustomEvent("feedback-page-open"));
+  }
 }
 
 renderRows(waybills);
@@ -5342,26 +5342,7 @@ renderVehiclePage();
 renderVehicleRepairPage();
 renderTrailerPage();
 renderDriverPage();
-renderThirdPartySupplierPage();
-
-document.querySelector("#thirdPartySupplierQueryForm")?.addEventListener("submit", (event) => { event.preventDefault(); renderThirdPartySupplierPage(); });
-document.querySelector("#thirdPartySupplierQueryForm")?.addEventListener("reset", () => setTimeout(renderThirdPartySupplierPage, 0));
-document.querySelector("#addThirdPartySupplierBtn")?.addEventListener("click", () => openThirdPartySupplierForm());
-document.querySelector("#closeThirdPartySupplierBtn")?.addEventListener("click", closeThirdPartySupplierForm);
-document.querySelector("#cancelThirdPartySupplierBtn")?.addEventListener("click", closeThirdPartySupplierForm);
-document.querySelector("#thirdPartySupplierForm")?.addEventListener("submit", saveThirdPartySupplier);
-document.querySelector("#thirdPartySupplierBody")?.addEventListener("click", (event) => {
-  const edit = event.target.closest("[data-edit-third-party-supplier]");
-  const toggle = event.target.closest("[data-toggle-third-party-supplier]");
-  if (edit) openThirdPartySupplierForm(edit.dataset.editThirdPartySupplier);
-  if (toggle) {
-    const records = CapacityOwnership.readSuppliers();
-    const supplier = records.find((item) => item.id === toggle.dataset.toggleThirdPartySupplier);
-    if (supplier) supplier.status = supplier.status === "启用" ? "停用" : "启用";
-    CapacityOwnership.saveSuppliers(records);
-    renderThirdPartySupplierPage();
-  }
-});
+refreshThirdPartyCustomerDatalist();
 renderRoutePage();
 renderDispatchPage();
 renderCapacityPage();
@@ -6141,6 +6122,7 @@ function renderPlanTaskDetailPage(planTaskId) {
   planTaskDetailPageSubtitle.textContent = `${group.taskNo} / ${first.customerName || "-"} / ${first.projectName || "-"}`;
   const boxTypes = [...new Set(group.waybills.map((waybill) => waybill.boxType).filter(Boolean))].join("、") || "-";
   planTaskDetailPageContent.innerHTML = `<section class="plan-detail-section"><div class="plan-detail-section-heading"><strong>计划信息</strong><span>${safe(group.status)}</span><button class="btn quiet" data-save-plan-template="${safe(group.id)}" type="button"><i data-lucide="layout-template" aria-hidden="true"></i>另存为模板</button>${group.canEdit ? `<button class="btn quiet" data-edit-plan="${safe(group.id)}" type="button"><i data-lucide="pencil" aria-hidden="true"></i>编辑计划</button>` : ""}</div><div class="plan-detail-info-grid"><div><span>计划编号</span><strong>${safe(group.taskNo)}</strong></div><div><span>客户</span><strong>${safe(first.customerName || route?.customerName || "-")}</strong></div><div><span>项目</span><strong>${safe(first.projectName || route?.projectName || "-")}</strong></div><div><span>任务类型</span><strong>${safe(first.taskType || "-")}</strong></div><div><span>执行时间</span><strong>${safe(String(first.executionTime || `${first.orderDate || "-"} 08:00`).replace("T", " "))}</strong></div><div><span>运输线路</span><strong>${safe(route?.routeName || first.routeId || "未指定线路")}</strong></div><div><span>计划数量</span><strong>${group.waybills.length} 项任务</strong></div><div><span>柜型</span><strong>${safe(boxTypes)}</strong></div></div>${route ? `<div class="plan-detail-route"><span>线路节点</span>${renderRouteStops(route, "plan-route-stops")}</div>` : ""}<div class="detail-list-table"><table><thead><tr><th>子任务</th><th>固定线路</th><th>箱号 1</th><th>铅封号 1</th><th>箱号 2</th><th>铅封号 2</th></tr></thead><tbody>${group.waybills.map((waybill, index) => `<tr><td>任务 ${index + 1}</td><td>${safe(fixedRoutes.find((item) => item.id === waybill.routeId)?.routeName || "未指定线路")}</td><td>${safe(waybill.boxNo1 && waybill.boxNo1 !== "-" ? waybill.boxNo1 : "-")}</td><td>${safe(waybill.sealNo1 && waybill.sealNo1 !== "-" ? waybill.sealNo1 : "-")}</td><td>${safe(waybill.boxNo2 && waybill.boxNo2 !== "-" ? waybill.boxNo2 : "-")}</td><td>${safe(waybill.sealNo2 && waybill.sealNo2 !== "-" ? waybill.sealNo2 : "-")}</td></tr>`).join("")}</tbody></table></div></section><section class="plan-detail-section plan-detail-dispatches"><div class="plan-detail-section-heading"><div><strong>派单情况</strong><small>${assignedCount} / ${group.waybills.length} 项已派单</small></div><div class="plan-detail-progress"><span><i style="width:${assignedProgress}%"></i></span><b>${assignedProgress}%</b></div></div><div class="detail-list-table"><table><thead><tr><th>任务编号</th><th>派单方式</th><th>司机 / 车辆</th><th>派单状态</th><th>当前节点</th><th>派单时间</th></tr></thead><tbody>${group.waybills.map((waybill, index) => { const dispatch = dispatchByWaybill.get(waybill.waybillNo); const taskLabel = group.waybills.length > 1 ? `${group.taskNo}-${String(index + 1).padStart(2, "0")}` : waybill.waybillNo; return `<tr><td><strong>${safe(taskLabel)}</strong></td><td>${safe(modeLabel(dispatch))}</td><td>${safe(dispatch?.driverName || "待分配")} / ${safe(dispatch?.vehicleId || "-")}</td><td><span class="dispatch-status ${getDispatchStatusClass(dispatch?.status || "待派单")}">${safe(dispatch?.status || "待派单")}</span></td><td>${safe(dispatch?.currentNode || "待派单")}</td><td>${safe(dispatch?.dispatchTime || "-")}</td></tr>`; }).join("")}</tbody></table></div></section>`;
+  window.PlanTaskArchive?.mount?.(group.id, group.taskNo, planTaskDetailPageContent);
   window.lucide?.createIcons();
 }
 
@@ -6557,6 +6539,9 @@ cancelPlanDialog?.addEventListener("cancel", (event) => {
 document.querySelectorAll("[data-page]").forEach((item) => {
   item.addEventListener("click", () => switchPage(item.dataset.page));
 });
+
+const requestedInitialPage = new URLSearchParams(window.location.search).get("page");
+if (requestedInitialPage && pageMeta[requestedInitialPage]) switchPage(requestedInitialPage);
 
 const financeQueryForm = document.querySelector("#financeQueryForm");
 const financeReportBody = document.querySelector("#financeReportBody");
@@ -7250,7 +7235,7 @@ routeForm.addEventListener("submit", (event) => {
   const supplierInput = routeForm.elements.thirdPartyCarrier;
   const thirdPartyEnabled = routeForm.elements.thirdPartyEnabled.value === "true";
   const supplier = CapacityOwnership.findSupplier(supplierInput.value);
-  supplierInput.setCustomValidity(thirdPartyEnabled && (!supplier || supplier.status !== "启用") ? "启用三方运力时请选择供应商档案中已启用的供应商。" : "");
+  supplierInput.setCustomValidity(thirdPartyEnabled && (!supplier || supplier.status !== "启用") ? "启用三方运力时，请从客户管理选择已启用的三方供应商。" : "");
   if (!routeForm.reportValidity()) return;
   if (supplier) supplierInput.value = supplier.name;
   const data = getRouteFormData();
@@ -7489,6 +7474,15 @@ dispatchForm.addEventListener("submit", (event) => {
     const previousRoute = editingDispatch.routeName || "未指定线路";
     const previousProject = editingDispatch.projectName || "未分配项目";
     const previousBoxes = editingDispatch.boxes || "待装箱";
+    const previousTrailer = editingDispatch.trailerId || "未绑定";
+    const previousStatus = editingDispatch.status || "待派单";
+    const previousNode = editingDispatch.currentNode || "待派单";
+    const previousDispatchMode = editingDispatch.status === "待派单" ? "pending" : (editingDispatch.dispatchMode || "manual");
+    const previousVehicleType = editingDispatch.vehicleType || "燃油车";
+    const previousConsignee = editingDispatch.consignee || "-";
+    const previousArrivalTime = editingDispatch.arrivalTime || "-";
+    const previousArrivalLocation = editingDispatch.arrivalLocation || "-";
+    const previousNote = editingDispatch.note || "-";
     editingDispatch.dispatchMode = "manual";
     editingDispatch.planTaskId = waybill.planTaskId || editingDispatch.planTaskId;
     editingDispatch.planTaskNo = waybill.planTaskNo || waybill.planTaskId || editingDispatch.planTaskNo;
@@ -7552,6 +7546,38 @@ dispatchForm.addEventListener("submit", (event) => {
       if (previousBoxes !== editingDispatch.boxes) routeChanges.push(`箱信息调整为 ${editingDispatch.boxes}`);
       editingDispatch.timeline.push({ node: "派单调整", time: dispatchTime, desc: `调度员将运力由 ${previousDriver} / ${previousVehicle} 调整为 ${driver.name} / ${vehicle.plateNo}${routeChanges.length ? `，${routeChanges.join("，")}` : ""}，变更已同步司机微信小程序`, photos: [] });
     }
+    const operationTimelineIndex = editingDispatch.timeline.length - 1;
+    const operationNode = editingDispatch.timeline[operationTimelineIndex]?.node || (wasPendingDispatch ? "已派单" : "派单调整");
+    const operationChanges = [
+      { field: "driver", label: "司机", before: previousDriver, after: editingDispatch.driverName },
+      { field: "vehicle", label: "车辆", before: previousVehicle, after: editingDispatch.vehicleId },
+      { field: "trailer", label: "挂车", before: previousTrailer, after: editingDispatch.trailerId || "未绑定" },
+      { field: "vehicleType", label: "车型", before: previousVehicleType, after: editingDispatch.vehicleType },
+      { field: "project", label: "项目", before: previousProject, after: editingDispatch.projectName },
+      { field: "route", label: "线路", before: previousRoute, after: editingDispatch.routeName },
+      { field: "boxes", label: "箱封信息", before: previousBoxes, after: editingDispatch.boxes },
+      { field: "consignee", label: "收货人", before: previousConsignee, after: editingDispatch.consignee || "-" },
+      { field: "arrivalTime", label: "到达时间", before: previousArrivalTime, after: editingDispatch.arrivalTime || "-" },
+      { field: "arrivalLocation", label: "到达地点", before: previousArrivalLocation, after: editingDispatch.arrivalLocation || "-" },
+      { field: "note", label: "备注", before: previousNote, after: editingDispatch.note || "-" },
+      { field: "dispatchMode", label: "派单方式", before: previousDispatchMode === "auto" ? "自动派单" : previousDispatchMode === "manual" ? "手动派单" : "待分配", after: "手动派单" },
+      { field: "status", label: "派单状态", before: previousStatus, after: editingDispatch.status },
+      { field: "node", label: "运输节点", before: previousNode, after: editingDispatch.currentNode },
+    ].filter((change) => String(change.before) !== String(change.after));
+    globalThis.DispatchOperationLog?.record(editingDispatch, {
+      signature: `timeline:${operationTimelineIndex}:${dispatchTime}:${operationNode}`,
+      time: dispatchTime,
+      category: "dispatch",
+      action: wasPendingDispatch ? "分配并推送派单" : "编辑派单",
+      summary: wasPendingDispatch
+        ? `为运单 ${editingDispatch.waybillNo} 分配司机 ${editingDispatch.driverName} 和车辆 ${editingDispatch.vehicleId}，并推送至司机移动端`
+        : `编辑运单 ${editingDispatch.waybillNo} 的派单信息${operationChanges.length ? `，共修改 ${operationChanges.length} 个字段` : "，未产生字段变化"}`,
+      operatorName: "张调度",
+      operatorAccount: "zhangdd",
+      operatorRole: "调度员",
+      source: "运营后台",
+      changes: operationChanges,
+    });
     waybill.dispatchDate = (editingDispatch.dispatchTime || dispatchTime).slice(0, 10);
     waybill.plateNo = vehicle.plateNo;
     waybill.driverId = driver.id;
@@ -7619,8 +7645,29 @@ dispatchForm.addEventListener("submit", (event) => {
   };
   if (typeof window.applyCapacitySnapshot === "function") window.applyCapacitySnapshot(assigned, true);
   const pending = dispatches.find((item) => item.waybillNo === waybill.waybillNo && item.status === "待派单");
+  const savedDispatch = pending || { id: `PD-${Date.now()}`, ...assigned };
   if (pending) Object.assign(pending, assigned);
-  else dispatches.unshift({ id: `PD-${Date.now()}`, ...assigned });
+  else dispatches.unshift(savedDispatch);
+  globalThis.DispatchOperationLog?.record(savedDispatch, {
+    signature: `timeline:0:${dispatchTime}:已派单`,
+    time: dispatchTime,
+    category: "dispatch",
+    action: "创建并推送派单",
+    summary: `为运单 ${waybill.waybillNo} 创建派单，分配司机 ${driver.name} 和车辆 ${vehicle.plateNo}，并推送至司机移动端`,
+    operatorName: "张调度",
+    operatorAccount: "zhangdd",
+    operatorRole: "调度员",
+    source: "运营后台",
+    changes: [
+      { field: "driver", label: "司机", before: "待分配", after: driver.name },
+      { field: "vehicle", label: "车辆", before: "待分配", after: vehicle.plateNo },
+      { field: "trailer", label: "挂车", before: "未绑定", after: assigned.trailerId || "未绑定" },
+      { field: "project", label: "项目", before: "未分配项目", after: assigned.projectName },
+      { field: "route", label: "线路", before: "未指定线路", after: assigned.routeName },
+      { field: "dispatchMode", label: "派单方式", before: "待分配", after: "手动派单" },
+      { field: "status", label: "派单状态", before: "待派单", after: "已派单" },
+    ],
+  });
   driver.driverState = "运输中";
   waybill.dispatchDate = dispatchTime.slice(0, 10);
   waybill.plateNo = vehicle.plateNo;
@@ -7649,9 +7696,11 @@ dispatchBody.addEventListener("change", (event) => {
 
 dispatchBody.addEventListener("click", (event) => {
   const viewButton = event.target.closest("[data-view-dispatch]");
+  const operationLogButton = event.target.closest("[data-operation-log-dispatch]");
   const editButton = event.target.closest("[data-edit-dispatch]");
   const revokeButton = event.target.closest("[data-revoke-dispatch]");
   if (viewButton) openDispatchDetail(viewButton.dataset.viewDispatch);
+  if (operationLogButton) openDispatchOperationLog(operationLogButton.dataset.operationLogDispatch, operationLogButton);
   if (editButton) openDispatchEdit(editButton.dataset.editDispatch);
   if (revokeButton) requestRevokeDispatch(revokeButton.dataset.revokeDispatch);
 });
@@ -7730,7 +7779,7 @@ capacityBody.addEventListener("click", (event) => {
 dispatchMoreBtn.addEventListener("click", () => dispatchMoreMenu.classList.toggle("open"));
 document.querySelector("#exportDispatchBtn").addEventListener("click", () => {
   dispatchMoreMenu.classList.remove("open");
-  const rows = getFilteredDispatches().map((item) => [item.id, item.waybillNo, item.routeName, item.capacityOwnershipSnapshot, item.driverName, item.driverOrganizationSnapshot, item.vehicleId, item.vehicleOrganizationSnapshot, item.trailerId, item.trailerOrganizationSnapshot, item.carrierTypeSnapshot, item.carrierUnitSnapshot, item.dispatchTime, item.status]);
+  const rows = getFilteredDispatches().map((item) => [item.id, item.waybillNo, item.routeName, item.capacityOwnershipSnapshot, item.driverName, organizationDisplayName(item.driverOrganizationSnapshot), item.vehicleId, organizationDisplayName(item.vehicleOrganizationSnapshot), item.trailerId, organizationDisplayName(item.trailerOrganizationSnapshot), item.carrierTypeSnapshot, organizationDisplayName(item.carrierUnitSnapshot), item.dispatchTime, item.status]);
   downloadCapacityArchive("派单台账", ["派单编号", "运单号", "线路", "运力归属", "司机", "司机所属单位", "车辆", "车辆所属单位", "挂车", "挂车所属单位", "承运类型", "承运单位", "派单时间", "状态"], rows);
 });
 document.querySelector("#batchDispatchStatusBtn").addEventListener("click", () => {
@@ -7744,6 +7793,9 @@ document.querySelector("#closeDispatchDetailBtn").addEventListener("click", () =
 dispatchDetailBackBtn?.addEventListener("click", () => switchPage("dispatch-list"));
 dispatchDetailEditBtn?.addEventListener("click", () => {
   if (currentDispatchDetailId) openDispatchEdit(currentDispatchDetailId);
+});
+dispatchDetailOperationLogBtn?.addEventListener("click", (event) => {
+  if (currentDispatchDetailId) openDispatchOperationLog(currentDispatchDetailId, event.currentTarget);
 });
 dispatchDetailPageContent?.addEventListener("click", (event) => {
   const photo = event.target.closest("[data-dispatch-photo-index]");
@@ -7782,6 +7834,7 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest("#dispatchMoreBtn") && !event.target.closest("#dispatchMoreMenu")) dispatchMoreMenu.classList.remove("open");
 });
 
+window.addEventListener("counterpartieschange", refreshThirdPartyCustomerDatalist);
 window.addEventListener("storage", (event) => {
   if (event.key === window.AdminDataBridge?.STORAGE_KEY) {
     const snapshot = window.AdminDataBridge.read();
@@ -7807,7 +7860,7 @@ window.addEventListener("storage", (event) => {
       trailers.forEach((item) => CapacityOwnership.normalizeResource(item, "trailer"));
       drivers.forEach((item) => CapacityOwnership.normalizeResource(item, "driver"));
       dispatches.forEach(normalizeDispatchRecord);
-      refreshSupplierDatalist();
+      refreshThirdPartyCustomerDatalist();
       syncDriverOperationalStates();
       renderRows(waybills);
       renderVehiclePage(getFilteredVehicles(), getWarningDays());

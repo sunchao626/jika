@@ -25,10 +25,10 @@ const drivers = {
 };
 
 const vehicles = {
-  "浙B·K7812": { type: "集装箱牵引车", fleet: "宁波港区集卡车队", state: "在用" },
-  "沪D·A9021": { type: "重型半挂牵引车", fleet: "临港外协集卡车队", state: "在用" },
-  "苏E·T5568": { type: "集装箱骨架车", fleet: "苏州园区集卡车队", state: "停用" },
-  "浙A·F2190": { type: "危险品牵引车", fleet: "杭州危险品运输车队", state: "在用" },
+  "浙B·K7812": { type: "集装箱牵引车", fleet: "宁波港区集卡车队", state: "在用", permitNo: "浙交运管字 330206-7812", inspectionDue: "2027-03-18" },
+  "沪D·A9021": { type: "重型半挂牵引车", fleet: "临港外协集卡车队", state: "在用", permitNo: "沪交运管字 330206-889", inspectionDue: "2027-03-18" },
+  "苏E·T5568": { type: "集装箱骨架车", fleet: "苏州园区集卡车队", state: "停用", permitNo: "苏交运管字 320500-5568", inspectionDue: "2026-12-06" },
+  "浙A·F2190": { type: "危险品牵引车", fleet: "杭州危险品运输车队", state: "在用", permitNo: "浙交运管字 330109-2190", inspectionDue: "2027-06-22" },
 };
 
 Object.values(drivers).forEach((driver) => {
@@ -63,6 +63,8 @@ function syncVehicleArchive() {
       capacityOwnership: window.CapacityOwnership.normalizeType(vehicle.capacityOwnership || vehicle.ownership),
       supplierName: vehicle.supplierName || "",
       organizationName: window.CapacityOwnership.organizationName(vehicle),
+      permitNo: vehicle.permitNo || vehicles[vehicle.plateNo]?.permitNo || "",
+      inspectionDue: vehicle.inspectionDue || vehicle.annualInspectionDue || vehicles[vehicle.plateNo]?.inspectionDue || "",
     };
   });
   Object.keys(vehicles).forEach((plate) => delete vehicles[plate]);
@@ -98,6 +100,13 @@ const ANNOUNCEMENT_STORAGE_KEY = "container-logistics-announcements-v1";
 const DRIVER_MESSAGE_READ_STORAGE_KEY = "container-logistics-driver-message-read-v1";
 const FONT_SIZE_STORAGE_KEY = "container-logistics-driver-font-size-v1";
 const DRIVER_PROFILE_STORAGE_KEY = "container-logistics-driver-profile-v1";
+const DRIVER_VEHICLE_STORAGE_KEY = "container-logistics-driver-vehicle-profile-v1";
+const CERTIFICATION_DOCUMENT_GROUPS = Object.freeze([
+  { key: "idCardFront", label: "身份证人像面", icon: "contact", accept: "image/*,.pdf" },
+  { key: "idCardBack", label: "身份证国徽面", icon: "contact", accept: "image/*,.pdf" },
+  { key: "licenseAttachment", label: "机动车驾驶证", icon: "badge-check", accept: "image/*,.pdf" },
+  { key: "qualificationAttachment", label: "道路运输从业资格证", icon: "file-check-2", accept: "image/*,.pdf" },
+]);
 const FONT_SIZE_OPTIONS = Object.freeze({
   small: { label: "小号", scale: "0.92" },
   medium: { label: "中号", scale: "1" },
@@ -201,6 +210,116 @@ function saveDriverProfiles() {
 }
 
 loadDriverProfiles();
+
+function loadDriverVehicleProfiles() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(DRIVER_VEHICLE_STORAGE_KEY) || "{}");
+    Object.entries(stored).forEach(([plateNo, profile]) => {
+      if (vehicles[plateNo] && profile && typeof profile === "object") Object.assign(vehicles[plateNo], profile);
+    });
+  } catch { /* retain synchronized vehicle data */ }
+}
+
+function saveDriverVehicleProfile(plateNo) {
+  const vehicle = vehicles[plateNo];
+  if (!vehicle) return;
+  let stored = {};
+  try { stored = JSON.parse(localStorage.getItem(DRIVER_VEHICLE_STORAGE_KEY) || "{}"); } catch { stored = {}; }
+  stored[plateNo] = {
+    type: vehicle.type || "",
+    fleet: vehicle.fleet || "",
+    permitNo: vehicle.permitNo || "",
+    inspectionDue: vehicle.inspectionDue || "",
+  };
+  localStorage.setItem(DRIVER_VEHICLE_STORAGE_KEY, JSON.stringify(stored));
+
+  const snapshot = window.AdminDataBridge.read() || {};
+  const vehicleRows = Array.isArray(snapshot.vehicles) ? snapshot.vehicles.slice() : [];
+  const index = vehicleRows.findIndex((item) => item.plateNo === plateNo);
+  const current = index >= 0 ? vehicleRows[index] : { plateNo };
+  const next = {
+    ...current,
+    plateNo,
+    vehicleType: vehicle.type,
+    fleetName: vehicle.fleet,
+    vehicleState: vehicle.state,
+    capacityOwnership: vehicle.capacityOwnership || current.capacityOwnership || "",
+    supplierName: vehicle.supplierName || current.supplierName || "",
+    permitNo: vehicle.permitNo,
+    inspectionDue: vehicle.inspectionDue,
+  };
+  if (index >= 0) vehicleRows[index] = next;
+  else vehicleRows.push(next);
+  window.AdminDataBridge.write({ ...snapshot, vehicles: vehicleRows });
+}
+
+loadDriverVehicleProfiles();
+
+function credentialAttachmentMap(certification = {}) {
+  const stored = certification.attachments && typeof certification.attachments === "object" ? certification.attachments : {};
+  return Object.fromEntries(CERTIFICATION_DOCUMENT_GROUPS.map((group) => {
+    const current = Array.isArray(stored[group.key]) ? stored[group.key].filter(Boolean) : [];
+    if (current.length) return [group.key, current];
+    const legacyNames = typeof certification[group.key] === "string"
+      ? certification[group.key].split("、").map((name) => name.trim()).filter(Boolean)
+      : [];
+    return [group.key, legacyNames.map((name, index) => ({ id: "", name, type: "", uploadedAt: certification.submittedAt || "", legacy: true, index }))];
+  }));
+}
+
+function syncCredentialAttachmentNames(certification) {
+  const attachments = credentialAttachmentMap(certification);
+  certification.attachments = attachments;
+  CERTIFICATION_DOCUMENT_GROUPS.forEach((group) => {
+    certification[group.key] = attachments[group.key].map((item) => item.name).join("、");
+  });
+  return certification;
+}
+
+async function replaceCredentialAttachmentsFromForm(form, certification, requireAll = false) {
+  const current = credentialAttachmentMap(certification);
+  const next = { ...current };
+  const pendingBlobs = [];
+  const replacedIds = [];
+  let changed = false;
+
+  for (const group of CERTIFICATION_DOCUMENT_GROUPS) {
+    const input = form.elements[group.key];
+    const files = Array.from(input?.files || []);
+    const card = input?.closest("[data-credential-upload-card]");
+    const removeExisting = card?.dataset.removeExisting === "true";
+    if (files.length > 6) return { error: `${group.label}最多上传 6 个文件` };
+    const invalid = files.find((file) => !(file.type.startsWith("image/") || file.type === "application/pdf" || /\.(?:jpe?g|png|webp|heic|pdf)$/i.test(file.name)));
+    if (invalid) return { error: `${group.label}仅支持图片或 PDF` };
+    const oversized = files.find((file) => file.size > 10 * 1024 * 1024);
+    if (oversized) return { error: `${group.label}单个文件不能超过 10 MB` };
+    if (files.length) {
+      changed = true;
+      replacedIds.push(...current[group.key].map((item) => item.id).filter(Boolean));
+      next[group.key] = files.map((file, index) => {
+        const attachment = {
+          id: `credential-${state.currentDriverId}-${group.key}-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+          name: file.name,
+          type: file.type || "application/octet-stream",
+          uploadedAt: window.DispatchStore.nowText(),
+        };
+        pendingBlobs.push({ id: attachment.id, blob: file });
+        return attachment;
+      });
+    } else if (removeExisting) {
+      changed = true;
+      replacedIds.push(...current[group.key].map((item) => item.id).filter(Boolean));
+      next[group.key] = [];
+    }
+    if (requireAll && !next[group.key].length) return { error: `请上传${group.label}` };
+  }
+
+  if (pendingBlobs.length) await window.DispatchStore.savePhotos(pendingBlobs);
+  if (replacedIds.length) await window.DispatchStore.deletePhotos(replacedIds).catch(() => {});
+  certification.attachments = next;
+  syncCredentialAttachmentNames(certification);
+  return { changed };
+}
 
 function loadExpenses() {
   try {
@@ -316,7 +435,6 @@ function renderDriverMessages() {
   const filteredMessages = messages.filter((item) => filter === "all" || item.type === filter);
   const badge = document.querySelector("#navMessageBadge");
   const profileBadge = document.querySelector("#messageBadge");
-  const headerDot = document.querySelector("#headerMessageDot");
   document.querySelector("#driverUnreadSummary").textContent = `${unreadCount} 条未读消息`;
   badge.textContent = String(unreadCount);
   badge.hidden = unreadCount === 0;
@@ -324,7 +442,6 @@ function renderDriverMessages() {
     profileBadge.textContent = String(unreadCount);
     profileBadge.hidden = unreadCount === 0;
   }
-  headerDot.hidden = unreadCount === 0;
   document.querySelector("#driverMessageList").innerHTML = filteredMessages.length
     ? filteredMessages.map((item) => `
       <button class="driver-message-item ${item.unread ? "unread" : ""} message-${item.type}" data-driver-message-id="${h(item.id)}" ${item.dispatchId ? `data-message-dispatch-id="${h(item.dispatchId)}"` : ""} type="button">
@@ -405,6 +522,7 @@ const state = {
   activeDispatchId: "",
   activeProfilePage: "",
   activeExpenseType: "",
+  activeFeedbackTab: "submit",
   fontSize: loadFontSize(),
   expenses: loadExpenses(),
   repairs: window.VehicleRepair.load(),
@@ -421,21 +539,11 @@ const elements = {
   bottomNav: document.querySelector("#bottomNav"),
   taskList: document.querySelector("#taskList"),
   orderList: document.querySelector("#orderList"),
-  taskDrawerButton: document.querySelector("#taskDrawerButton"),
-  taskDrawer: document.querySelector("#taskDrawer"),
-  taskDrawerOverlay: document.querySelector("#taskDrawerOverlay"),
-  taskDrawerClose: document.querySelector("#taskDrawerClose"),
-  drawerAvatar: document.querySelector("#drawerAvatar"),
-  drawerDriverName: document.querySelector("#drawerDriverName"),
-  drawerDriverMeta: document.querySelector("#drawerDriverMeta"),
-  drawerStats: document.querySelector("#drawerStats"),
-  drawerRecordList: document.querySelector("#drawerRecordList"),
   detailView: document.querySelector("#detailView"),
   detailContent: document.querySelector("#detailContent"),
   detailActionBar: document.querySelector("#detailActionBar"),
   rejectDialog: document.querySelector("#rejectDialog"),
   progressDialog: document.querySelector("#progressDialog"),
-  driverDialog: document.querySelector("#driverDialog"),
   profileSubpage: document.querySelector("#profileSubpage"),
   subpageTitle: document.querySelector("#subpageTitle"),
   subpageContent: document.querySelector("#subpageContent"),
@@ -656,10 +764,18 @@ function missingPhotoCount(photoInputs) {
 let photoViewerUrls = [];
 let timelinePhotoUrls = [];
 let timelinePhotoRenderId = 0;
+let credentialInlineUrls = [];
+let credentialInlineRenderId = 0;
 
 function clearPhotoViewerUrls() {
   photoViewerUrls.forEach((url) => URL.revokeObjectURL(url));
   photoViewerUrls = [];
+}
+
+function clearCredentialInlineUrls() {
+  credentialInlineUrls.forEach((url) => URL.revokeObjectURL(url));
+  credentialInlineUrls = [];
+  credentialInlineRenderId += 1;
 }
 
 function clearTimelinePhotoUrls() {
@@ -740,6 +856,51 @@ async function openPhotoViewer(dispatchId, node, selectedPhotoId = "", selectedP
     photoViewerUrls.push(url);
     return `<figure class="photo-viewer-item"><img src="${url}" alt="${h(photo.label || photo.name)}" /><figcaption><strong>${h(photo.label || photo.name)}</strong><span>${h(photo.name)}</span></figcaption></figure>`;
   }).join("");
+}
+
+async function openCredentialPreview(button) {
+  const id = button.dataset.credentialId;
+  const name = button.dataset.credentialName || "证件附件";
+  if (!id) {
+    showToast("该历史附件仅保留文件名，请重新上传后预览");
+    return;
+  }
+  const dialog = document.querySelector("#photoViewerDialog");
+  const content = document.querySelector("#photoViewerGrid");
+  document.querySelector("#photoViewerTitle").textContent = name;
+  content.innerHTML = `<p class="photo-viewer-loading">正在加载附件</p>`;
+  clearPhotoViewerUrls();
+  positionPhotoViewer();
+  dialog.showModal();
+  const blob = await window.DispatchStore.getPhoto(id).catch(() => null);
+  if (!dialog.open) return;
+  if (!blob) {
+    content.innerHTML = `<div class="credential-preview-empty"><strong>附件无法读取</strong><span>请关闭后重新上传该证件</span></div>`;
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  photoViewerUrls.push(url);
+  const type = button.dataset.credentialType || blob.type || "";
+  content.innerHTML = type === "application/pdf" || name.toLowerCase().endsWith(".pdf")
+    ? `<iframe class="credential-pdf-preview" src="${url}" title="${h(name)}"></iframe>`
+    : `<figure class="photo-viewer-item credential-image-preview"><img src="${url}" alt="${h(name)}" /><figcaption><strong>${h(name)}</strong><span>证件附件预览</span></figcaption></figure>`;
+}
+
+function openSelectedCredentialPreview(input) {
+  const files = Array.from(input?.files || []);
+  if (!files.length) return;
+  const file = files[0];
+  const dialog = document.querySelector("#photoViewerDialog");
+  const content = document.querySelector("#photoViewerGrid");
+  document.querySelector("#photoViewerTitle").textContent = files.length > 1 ? `${file.name} 等 ${files.length} 份` : file.name;
+  clearPhotoViewerUrls();
+  positionPhotoViewer();
+  dialog.showModal();
+  const url = URL.createObjectURL(file);
+  photoViewerUrls.push(url);
+  content.innerHTML = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+    ? `<iframe class="credential-pdf-preview" src="${url}" title="${h(file.name)}"></iframe>`
+    : `<figure class="photo-viewer-item credential-image-preview"><img src="${url}" alt="${h(file.name)}" /><figcaption><strong>${h(file.name)}</strong><span>待提交证件预览</span></figcaption></figure>`;
 }
 
 function renderProgressPhotoRequirements(dispatch, node) {
@@ -845,34 +1006,6 @@ function renderTasks() {
   elements.taskList.innerHTML = rows.length ? rows.map(taskCard).join("") : emptyState("暂无待接订单", "新派单到达后会在这里显示");
 }
 
-function renderTaskDrawer() {
-  const driver = currentDriver();
-  const orders = driverDispatches();
-  const counts = {
-    total: orders.length,
-    pending: orders.filter((item) => item.status === "已派单").length,
-    active: orders.filter((item) => item.status === "运输中").length,
-    completed: orders.filter((item) => item.status === "已完成").length,
-  };
-  elements.drawerAvatar.textContent = driver.name.slice(0, 1);
-  elements.drawerDriverName.textContent = driver.name;
-  elements.drawerDriverMeta.textContent = `${driver.type} · ${driver.fleet}`;
-  elements.drawerStats.innerHTML = [
-    ["total", "全部接单", counts.total, "all"],
-    ["pending", "待确认", counts.pending, "pending"],
-    ["active", "运输中", counts.active, "transit"],
-    ["completed", "已完成", counts.completed, "completed"],
-  ].map(([className, label, count, filter]) => `
-    <button class="drawer-stat metric-card ${className}" type="button" data-drawer-filter="${filter}" aria-label="${label} ${count} 单，查看运单"><strong class="metric-value">${count}</strong><span class="metric-label">${label}</span></button>`).join("");
-  const records = [...orders].sort((a, b) => String(b.dispatchTime || "").localeCompare(String(a.dispatchTime || ""))).slice(0, 4);
-  elements.drawerRecordList.innerHTML = records.length ? records.map((item) => `
-    <button class="drawer-record" type="button" data-drawer-dispatch="${h(item.id)}">
-      <span class="drawer-record-icon">${h(item.routeName.slice(0, 1))}</span>
-      <span class="drawer-record-copy"><strong>${h(item.routeName)}</strong><small>${h(item.waybillNo)} · ${h(item.destination)}</small></span>
-      <span class="drawer-record-status ${dispatchCategory(item)}">${h(statusLabel(item))}</span>
-    </button>`).join("") : `<div class="drawer-empty">暂无运单记录</div>`;
-}
-
 function orderCard(dispatch) {
   const category = dispatchCategory(dispatch);
   const progressAction = category === "active"
@@ -961,6 +1094,171 @@ function renderDriverRepairHistory() {
   return `<section class="info-section repair-history"><h2>我的报修</h2>${records.slice(0, 8).map((item) => `<article class="repair-history-row"><div><strong>${h(item.plateNo)} · ${h(item.category)}</strong><span>${h(String(item.reportedAt || "").replace("T", " ").slice(0, 16))} · ${h(item.repairLocation || "地点待补充")}</span><small>${h(item.description)}</small>${item.evidence?.length ? `<small>凭证：${h(item.evidence.map((file) => typeof file === "string" ? file : file.name).join("、"))}</small>` : ""}</div><em class="repair-history-status ${item.status === "已完成" ? "done" : item.status === "已取消" ? "cancelled" : item.status === "维修中" ? "working" : "pending"}">${h(item.status)}</em></article>`).join("")}</section>`;
 }
 
+function credentialGroupDetails(group, driver) {
+  if (group.key === "idCardFront" || group.key === "idCardBack") return `身份证号：${maskIdCard(driver.idCard)}`;
+  if (group.key === "licenseAttachment") return `证号：${maskCredential(driver.licenseNo)} · ${driver.licenseClass || "-"} · 有效期至 ${driver.licenseExpiry || "-"}`;
+  return `证号：${maskCredential(driver.qualificationNo)} · 有效期至 ${driver.qualificationExpiry || "-"}`;
+}
+
+function credentialDocumentsMarkup(certification, driver, { compact = false } = {}) {
+  const attachments = credentialAttachmentMap(certification);
+  return `<div class="credential-document-list ${compact ? "compact" : ""}">${CERTIFICATION_DOCUMENT_GROUPS.map((group) => {
+    const files = attachments[group.key];
+    return `<article class="credential-document-card">
+      <header><div><strong>${h(group.label)}</strong><span>${h(credentialGroupDetails(group, driver))}</span></div><em>${files.length ? `${files.length} 份附件` : "待上传"}</em></header>
+      <div class="credential-attachment-list">${files.length ? files.map((file) => `
+        <button type="button" data-preview-credential data-credential-id="${h(file.id)}" data-credential-name="${h(file.name)}" data-credential-type="${h(file.type)}">
+          <i data-lucide="${file.type === "application/pdf" ? "file-text" : "image"}"></i><span>${h(file.name)}</span><b>预览</b>
+        </button>`).join("") : `<span class="credential-empty">暂未上传电子附件</span>`}</div>
+    </article>`;
+  }).join("")}</div>`;
+}
+
+function credentialEmptyStageMarkup(group, inputId) {
+  return `<label class="credential-card-empty" for="${h(inputId)}">
+    <i data-lucide="camera"></i><strong>点击上传${h(group.label)}</strong><span>请确保证件完整、清晰、无反光</span>
+  </label>`;
+}
+
+function credentialCardActionsMarkup(inputId, hasFiles) {
+  return hasFiles
+    ? `<label for="${h(inputId)}"><i data-lucide="refresh-cw"></i>重新上传</label><button data-remove-credential-group type="button"><i data-lucide="trash-2"></i>删除</button>`
+    : `<span>支持图片或 PDF，单个文件不超过 10 MB</span>`;
+}
+
+function credentialUploadCardsMarkup(certification) {
+  const attachments = credentialAttachmentMap(certification);
+  return `<div class="credential-upload-grid credential-upload-card-grid">${CERTIFICATION_DOCUMENT_GROUPS.map((group) => {
+    const files = attachments[group.key];
+    const first = files[0];
+    const inputId = `credential-upload-${group.key}`;
+    return `<article class="credential-upload-card ${files.length ? "has-files" : ""}" data-credential-upload-card data-credential-group="${h(group.key)}" data-remove-existing="false">
+      <header><strong>${h(group.label)}</strong><em>${files.length ? `已上传 ${files.length} 份` : "必传"}</em></header>
+      <input id="${h(inputId)}" name="${h(group.key)}" type="file" accept="${h(group.accept)}" multiple ${files.length ? "" : "required"} />
+      <div class="credential-card-stage" data-credential-stage>${first ? `<button class="credential-card-preview" data-preview-credential data-credential-id="${h(first.id)}" data-credential-name="${h(first.name)}" data-credential-type="${h(first.type)}" type="button">
+        <span class="credential-card-asset" data-credential-inline-asset data-credential-id="${h(first.id)}" data-credential-name="${h(first.name)}" data-credential-type="${h(first.type)}"><i data-lucide="${first.type === "application/pdf" ? "file-text" : "image"}"></i></span>
+        <span class="credential-card-preview-copy"><strong>${h(first.name)}</strong><small>点击查看大图${files.length > 1 ? ` · 共 ${files.length} 份` : ""}</small></span>
+      </button>` : credentialEmptyStageMarkup(group, inputId)}</div>
+      <footer data-credential-actions>${credentialCardActionsMarkup(inputId, files.length > 0)}</footer>
+    </article>`;
+  }).join("")}</div>`;
+}
+
+function credentialPreviewCardsMarkup(certification) {
+  const attachments = credentialAttachmentMap(certification);
+  return `<div class="credential-upload-grid credential-upload-card-grid credential-readonly-grid">${CERTIFICATION_DOCUMENT_GROUPS.map((group) => {
+    const files = attachments[group.key];
+    const first = files[0];
+    return `<article class="credential-upload-card ${files.length ? "has-files" : ""}">
+      <header><strong>${h(group.label)}</strong><em>${files.length ? `${files.length} 份` : "待上传"}</em></header>
+      <div class="credential-card-stage">${first ? `<button class="credential-card-preview" data-preview-credential data-credential-id="${h(first.id)}" data-credential-name="${h(first.name)}" data-credential-type="${h(first.type)}" type="button">
+        <span class="credential-card-asset" data-credential-inline-asset data-credential-id="${h(first.id)}" data-credential-name="${h(first.name)}" data-credential-type="${h(first.type)}"><i data-lucide="${first.type === "application/pdf" ? "file-text" : "image"}"></i></span>
+        <span class="credential-card-preview-copy"><strong>${h(first.name)}</strong><small>点击查看大图${files.length > 1 ? ` · 共 ${files.length} 份` : ""}</small></span>
+      </button>` : `<div class="credential-card-empty readonly"><i data-lucide="image-off"></i><strong>暂未上传</strong><span>${h(group.label)}</span></div>`}</div>
+    </article>`;
+  }).join("")}</div>`;
+}
+
+async function hydrateCredentialInlinePreviews() {
+  const renderId = ++credentialInlineRenderId;
+  const assets = Array.from(elements.subpageContent.querySelectorAll("[data-credential-inline-asset][data-credential-id]"));
+  await Promise.all(assets.map(async (asset) => {
+    const id = asset.dataset.credentialId;
+    const name = asset.dataset.credentialName || "证件附件";
+    const type = asset.dataset.credentialType || "";
+    if (!id || type === "application/pdf" || name.toLowerCase().endsWith(".pdf")) return;
+    const blob = await window.DispatchStore.getPhoto(id).catch(() => null);
+    if (!blob || renderId !== credentialInlineRenderId || !asset.isConnected) return;
+    const url = URL.createObjectURL(blob);
+    credentialInlineUrls.push(url);
+    asset.innerHTML = `<img src="${url}" alt="${h(name)}" />`;
+  }));
+}
+
+function renderSelectedCredentialCard(input) {
+  const card = input.closest("[data-credential-upload-card]");
+  const group = CERTIFICATION_DOCUMENT_GROUPS.find((item) => item.key === input.name);
+  if (!card || !group) return;
+  const files = Array.from(input.files || []);
+  const stage = card.querySelector("[data-credential-stage]");
+  const actions = card.querySelector("[data-credential-actions]");
+  if (!files.length) {
+    card.classList.remove("has-files");
+    card.querySelector("header em").textContent = "必传";
+    stage.innerHTML = credentialEmptyStageMarkup(group, input.id);
+    actions.innerHTML = credentialCardActionsMarkup(input.id, false);
+    window.lucide?.createIcons();
+    return;
+  }
+  const first = files[0];
+  const isPdf = first.type === "application/pdf" || first.name.toLowerCase().endsWith(".pdf");
+  let assetMarkup = `<i data-lucide="file-text"></i>`;
+  if (!isPdf) {
+    const url = URL.createObjectURL(first);
+    credentialInlineUrls.push(url);
+    assetMarkup = `<img src="${url}" alt="${h(first.name)}" />`;
+  }
+  card.dataset.removeExisting = "false";
+  card.classList.add("has-files");
+  input.required = false;
+  card.querySelector("header em").textContent = `待提交 ${files.length} 份`;
+  stage.innerHTML = `<button class="credential-card-preview" data-preview-selected-credential type="button"><span class="credential-card-asset">${assetMarkup}</span><span class="credential-card-preview-copy"><strong>${h(first.name)}</strong><small>点击预览${files.length > 1 ? ` · 共 ${files.length} 份` : ""}</small></span></button>`;
+  actions.innerHTML = credentialCardActionsMarkup(input.id, true);
+  window.lucide?.createIcons();
+}
+
+function renderCertificationForm(certification) {
+  clearCredentialInlineUrls();
+  const driver = currentDriver();
+  const statusNotice = certification.status === "rejected"
+    ? `<div class="certification-notice rejected"><strong>审核未通过</strong><br>${h(certification.reason || "认证资料不完整，请重新提交")}</div>`
+    : certification.status === "unverified" ? `<div class="certification-notice">完成实名认证后才能接单，请确保上传的证件清晰、完整且在有效期内。</div>` : "";
+  elements.subpageContent.innerHTML = `
+    <div class="subpage-summary"><span class="subpage-summary-icon">认</span><div><strong>编辑认证资料</strong><span>上传新文件会替换对应证件原有附件</span></div></div>
+    ${statusNotice}
+    <form class="certification-form" id="certificationForm">
+      <section class="info-section credential-upload-section"><h2>上传证件照片</h2>
+        <div class="credential-upload-heading"><strong>请上传清晰完整的证件</strong><span>上传后可在当前页面直接预览</span></div>
+        ${credentialUploadCardsMarkup(certification)}
+      </section>
+      <section class="info-section"><h2>身份与证件信息</h2>
+        <label class="certification-field">真实姓名<input name="name" value="${h(driver.name)}" readonly /></label>
+        <label class="certification-field">身份证号码<input name="idCard" value="${h(driver.idCard)}" required /></label>
+        <label class="certification-field">手机号码<input name="phone" value="${h(driver.phone)}" inputmode="tel" maxlength="11" required /></label>
+        <label class="certification-field">驾驶证号<input name="licenseNo" value="${h(driver.licenseNo)}" required /></label>
+        <label class="certification-field">准驾车型<input name="licenseClass" value="${h(driver.licenseClass)}" required /></label>
+        <label class="certification-field">从业资格证号<input name="qualificationNo" value="${h(driver.qualificationNo)}" required /></label>
+      </section>
+      <div class="certification-change-notice">提交修改后认证状态将变为待审核，审核期间暂时无法接单。</div>
+      <button class="subpage-primary" type="submit">提交认证审核</button>
+      <button class="subpage-secondary" data-subpage-action="cancel-certification-edit" type="button">取消修改</button>
+    </form>`;
+  hydrateCredentialInlinePreviews();
+}
+
+function renderVehicleEditForm(plateNo, vehicle) {
+  if (!vehicle) {
+    showToast("当前没有可编辑的车辆");
+    return;
+  }
+  elements.subpageContent.innerHTML = `
+    <div class="subpage-summary"><span class="subpage-summary-icon">车</span><div><strong>编辑车辆信息</strong><span>车辆归属及使用状态由后台统一维护</span></div></div>
+    <form class="expense-form profile-edit-form" id="vehicleEditForm">
+      <section class="info-section"><h2>车辆档案</h2>
+        <label class="expense-field">车牌号码<input name="plateNo" value="${h(plateNo)}" readonly /></label>
+        <label class="expense-field">车辆类型<input name="vehicleType" value="${h(vehicle.type || "")}" maxlength="40" required /></label>
+        <label class="expense-field">所属车队<input name="fleet" value="${h(vehicle.fleet || "")}" maxlength="60" required /></label>
+        <label class="expense-field">营运证号<input name="permitNo" value="${h(vehicle.permitNo || "")}" maxlength="50" required /></label>
+        <label class="expense-field">下次审验<input name="inspectionDue" type="date" value="${h(vehicle.inspectionDue || "")}" required /></label>
+        <label class="expense-field">运力归属<input value="${h(vehicle.capacityOwnership || "待确定")}" readonly /></label>
+        <label class="expense-field">所属单位<input value="${h(vehicle.organizationName || "待确定")}" readonly /></label>
+        <label class="expense-field">车辆状态<input value="${h(vehicle.state || "待分配")}" readonly /></label>
+      </section>
+      <button class="subpage-primary" type="submit">保存车辆信息</button>
+      <button class="subpage-secondary" data-subpage-action="cancel-vehicle-edit" type="button">取消编辑</button>
+    </form>`;
+}
+
 function renderPersonalEditForm() {
   const driver = currentDriver();
   elements.subpageContent.innerHTML = `
@@ -981,25 +1279,33 @@ function renderPersonalEditForm() {
     </form>`;
 }
 
-function renderDocumentEditForm() {
+function renderDriverFeedback() {
   const driver = currentDriver();
-  elements.subpageContent.innerHTML = `
-    <div class="subpage-summary"><span class="subpage-summary-icon">证</span><div><strong>更新证件资料</strong><span>补充证件编号、有效期和最新附件</span></div></div>
-    <form class="expense-form profile-edit-form" id="documentEditForm">
-      <section class="info-section"><h2>驾驶与从业证件</h2>
-        <label class="expense-field">驾驶证号<input name="licenseNo" value="${h(driver.licenseNo)}" maxlength="24" required /></label>
-        <label class="expense-field">准驾车型<input name="licenseClass" value="${h(driver.licenseClass)}" maxlength="8" required /></label>
-        <label class="expense-field">驾驶证有效期<input name="licenseExpiry" type="date" value="${h(driver.licenseExpiry)}" required /></label>
-        <label class="expense-field">从业资格证号<input name="qualificationNo" value="${h(driver.qualificationNo)}" maxlength="30" required /></label>
-        <label class="expense-field">资格证有效期<input name="qualificationExpiry" type="date" value="${h(driver.qualificationExpiry)}" required /></label>
-        <label class="expense-field">最新证件附件<span class="expense-upload"><input name="documentFiles" type="file" accept="image/*,.pdf" multiple /><strong>上传驾驶证或从业资格证</strong><small>选填，支持图片、PDF，单个文件不超过 10 MB</small></span></label>
-      </section>
-      <button class="subpage-primary" type="submit">保存证件资料</button>
-      <button class="subpage-secondary" data-subpage-action="cancel-document-edit" type="button">取消编辑</button>
-    </form>`;
+  const records = window.FeedbackManager.bySubmitter("driver", driver.id);
+  const statusMeta = window.FeedbackManager.STATUS_META;
+  const categories = window.FeedbackManager.categories("driver");
+  const relatedDispatches = driverDispatches().slice().sort((left, right) => String(right.orderDate || "").localeCompare(String(left.orderDate || "")));
+  const tabs = `<div class="feedback-mobile-tabs" role="tablist" aria-label="意见反馈视图"><button class="${state.activeFeedbackTab === "submit" ? "active" : ""}" data-feedback-tab="submit" type="button" role="tab" aria-selected="${state.activeFeedbackTab === "submit"}">提交反馈</button><button class="${state.activeFeedbackTab === "history" ? "active" : ""}" data-feedback-tab="history" type="button" role="tab" aria-selected="${state.activeFeedbackTab === "history"}">我的反馈${records.length ? `（${records.length}）` : ""}</button></div>`;
+  if (state.activeFeedbackTab === "history") {
+    elements.subpageContent.innerHTML = `<div class="feedback-mobile-page">${tabs}<div class="feedback-history-list">${records.length ? records.map((item) => {
+      const status = statusMeta[item.status];
+      return `<article class="feedback-history-card"><header><span><strong>${h(item.categoryLabel)}</strong><small>${h(item.id)} · ${h(item.createdAt)}</small></span><em class="feedback-status ${status.className}">${status.label}</em></header><p>${h(item.description)}</p><div class="feedback-history-meta"><span>${h(item.relatedLabel || "未关联业务")}</span><span>${item.attachments.length ? `${item.attachments.length} 个附件` : "无附件"}</span></div>${item.publicReply ? `<div class="feedback-history-reply"><strong>处理回复：</strong>${h(item.publicReply)}</div>` : ""}</article>`;
+    }).join("") : '<div class="feedback-history-empty"><i data-lucide="message-square-dashed"></i><strong>暂无反馈记录</strong><span>提交后的处理状态会显示在这里</span></div>'}</div></div>`;
+    return;
+  }
+  elements.subpageContent.innerHTML = `<div class="feedback-mobile-page">${tabs}<form class="feedback-form-card" id="driverFeedbackForm">
+    <div class="feedback-form-intro"><span><i data-lucide="message-square-plus"></i></span><div><strong>告诉我们遇到的问题</strong><small>身份与客户端信息会自动随反馈提交</small></div></div>
+    <label class="feedback-field"><span>问题类型</span><select name="categoryCode" required><option value="">请选择问题类型</option>${categories.map((item) => `<option value="${h(item.code)}">${h(item.label)}</option>`).join("")}</select></label>
+    <label class="feedback-field"><span>关联运单 <em>选填</em></span><select name="relatedId"><option value="">不关联运单</option>${relatedDispatches.map((item) => `<option value="${h(item.id)}" data-related-label="${h(`${item.waybillNo} · ${item.routeName}`)}">${h(item.waybillNo)} · ${h(item.routeName)}</option>`).join("")}</select></label>
+    <label class="feedback-field"><span>问题描述 <em data-feedback-count>0/1000</em></span><textarea name="description" rows="5" minlength="10" maxlength="1000" placeholder="请描述发生了什么、期望如何改进，至少填写 10 个字" required></textarea></label>
+    <label class="feedback-field"><span>图片或视频 <em>选填</em></span><label class="feedback-upload"><input name="attachments" type="file" accept="image/*,video/mp4,video/quicktime" multiple /><span class="feedback-upload-icon"><i data-lucide="image-plus"></i></span><span><strong>上传现场截图或视频</strong><small>最多 9 个附件，视频最多 2 个；图片≤10MB，视频≤100MB</small></span></label><small class="feedback-file-summary" data-feedback-files>尚未选择附件</small></label>
+    <label class="feedback-field"><span>联系电话</span><input name="contactPhone" inputmode="tel" maxlength="11" value="${h(driver.phone)}" required /></label>
+    <button class="feedback-submit-button" type="submit">提交意见反馈</button>
+  </form></div>`;
 }
 
 function renderSubpage(page) {
+  clearCredentialInlineUrls();
   const driver = currentDriver();
   const certification = currentCertification();
   const certificationView = certificationMeta(certification.status);
@@ -1010,17 +1316,23 @@ function renderSubpage(page) {
   const titles = {
     certification: "司机认证",
     personal: "个人信息",
-    documents: "证件管理",
     security: "账户安全",
     vehicle: "车辆信息",
     insurance: "车辆保险",
     messages: "消息通知",
     expenses: "费用上报",
-    service: "联系调度",
+    feedback: "意见反馈",
+    service: "客服电话",
     settings: "系统设置",
     vehicleRepair: "车辆报修",
   };
   elements.subpageTitle.textContent = titles[page] || "个人中心";
+  setTimeout(() => window.lucide?.createIcons(), 0);
+
+  if (page === "feedback") {
+    renderDriverFeedback();
+    return;
+  }
 
   if (page === "certification") {
     const status = certificationMeta(certification.status);
@@ -1031,7 +1343,10 @@ function renderSubpage(page) {
           { label: "真实姓名", value: driver.name }, { label: "身份证号", value: maskIdCard(driver.idCard) },
           { label: "驾驶证", value: `${driver.licenseClass} · ${maskIdCard(driver.licenseNo)}` }, { label: "从业资格证", value: driver.qualificationNo },
           { label: "认证状态", value: "", status: status.label },
-        ])}</section>`;
+        ])}</section>
+        <section class="info-section credential-preview-section"><h2>电子证件</h2>${credentialPreviewCardsMarkup(certification)}</section>
+        <button class="subpage-primary" data-subpage-action="edit-certification" type="button">修改认证资料</button>`;
+      hydrateCredentialInlinePreviews();
       return;
     }
     if (certification.status === "pending") {
@@ -1040,33 +1355,14 @@ function renderSubpage(page) {
         <div class="certification-notice">认证结果将通过消息通知同步。审核通过前暂时无法接单，请耐心等待。</div>
         <section class="info-section"><h2>已提交资料</h2>${infoRows([
           { label: "真实姓名", value: driver.name }, { label: "身份证号", value: maskIdCard(driver.idCard) },
-          { label: "驾驶证", value: certification.licenseAttachment || "驾驶证照片" }, { label: "从业资格证", value: certification.qualificationAttachment || "资格证照片" },
-        ])}</section>`;
+          { label: "驾驶证", value: certification.licenseAttachment || "待补充" }, { label: "从业资格证", value: certification.qualificationAttachment || "待补充" },
+        ])}</section>
+        <section class="info-section credential-preview-section"><h2>电子证件</h2>${credentialPreviewCardsMarkup(certification)}</section>
+        <button class="subpage-primary" data-subpage-action="edit-certification" type="button">修改并重新提交</button>`;
+      hydrateCredentialInlinePreviews();
       return;
     }
-    const rejectedNotice = certification.status === "rejected"
-      ? `<div class="certification-notice rejected"><strong>审核未通过</strong><br>${h(certification.reason || "认证资料不完整，请重新提交")}</div>`
-      : `<div class="certification-notice">完成实名认证后才能接单，请确保上传的证件清晰、完整且在有效期内。</div>`;
-    elements.subpageContent.innerHTML = `
-      <div class="subpage-summary"><span class="subpage-summary-icon">认</span><div><strong>${h(status.label)}</strong><span>提交司机身份及从业资质</span></div></div>
-      ${rejectedNotice}
-      <form class="certification-form" id="certificationForm">
-        <section class="info-section"><h2>身份与证件信息</h2>
-          <label class="certification-field">真实姓名<input name="name" value="${h(driver.name)}" readonly /></label>
-          <label class="certification-field">身份证号码<input name="idCard" value="${h(driver.idCard)}" required /></label>
-          <label class="certification-field">手机号码<input name="phone" value="${h(driver.phone)}" required /></label>
-          <label class="certification-field">驾驶证号<input name="licenseNo" value="${h(driver.licenseNo)}" required /></label>
-          <label class="certification-field">准驾车型<input name="licenseClass" value="${h(driver.licenseClass)}" required /></label>
-          <label class="certification-field">从业资格证号<input name="qualificationNo" value="${h(driver.qualificationNo)}" required /></label>
-          <div class="certification-upload-grid">
-            <label class="certification-upload"><input name="idCardFront" type="file" accept="image/*" required /><strong>身份证人像面</strong><span>点击上传照片</span></label>
-            <label class="certification-upload"><input name="idCardBack" type="file" accept="image/*" required /><strong>身份证国徽面</strong><span>点击上传照片</span></label>
-            <label class="certification-upload"><input name="licenseAttachment" type="file" accept="image/*" required /><strong>驾驶证照片</strong><span>点击上传照片</span></label>
-            <label class="certification-upload"><input name="qualificationAttachment" type="file" accept="image/*" required /><strong>从业资格证</strong><span>点击上传照片</span></label>
-          </div>
-        </section>
-        <button class="subpage-primary" type="submit">提交认证审核</button>
-      </form>`;
+    renderCertificationForm(certification);
     return;
   }
 
@@ -1078,21 +1374,8 @@ function renderSubpage(page) {
         { label: "运力归属", value: driver.capacityOwnership || "自营" }, { label: "所属单位", value: driver.organizationName || "本公司" }, { label: "所属车队", value: driver.fleet }, { label: "司机状态", value: "在职" },
       ])}</section>
       <section class="info-section"><h2>联系信息</h2>${infoRows([{ label: "住址", value: driver.address || "上海市浦东新区临港大道 688 号" }, { label: "紧急联系人", value: driver.emergencyContact || "赵敏  138****2166" }])}</section>
-      <button class="subpage-secondary subpage-link-button" data-subpage-action="open-documents" type="button">证件管理 <b>›</b></button>
+      <section class="info-section profile-credential-section"><h2>相关证件</h2>${credentialDocumentsMarkup(certification, driver, { compact: true })}</section>
       <button class="subpage-primary" data-subpage-action="edit-personal" type="button">编辑个人信息</button>`;
-    return;
-  }
-
-  if (page === "documents") {
-    const licenseStatus = documentStatus(driver.licenseExpiry);
-    const qualificationStatus = documentStatus(driver.qualificationExpiry);
-    elements.subpageContent.innerHTML = `
-      <div class="subpage-summary"><span class="subpage-summary-icon">证</span><div><strong>司机证件档案</strong><span>证件到期前 30 天自动提醒</span></div></div>
-      <section class="info-section"><h2>证件列表</h2>
-        <div class="document-record"><header><strong>机动车驾驶证（${h(driver.licenseClass)}）</strong><em class="status-pill ${licenseStatus.warning ? "warning" : ""}">${licenseStatus.text}</em></header><p>证号：${h(maskCredential(driver.licenseNo))}<br>有效期至：${h(driver.licenseExpiry)}</p></div>
-        <div class="document-record"><header><strong>道路运输从业资格证</strong><em class="status-pill ${qualificationStatus.warning ? "warning" : ""}">${qualificationStatus.text}</em></header><p>证号：${h(maskCredential(driver.qualificationNo))}<br>有效期至：${h(driver.qualificationExpiry)}</p></div>
-      </section>
-      <button class="subpage-primary" data-subpage-action="update-documents" type="button">更新证件资料</button>`;
     return;
   }
 
@@ -1109,15 +1392,18 @@ function renderSubpage(page) {
   }
 
   if (page === "vehicle") {
+    const hasOpenRepair = vehicle && window.VehicleRepair.hasOpenRepair(state.repairs, plateNo);
     elements.subpageContent.innerHTML = `
-      <div class="subpage-summary"><span class="subpage-summary-icon">车</span><div><strong>${h(plateNo)}</strong><span>${h(vehicle?.type || "暂无车辆信息")}</span></div></div>
+      <div class="subpage-summary vehicle-summary"><span class="subpage-summary-icon">车</span><div><strong>${h(plateNo)}</strong><span>${h(vehicle?.type || "暂无车辆信息")}</span></div><div class="vehicle-summary-actions">
+        <button data-subpage-action="report-vehicle-repair" type="button" ${hasOpenRepair || !vehicle ? "disabled" : ""}>${hasOpenRepair ? "维修中" : "报修"}</button>
+        <button data-subpage-action="edit-vehicle" type="button" ${vehicle ? "" : "disabled"}>编辑</button>
+      </div></div>
       <section class="info-section"><h2>车辆档案</h2>${infoRows([
         { label: "车牌号码", value: plateNo }, { label: "车辆类型", value: vehicle?.type || "-" },
         { label: "运力归属", value: vehicle?.capacityOwnership || "待确定" }, { label: "所属单位", value: vehicle?.organizationName || "待确定" }, { label: "所属车队", value: vehicle?.fleet || driver.fleet }, { label: "车辆状态", value: vehicle?.state || "待分配", status: vehicle?.state || "待分配", warning: vehicle?.state !== "在用" },
-        { label: "营运证号", value: "沪交运管字 330206-889" }, { label: "下次审验", value: "2027-03-18" },
+        { label: "营运证号", value: vehicle?.permitNo || "待补充" }, { label: "下次审验", value: vehicle?.inspectionDue || "待补充" },
       ])}</section>
       <button class="subpage-secondary subpage-link-button" data-subpage-action="open-insurance" type="button">查看车辆保险 <b>›</b></button>
-      <button class="subpage-primary" data-subpage-action="report-vehicle-repair" type="button">车辆报修</button>
       ${renderDriverRepairHistory()}`;
     return;
   }
@@ -1212,9 +1498,9 @@ function renderSubpage(page) {
 
   if (page === "service") {
     elements.subpageContent.innerHTML = `
-      <div class="subpage-summary"><span class="subpage-summary-icon">调</span><div><strong>调度服务中心</strong><span>工作时间 07:00 - 22:00</span></div></div>
-      <section class="info-section"><h2>联系信息</h2>${infoRows([{ label: "调度热线", value: "400-800-6688" }, { label: "值班调度", value: "周调度" }, { label: "服务车队", value: driver.fleet }])}</section>
-      <a class="subpage-primary" href="tel:4008006688">拨打调度热线</a>`;
+      <div class="subpage-summary"><span class="subpage-summary-icon">客</span><div><strong>客服中心</strong><span>工作时间 07:00 - 22:00</span></div></div>
+      <section class="info-section"><h2>联系信息</h2>${infoRows([{ label: "客服热线", value: "400-800-6688" }, { label: "值班客服", value: "周客服" }, { label: "服务车队", value: driver.fleet }])}</section>
+      <a class="subpage-primary" href="tel:4008006688">拨打客服热线</a>`;
     return;
   }
 
@@ -1274,15 +1560,9 @@ function renderDetail() {
   elements.detailActionBar.innerHTML = renderDetailActionBar(dispatch, category);
 }
 
-function renderDriverOptions() {
-  document.querySelector("#driverOptions").innerHTML = Object.values(drivers).map((driver) => `
-    <button class="driver-option ${driver.id === state.currentDriverId ? "active" : ""}" data-driver-id="${driver.id}" type="button"><span class="avatar-mini">${h(driver.name.slice(0, 1))}</span><span><strong>${h(driver.name)}</strong><small>${h(driver.type)} · ${h(driver.fleet)}</small></span>${driver.id === state.currentDriverId ? "<em>当前</em>" : ""}</button>`).join("");
-}
-
 function renderAll() {
   renderTasks();
   renderOrders();
-  renderTaskDrawer();
   renderProfile();
   if (elements.detailView.classList.contains("open")) renderDetail();
   if (elements.profileSubpage.classList.contains("open") && state.activeProfilePage) renderSubpage(state.activeProfilePage);
@@ -1291,52 +1571,13 @@ function renderAll() {
 function switchView(viewName) {
   const target = document.querySelector(`#${viewName}View`);
   if (!target) return;
-  if (viewName !== "tasks") closeTaskDrawer();
   document.querySelectorAll(".mobile-view").forEach((view) => view.classList.toggle("active", view === target));
   elements.bottomNav.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.view === viewName));
-  elements.taskDrawerButton.hidden = viewName !== "tasks";
   elements.title.textContent = target.dataset.title;
   document.querySelector("#headerEyebrow").textContent = viewName === "messages" ? "任务与预警通知" : "集卡司机端";
   target.scrollTo({ top: 0, behavior: "smooth" });
   if (viewName === "profile") renderProfile();
   if (viewName === "messages") renderDriverMessages();
-}
-
-function openTaskDrawer() {
-  renderTaskDrawer();
-  elements.taskDrawer.classList.add("open");
-  elements.taskDrawerOverlay.classList.add("open");
-  elements.taskDrawer.setAttribute("aria-hidden", "false");
-  elements.taskDrawerOverlay.setAttribute("aria-hidden", "false");
-  document.querySelector(".phone-shell").classList.add("drawer-open");
-}
-
-function closeTaskDrawer() {
-  if (!elements.taskDrawer) return;
-  elements.taskDrawer.classList.remove("open");
-  elements.taskDrawerOverlay.classList.remove("open");
-  elements.taskDrawer.setAttribute("aria-hidden", "true");
-  elements.taskDrawerOverlay.setAttribute("aria-hidden", "true");
-  document.querySelector(".phone-shell").classList.remove("drawer-open");
-}
-
-function openDrawerFilter(filter) {
-  closeTaskDrawer();
-  if (filter === "pending") {
-    switchView("tasks");
-    return;
-  }
-  if (filter === "all" || filter === "transit" || filter === "completed") {
-    openOrdersForStage(filter === "transit" ? "transit" : filter === "completed" ? "completed" : "all");
-    return;
-  }
-  state.orderFilter = "cancelled";
-  state.orderStage = "all";
-  state.orderSearch = "";
-  document.querySelector("#orderSearch").value = "";
-  document.querySelectorAll("#orderStatusTabs button").forEach((button) => button.classList.toggle("active", button.dataset.status === "cancelled"));
-  renderOrders();
-  switchView("orders");
 }
 
 function openDetail(dispatchId) {
@@ -1439,8 +1680,6 @@ elements.bottomNav.addEventListener("click", (event) => {
   if (button) switchView(button.dataset.view);
 });
 
-document.querySelector("#notificationButton").addEventListener("click", () => switchView("messages"));
-
 document.querySelector("#driverMessageTabs").addEventListener("click", (event) => {
   const button = event.target.closest("[data-message-filter]");
   if (!button) return;
@@ -1465,28 +1704,6 @@ document.querySelector("#driverMessageList").addEventListener("click", (event) =
   markDriverMessageRead(button.dataset.driverMessageId);
   const dispatchId = button.dataset.messageDispatchId;
   if (dispatchId) openDetail(dispatchId);
-});
-
-elements.taskDrawerButton.addEventListener("click", openTaskDrawer);
-elements.taskDrawerClose.addEventListener("click", closeTaskDrawer);
-elements.taskDrawerOverlay.addEventListener("click", closeTaskDrawer);
-elements.taskDrawer.addEventListener("click", (event) => {
-  const dispatchButton = event.target.closest("[data-drawer-dispatch]");
-  if (dispatchButton) {
-    closeTaskDrawer();
-    openDetail(dispatchButton.dataset.drawerDispatch);
-    return;
-  }
-  const filterButton = event.target.closest("[data-drawer-filter]");
-  if (filterButton) openDrawerFilter(filterButton.dataset.drawerFilter);
-  const actionButton = event.target.closest("[data-drawer-action]");
-  if (actionButton?.dataset.drawerAction === "orders") {
-    closeTaskDrawer();
-    openOrdersForStage("all");
-  }
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && elements.taskDrawer.classList.contains("open")) closeTaskDrawer();
 });
 
 function handleDispatchAction(event) {
@@ -1516,6 +1733,11 @@ function openOrdersForStage(stage) {
 }
 
 elements.profileView.addEventListener("click", (event) => {
+  const callButton = event.target.closest("[data-call-service]");
+  if (callButton) {
+    window.location.href = "tel:4008006688";
+    return;
+  }
   const stageButton = event.target.closest("[data-order-stage]");
   if (stageButton) {
     openOrdersForStage(stageButton.dataset.orderStage);
@@ -1549,6 +1771,57 @@ document.querySelector("#detailMoreButton").addEventListener("click", () => show
 document.querySelector("#backFromSubpage").addEventListener("click", closeProfileSubpage);
 
 elements.subpageContent.addEventListener("submit", async (event) => {
+  if (event.target.id === "driverFeedbackForm") {
+    event.preventDefault();
+    const form = event.target;
+    const values = new FormData(form);
+    const description = String(values.get("description") || "").trim();
+    const contactPhone = String(values.get("contactPhone") || "").trim();
+    if (description.length < 10) { showToast("问题描述至少填写 10 个字"); form.elements.description.focus(); return; }
+    if (!/^1[3-9]\d{9}$/.test(contactPhone)) { showToast("请输入正确的 11 位联系电话"); form.elements.contactPhone.focus(); return; }
+    const validation = window.FeedbackManager.validateFiles(form.elements.attachments.files);
+    if (validation.error) { showToast(validation.error); return; }
+    const submitButton = form.querySelector("[type='submit']");
+    submitButton.disabled = true;
+    submitButton.textContent = validation.files.length ? "正在上传附件…" : "正在提交…";
+    const driver = currentDriver();
+    const current = driverDispatches().find((item) => item.status === "运输中" && item.vehicleId) || driverDispatches().find((item) => item.vehicleId);
+    const relatedOption = form.elements.relatedId.selectedOptions[0];
+    const feedbackId = window.FeedbackManager.makeId();
+    try {
+      const attachments = await window.FeedbackManager.saveAttachments(feedbackId, validation.files);
+      window.FeedbackManager.create({
+        id: feedbackId,
+        source: "driver",
+        submitterId: driver.id,
+        submitterName: driver.name,
+        submitterPhone: driver.phone,
+        organizationName: driver.organizationName || "本公司",
+        fleetName: driver.fleet,
+        capacityOwnership: driver.capacityOwnership || "自营",
+        vehicleId: current?.vehicleId || "",
+        categoryCode: String(values.get("categoryCode") || ""),
+        description,
+        contactPhone,
+        relatedType: values.get("relatedId") ? "dispatch" : "",
+        relatedId: String(values.get("relatedId") || ""),
+        relatedLabel: relatedOption?.dataset.relatedLabel || "",
+        attachments,
+        clientVersion: "司机端 1.0",
+        deviceInfo: String(navigator.userAgent || "移动设备").slice(0, 120),
+      });
+      state.activeFeedbackTab = "history";
+      renderDriverFeedback();
+      elements.subpageContent.scrollTop = 0;
+      showToast(`反馈已提交：${feedbackId}`);
+    } catch (error) {
+      console.error("意见反馈提交失败。", error);
+      showToast(error.message || "反馈提交失败，请重试");
+      submitButton.disabled = false;
+      submitButton.textContent = "提交意见反馈";
+    }
+    return;
+  }
   if (event.target.id === "personalEditForm") {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.target).entries());
@@ -1578,33 +1851,23 @@ elements.subpageContent.addEventListener("submit", async (event) => {
     showToast("个人信息已保存");
     return;
   }
-  if (event.target.id === "documentEditForm") {
+  if (event.target.id === "vehicleEditForm") {
     event.preventDefault();
-    const form = event.target;
-    const data = Object.fromEntries(new FormData(form).entries());
-    const files = Array.from(form.elements.documentFiles.files || []);
-    if (files.some((file) => file.size > 10 * 1024 * 1024)) {
-      showToast("单个证件文件不能超过 10 MB");
-      return;
-    }
-    const driver = currentDriver();
-    Object.assign(driver, {
-      licenseNo: String(data.licenseNo || "").trim(),
-      licenseClass: String(data.licenseClass || "").trim(),
-      licenseExpiry: String(data.licenseExpiry || "").trim(),
-      qualificationNo: String(data.qualificationNo || "").trim(),
-      qualificationExpiry: String(data.qualificationExpiry || "").trim(),
+    const data = Object.fromEntries(new FormData(event.target).entries());
+    const plateNo = String(data.plateNo || "").trim();
+    const vehicle = vehicles[plateNo];
+    if (!vehicle) { showToast("未找到车辆档案"); return; }
+    Object.assign(vehicle, {
+      type: String(data.vehicleType || "").trim(),
+      fleet: String(data.fleet || "").trim(),
+      permitNo: String(data.permitNo || "").trim(),
+      inspectionDue: String(data.inspectionDue || "").trim(),
     });
-    const certification = state.certifications[state.currentDriverId] || { status: "unverified" };
-    if (files[0]) certification.licenseAttachment = files[0].name;
-    if (files[1]) certification.qualificationAttachment = files[1].name;
-    state.certifications[state.currentDriverId] = certification;
-    saveDriverProfiles();
-    saveCertifications(state.certifications);
+    saveDriverVehicleProfile(plateNo);
     renderProfile();
-    renderSubpage("documents");
+    renderSubpage("vehicle");
     elements.subpageContent.scrollTop = 0;
-    showToast("证件资料已保存");
+    showToast("车辆信息已保存并同步后台");
     return;
   }
   if (event.target.id === "driverVehicleRepairForm") {
@@ -1717,23 +1980,33 @@ elements.subpageContent.addEventListener("submit", async (event) => {
   }
   if (event.target.id !== "certificationForm") return;
   event.preventDefault();
-  const formData = new FormData(event.target);
+  const form = event.target;
+  const formData = new FormData(form);
   const driver = currentDriver();
+  const phone = String(formData.get("phone") || "").trim();
+  if (!/^1[3-9]\d{9}$/.test(phone)) { showToast("请输入正确的 11 位手机号码"); return; }
   driver.idCard = String(formData.get("idCard") || "").trim();
-  driver.phone = String(formData.get("phone") || "").trim();
+  driver.phone = phone;
   driver.licenseNo = String(formData.get("licenseNo") || "").trim();
   driver.licenseClass = String(formData.get("licenseClass") || "").trim();
   driver.qualificationNo = String(formData.get("qualificationNo") || "").trim();
-  state.certifications[state.currentDriverId] = {
+  const nextCertification = {
+    ...(state.certifications[state.currentDriverId] || {}),
     status: "pending",
     submittedAt: window.DispatchStore.nowText(),
     reviewedAt: "",
     reason: "",
-    idCardFront: formData.get("idCardFront")?.name || "身份证人像面.jpg",
-    idCardBack: formData.get("idCardBack")?.name || "身份证国徽面.jpg",
-    licenseAttachment: formData.get("licenseAttachment")?.name || "驾驶证照片.jpg",
-    qualificationAttachment: formData.get("qualificationAttachment")?.name || "从业资格证.jpg",
   };
+  try {
+    const attachmentResult = await replaceCredentialAttachmentsFromForm(form, nextCertification, true);
+    if (attachmentResult.error) { showToast(attachmentResult.error); return; }
+  } catch (error) {
+    console.error("认证附件保存失败。", error);
+    showToast("认证附件保存失败，请重试");
+    return;
+  }
+  state.certifications[state.currentDriverId] = nextCertification;
+  saveDriverProfiles();
   saveCertifications(state.certifications);
   renderProfile();
   renderSubpage("certification");
@@ -1741,6 +2014,19 @@ elements.subpageContent.addEventListener("submit", async (event) => {
 });
 
 elements.subpageContent.addEventListener("change", (event) => {
+  const feedbackFiles = event.target.closest("#driverFeedbackForm input[name='attachments']");
+  if (feedbackFiles) {
+    const validation = window.FeedbackManager.validateFiles(feedbackFiles.files);
+    const summary = feedbackFiles.closest(".feedback-field").querySelector("[data-feedback-files]");
+    if (validation.error) {
+      feedbackFiles.value = "";
+      summary.textContent = validation.error;
+      showToast(validation.error);
+      return;
+    }
+    summary.textContent = validation.files.length ? `已选择 ${validation.files.length} 个附件：${validation.files.map((file) => file.name).join("、")}` : "尚未选择附件";
+    return;
+  }
   const waybillSelect = event.target.closest("#expenseForm [data-expense-waybill]");
   if (waybillSelect) {
     const selectedOption = waybillSelect.selectedOptions[0];
@@ -1789,33 +2075,66 @@ elements.subpageContent.addEventListener("change", (event) => {
     upload.classList.remove("error");
     return;
   }
-  const documentFilesInput = event.target.closest("#documentEditForm input[name='documentFiles']");
-  if (documentFilesInput) {
-    const files = Array.from(documentFilesInput.files || []);
-    const oversized = files.find((file) => file.size > 10 * 1024 * 1024);
-    const upload = documentFilesInput.closest(".expense-upload");
-    if (oversized) {
-      documentFilesInput.value = "";
-      upload.querySelector("strong").textContent = "文件超过 10 MB";
-      upload.querySelector("small").textContent = "请重新选择较小的证件文件";
-      upload.classList.add("error");
-      showToast("单个证件文件不能超过 10 MB");
-      return;
-    }
-    upload.querySelector("strong").textContent = files.length ? files.map((file) => file.name).join("、") : "上传驾驶证或从业资格证";
-    upload.querySelector("small").textContent = files.length ? `已选择 ${files.length} 个文件` : "选填，支持图片、PDF，单个文件不超过 10 MB";
-    upload.classList.toggle("selected", files.length > 0);
-    upload.classList.remove("error");
+  const input = event.target.closest("[data-credential-upload-card] input[type='file']");
+  if (!input) return;
+  const files = Array.from(input.files || []);
+  const group = CERTIFICATION_DOCUMENT_GROUPS.find((item) => item.key === input.name);
+  if (files.length > 6) {
+    input.value = "";
+    showToast(`${group?.label || "证件"}最多上传 6 个文件`);
     return;
   }
-  const input = event.target.closest(".certification-upload input[type='file']");
-  if (!input) return;
-  const label = input.closest(".certification-upload");
-  label.querySelector("span").textContent = input.files[0]?.name || "点击上传照片";
-  label.classList.toggle("selected", Boolean(input.files.length));
+  if (files.some((file) => !(file.type.startsWith("image/") || file.type === "application/pdf" || /\.(?:jpe?g|png|webp|heic|pdf)$/i.test(file.name)))) {
+    input.value = "";
+    showToast(`${group?.label || "证件"}仅支持图片或 PDF`);
+    return;
+  }
+  if (files.some((file) => file.size > 10 * 1024 * 1024)) {
+    input.value = "";
+    showToast(`${group?.label || "证件"}单个文件不能超过 10 MB`);
+    return;
+  }
+  renderSelectedCredentialCard(input);
 });
 
-elements.subpageContent.addEventListener("click", (event) => {
+elements.subpageContent.addEventListener("input", (event) => {
+  const description = event.target.closest("#driverFeedbackForm textarea[name='description']");
+  if (!description) return;
+  const counter = description.closest(".feedback-field").querySelector("[data-feedback-count]");
+  if (counter) counter.textContent = `${description.value.length}/1000`;
+});
+
+elements.subpageContent.addEventListener("click", async (event) => {
+  const selectedCredentialPreview = event.target.closest("[data-preview-selected-credential]");
+  if (selectedCredentialPreview) {
+    openSelectedCredentialPreview(selectedCredentialPreview.closest("[data-credential-upload-card]")?.querySelector("input[type='file']"));
+    return;
+  }
+  const removeCredentialButton = event.target.closest("[data-remove-credential-group]");
+  if (removeCredentialButton) {
+    const card = removeCredentialButton.closest("[data-credential-upload-card]");
+    const input = card?.querySelector("input[type='file']");
+    if (!card || !input) return;
+    input.value = "";
+    input.required = true;
+    card.dataset.removeExisting = "true";
+    renderSelectedCredentialCard(input);
+    showToast("已移除，请重新上传该证件");
+    return;
+  }
+  const feedbackTab = event.target.closest("[data-feedback-tab]");
+  if (feedbackTab) {
+    state.activeFeedbackTab = feedbackTab.dataset.feedbackTab;
+    renderDriverFeedback();
+    elements.subpageContent.scrollTop = 0;
+    window.lucide?.createIcons();
+    return;
+  }
+  const credentialPreviewButton = event.target.closest("[data-preview-credential]");
+  if (credentialPreviewButton) {
+    await openCredentialPreview(credentialPreviewButton);
+    return;
+  }
   const fontButton = event.target.closest(".font-size-options button[data-font-size]");
   if (fontButton) {
     applyFontSize(fontButton.dataset.fontSize);
@@ -1840,22 +2159,33 @@ elements.subpageContent.addEventListener("click", (event) => {
     elements.subpageContent.scrollTop = 0;
     return;
   }
-  if (actionTarget.dataset.subpageAction === "update-documents") {
-    renderDocumentEditForm();
+  if (actionTarget.dataset.subpageAction === "edit-certification") {
+    renderCertificationForm(currentCertification());
     elements.subpageContent.scrollTop = 0;
+    setTimeout(() => window.lucide?.createIcons(), 0);
     return;
   }
-  if (actionTarget.dataset.subpageAction === "cancel-document-edit") {
-    renderSubpage("documents");
+  if (actionTarget.dataset.subpageAction === "cancel-certification-edit") {
+    renderSubpage("certification");
     elements.subpageContent.scrollTop = 0;
-    return;
-  }
-  if (actionTarget.dataset.subpageAction === "open-documents") {
-    openProfileSubpage("documents");
     return;
   }
   if (actionTarget.dataset.subpageAction === "open-insurance") {
     openProfileSubpage("insurance");
+    return;
+  }
+  if (actionTarget.dataset.subpageAction === "edit-vehicle") {
+    const driver = currentDriver();
+    const current = driverDispatches().find((item) => item.status === "运输中" && item.vehicleId)
+      || driverDispatches().find((item) => item.vehicleId);
+    const plateNo = current?.vehicleId || Object.keys(vehicles).find((plate) => vehicles[plate].driverId === driver.id) || "";
+    renderVehicleEditForm(plateNo, vehicles[plateNo]);
+    elements.subpageContent.scrollTop = 0;
+    return;
+  }
+  if (actionTarget.dataset.subpageAction === "cancel-vehicle-edit") {
+    renderSubpage("vehicle");
+    elements.subpageContent.scrollTop = 0;
     return;
   }
   if (actionTarget.dataset.subpageAction === "report-vehicle-repair") {
@@ -2002,21 +2332,11 @@ document.querySelectorAll(".bottom-sheet .sheet-close").forEach((button) => {
   button.addEventListener("click", () => button.closest("dialog").close());
 });
 
-document.querySelector("#switchDriverButton").addEventListener("click", () => {
-  renderDriverOptions();
-  elements.driverDialog.showModal();
-});
-
-document.querySelector("#driverOptions").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-driver-id]");
-  if (!button) return;
-  state.currentDriverId = button.dataset.driverId;
-  elements.driverDialog.close();
-  renderAll();
-  showToast(`已切换为 ${currentDriver().name}`);
-});
-
 window.addEventListener("storage", (event) => {
+  if (event.key === window.FeedbackManager.STORAGE_KEY) {
+    if (state.activeProfilePage === "feedback") renderDriverFeedback();
+    return;
+  }
   if (event.key === ANNOUNCEMENT_STORAGE_KEY) {
     renderProfile();
     if (document.querySelector("#messagesView").classList.contains("active")) renderDriverMessages();

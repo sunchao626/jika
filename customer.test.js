@@ -7,7 +7,10 @@ const customerMarkup = html.slice(html.indexOf('id="customerPage"'), html.indexO
 assert.match(customerMarkup, /id="customerFormView" hidden/);
 assert.doesNotMatch(customerMarkup, /id="customerFormDialog"/);
 assert.match(customerMarkup, /建档提示/);
-for (const name of ["customerName", "customerType", "creditCode", "customerStatus", "contactName", "mobile", "loadAddress", "unloadAddress", "settlementCycle"]) {
+assert.match(customerMarkup, /name="businessRole"/);
+assert.match(customerMarkup, /客户\+三方供应商/);
+assert.doesNotMatch(html, /id="thirdPartySupplierPage"|data-page="third-party-suppliers"|id="thirdPartySupplierForm"/);
+for (const name of ["customerName", "businessRole", "customerType", "creditCode", "customerStatus", "contactName", "mobile", "loadAddress", "unloadAddress", "settlementCycle"]) {
   assert.match(customerMarkup, new RegExp(`name="${name}"[^>]*required|required[^>]*name="${name}"`), `${name} should be required`);
   assert.match(customerMarkup, new RegExp(`data-error-for="${name}"`), `${name} should have inline feedback`);
 }
@@ -24,7 +27,7 @@ function element() {
     removeAttribute(name) { delete this.attributes[name]; },
     focus() { this.focused = true; },
     scrollIntoView() { this.scrolled = true; },
-    closest() { return { classList: { add() {}, remove() {} } }; },
+    closest() { return { classList: { add() {}, remove() {}, toggle() {} } }; },
   };
 }
 const nodes = new Map();
@@ -35,14 +38,15 @@ const find = (selector) => {
 const page = element();
 page.querySelector = find;
 const query = find("#customerQueryForm");
-query.values = { customerNo: "", customerName: "", customerType: "", customerStatus: "" };
+query.values = { customerNo: "", customerName: "", businessRole: "", customerType: "", customerStatus: "" };
 query.reset = () => { Object.keys(query.values).forEach((key) => { query.values[key] = ""; }); };
 const form = find("#customerForm");
-const keys = ["customerNo", "customerName", "shortName", "customerType", "creditCode", "customerStatus", "contactName", "mobile", "phone", "email", "registeredAddress", "loadAddress", "unloadAddress", "settlementCycle", "invoiceTitle", "taxNo", "bankName", "bankAccount", "remark"];
+const keys = ["customerNo", "customerName", "shortName", "businessRole", "customerType", "creditCode", "customerStatus", "contactName", "mobile", "phone", "email", "registeredAddress", "loadAddress", "unloadAddress", "settlementCycle", "invoiceTitle", "taxNo", "bankName", "bankAccount", "remark"];
 form.elements = Object.fromEntries(keys.map((key) => [key, element()]));
 form.elements.customerStatus.value = "启用";
+form.elements.businessRole.value = "客户";
 form.querySelector = (selector) => find(selector);
-form.reset = () => keys.forEach((key) => { form.elements[key].value = key === "customerStatus" ? "启用" : ""; });
+form.reset = () => keys.forEach((key) => { form.elements[key].value = key === "customerStatus" ? "启用" : key === "businessRole" ? "客户" : ""; });
 find("#customerPageSize").value = "5";
 const storage = new Map();
 const context = vm.createContext({
@@ -86,7 +90,7 @@ assert.equal(find("#customerListView").hidden, false);
 find("#addCustomerBtn").listeners.click();
 assert.equal(form.elements.customerNo.value, "KH-1121");
 form.listeners.submit({ preventDefault() {} });
-assert.equal(find('[data-error-for="customerName"]').textContent, "请输入客户全称");
+assert.equal(find('[data-error-for="customerName"]').textContent, "请输入单位全称");
 assert.equal(form.elements.customerName.focused, true);
 form.elements.customerNo.value = "KH-1008";
 form.elements.customerName.value = "重复客户";
@@ -116,4 +120,13 @@ find("#customerBody").listeners.click({ target: { closest: (selector) => selecto
 assert.equal(find("#confirmDeleteCustomerBtn").disabled, false);
 find("#confirmDeleteCustomerBtn").listeners.click();
 assert.doesNotMatch(find("#customerOptions").innerHTML, /新增客户有限公司/);
+
+find("#addCustomerBtn").listeners.click();
+form.elements.businessRole.value = "三方供应商";
+form.elements.customerName.value = "宁波统一外协车队";
+form.elements.customerStatus.value = "启用";
+form.listeners.submit({ preventDefault() {} });
+assert.match(find("#customerBody").innerHTML, /宁波统一外协车队/);
+assert.doesNotMatch(find("#customerOptions").innerHTML, /宁波统一外协车队/);
+assert.match(storage.get("container-logistics-customers-v1"), /"businessRole":"三方供应商"/);
 console.log("Customer management interaction test passed");

@@ -6,6 +6,7 @@
     <title>集卡物流系统 - 首页看板</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="design-tokens.css" />
+    <link rel="stylesheet" href="feedback-management.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -62,18 +63,23 @@
             </button>
           </section>
           <section class="nav-section">
-            <button class="nav-parent" type="button"><span class="nav-icon">￥</span>财务管理</button>
+            <button class="nav-parent" type="button"><span class="nav-icon"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span>数据看板</button>
             <button class="nav-child" data-page="finance-reports" type="button">运输成本台账</button>
+          </section>
+          <section class="nav-section">
+            <button class="nav-parent" type="button"><span class="nav-icon">￥</span>结算管理</button>
             <button class="nav-child" data-page="driver-expenses" type="button">司机费用上报</button>
-            <button class="nav-child" data-page="settlement-management" type="button">结算管理</button>
+            <button class="nav-child" data-page="settlement-management" type="button">结算中心</button>
           </section>
           <section class="nav-section">
             <button class="nav-parent" type="button"><span class="nav-icon">⚙</span>系统配置</button>
+            <button class="nav-child" data-page="platform-config" type="button">平台配置</button>
             <button class="nav-child" data-page="customer-archives" type="button">客户管理</button>
             <button class="nav-child" data-page="reminder-templates" type="button">消息提醒模板</button>
             <button class="nav-child" data-page="announcements" type="button">公告管理</button>
-            <button class="nav-child" data-page="third-party-suppliers" type="button">三方供应商档案</button>
+            <button class="nav-child" data-page="feedback-management" type="button">意见反馈管理</button>
             <button class="nav-child" data-page="user-access" type="button">用户与权限</button>
+            <button class="nav-child" data-page="operation-logs" type="button">操作日志</button>
             <button class="nav-child" data-page="photo-requirements" type="button">司机拍照要求</button>
             <button class="nav-child" data-page="auto-dispatch-config" type="button">自动派单配置</button>
           </section>
@@ -104,10 +110,6 @@
                   <strong>张调度</strong>
                   <span>当前身份：调度员</span>
                 </div>
-                <button type="button" role="menuitem" data-user-action="switch">
-                  <i data-lucide="users-round" aria-hidden="true"></i>
-                  <span><strong>切换身份</strong><small>体验其他岗位视角</small></span>
-                </button>
                 <button class="danger" type="button" role="menuitem" data-user-action="logout">
                   <i data-lucide="log-out" aria-hidden="true"></i>
                   <span><strong>退出登录</strong><small>返回登录页面</small></span>
@@ -288,6 +290,16 @@
             </div>
             <div id="planTaskDetailPageContent" class="dispatch-detail-page-content"></div>
           </section>
+          <dialog class="vehicle-dialog plan-archive-upload-dialog" id="planArchiveUploadDialog" aria-labelledby="planArchiveUploadTitle">
+            <header class="vehicle-dialog-header"><div><strong id="planArchiveUploadTitle">上传档案附件</strong><span>附件与当前计划任务长期关联，业务数量不限制</span></div><button class="icon-btn" id="closePlanArchiveUpload" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
+            <div class="admin-form-scroll plan-archive-upload-body"><label class="field required-field"><span class="field-label">附件分类</span><select id="planArchiveUploadCategory" required></select></label><label class="plan-archive-file-picker"><input id="planArchiveFiles" type="file" multiple /><i data-lucide="files" aria-hidden="true"></i><span><strong>选择一个或多个文件</strong><small>支持常用文档、图片、压缩包等格式；单个文件不超过 25 MB</small></span></label><div class="plan-archive-selected-files" id="planArchiveSelectedFiles"><div class="plan-archive-upload-empty">请选择一个或多个文件，业务数量不限制</div></div></div>
+            <div class="form-actions"><span class="form-tip">图片、PDF 和文本支持在线预览，其他格式可下载查看</span><div><button class="btn quiet" id="cancelPlanArchiveUpload" type="button">取消</button><button class="btn primary" id="confirmPlanArchiveUpload" type="button" disabled>确认上传</button></div></div>
+          </dialog>
+          <dialog class="vehicle-dialog plan-archive-preview-dialog" id="planArchivePreviewDialog" aria-labelledby="planArchivePreviewTitle">
+            <header class="vehicle-dialog-header"><div><strong id="planArchivePreviewTitle">附件预览</strong><span id="planArchivePreviewMeta"></span></div><button class="icon-btn" id="closePlanArchivePreview" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
+            <div class="plan-archive-preview-body" id="planArchivePreviewBody"></div>
+            <div class="form-actions"><span class="form-tip">预览内容仅用于业务核对</span><div><button class="btn quiet" id="closePlanArchivePreviewFooter" type="button">关闭</button><button class="btn primary" id="downloadPlanArchivePreview" type="button"><i data-lucide="download" aria-hidden="true"></i>下载文件</button></div></div>
+          </dialog>
 
           <section class="page-view" id="routePage">
             <form class="query-panel query-collapsed" id="routeQueryForm">
@@ -364,7 +376,7 @@
                   </div></section>
                   <section class="driver-form-section"><h3>三方运力结算</h3><p class="finance-form-tip">派单时将结算规则写入运单快照，后续线路调价不影响历史结算。</p><div class="form-grid">
                     <label class="field"><span>启用三方运力</span><select name="thirdPartyEnabled"><option value="false">否</option><option value="true">是</option></select></label>
-                    <label class="field"><span>默认三方供应商</span><input name="thirdPartyCarrier" list="thirdPartySupplierOptions" placeholder="搜索供应商档案" /></label>
+                    <label class="field"><span>默认三方供应商</span><input name="thirdPartyCarrier" list="thirdPartyCustomerOptions" placeholder="从客户管理选择三方供应商" /></label>
                     <label class="field"><span>计价方式</span><select name="thirdPartyPricingMethod"><option value="perTrip">按趟固定价</option><option value="perContainer">按箱计价</option><option value="perMileage">按里程计价</option><option value="negotiated">临时议价</option></select></label>
                     <label class="field"><span>三方结算价（元）</span><input name="thirdPartySettlementPrice" type="number" min="0" step="0.01" placeholder="0.00" /></label>
                     <label class="field"><span>结算周期</span><select name="thirdPartySettlementCycle"><option>现结</option><option>周结</option><option selected>月结30天</option><option>月结45天</option><option>月结60天</option></select></label>
@@ -444,7 +456,14 @@
             </form></dialog>
 
             <dialog class="add-dialog dispatch-detail-dialog" id="dispatchDetailDialog"><header class="vehicle-dialog-header"><div><strong>派单详情</strong><span id="dispatchDetailSubTitle">运输轨迹与现场资料</span></div><button aria-label="关闭" class="icon-btn" id="closeDispatchDetailBtn" type="button">×</button></header><div id="dispatchDetailContent" class="dispatch-detail-content"></div></dialog>
-            <dialog class="confirm-dialog" id="revokeDispatchDialog"><div class="confirm-icon" aria-hidden="true">!</div><h2>撤销派单</h2><p id="revokeDispatchText">未开始提货前可以撤销派单，司机小程序单据将同步回收。</p><div class="confirm-actions"><button class="btn quiet" id="cancelRevokeDispatchBtn" type="button">取消</button><button class="btn danger" id="confirmRevokeDispatchBtn" type="button">确认撤销</button></div></dialog>
+            <dialog class="confirm-dialog revoke-dispatch-dialog" id="revokeDispatchDialog"><div class="confirm-icon" aria-hidden="true">!</div><h2>撤销派单</h2><p id="revokeDispatchText">未开始提货前可以撤销派单，司机小程序单据将同步回收。</p><label class="dispatch-revoke-reason"><span>撤销原因 <em>*</em></span><textarea id="revokeDispatchReason" rows="3" maxlength="200" placeholder="请填写撤销原因，提交后将写入操作记录" required></textarea><small id="revokeDispatchReasonError" role="alert"></small></label><div class="confirm-actions"><button class="btn quiet" id="cancelRevokeDispatchBtn" type="button">取消</button><button class="btn danger" id="confirmRevokeDispatchBtn" type="button">确认撤销</button></div></dialog>
+            <dialog class="dispatch-operation-drawer" id="dispatchOperationLogDrawer" aria-labelledby="dispatchOperationLogTitle">
+              <header class="dispatch-operation-header"><div><span class="page-eyebrow">派单追责记录</span><h2 id="dispatchOperationLogTitle">操作记录</h2><p id="dispatchOperationLogSubtitle">按运单汇总派单、司机与系统操作</p></div><button class="icon-btn" id="closeDispatchOperationLogBtn" type="button" aria-label="关闭操作记录"><i data-lucide="x" aria-hidden="true"></i></button></header>
+              <section class="dispatch-operation-overview" id="dispatchOperationOverview" aria-label="操作记录摘要"></section>
+              <div class="dispatch-operation-controls"><label><i data-lucide="search" aria-hidden="true"></i><input id="dispatchOperationSearch" type="search" placeholder="搜索操作人、动作或变更内容" /></label><div class="dispatch-operation-filters" id="dispatchOperationFilters" role="group" aria-label="记录类型筛选"><button class="active" data-operation-category="all" type="button" aria-pressed="true">全部</button><button data-operation-category="dispatch" type="button" aria-pressed="false">派单操作</button><button data-operation-category="status" type="button" aria-pressed="false">司机节点</button><button data-operation-category="system" type="button" aria-pressed="false">系统动作</button></div></div>
+              <div class="dispatch-operation-list" id="dispatchOperationList"></div>
+              <footer class="dispatch-operation-footer"><span><i data-lucide="shield-check" aria-hidden="true"></i>记录只读，不可修改或删除</span><button class="btn quiet" id="viewFullOperationLogBtn" type="button">查看完整操作日志</button></footer>
+            </dialog>
           </section>
 
           <section class="page-view" id="dispatchDetailPage">
@@ -453,7 +472,7 @@
                 <button class="btn quiet dispatch-detail-back" id="dispatchDetailBackBtn" type="button"><i data-lucide="arrow-left" aria-hidden="true"></i>返回派单列表</button>
                 <div class="dispatch-detail-page-title"><span class="page-eyebrow">计划与派单 / 派单列表 / 派单详情</span><h2>派单详情</h2><p id="dispatchDetailPageSubtitle">查看运输安排、节点上报与现场资料</p></div>
               </div>
-              <div class="dispatch-detail-page-actions"><button class="btn primary" id="dispatchDetailEditBtn" type="button"><i data-lucide="pencil" aria-hidden="true"></i>编辑派单</button></div>
+              <div class="dispatch-detail-page-actions"><button class="btn quiet" id="dispatchDetailOperationLogBtn" type="button"><i data-lucide="history" aria-hidden="true"></i>操作记录</button><button class="btn primary" id="dispatchDetailEditBtn" type="button"><i data-lucide="pencil" aria-hidden="true"></i>编辑派单</button></div>
             </div>
             <div id="dispatchDetailPageContent" class="dispatch-detail-page-content"></div>
             <dialog class="dispatch-photo-preview-dialog" id="dispatchPhotoPreviewDialog" aria-labelledby="dispatchPhotoPreviewTitle">
@@ -639,6 +658,108 @@
             </section>
           </section>
 
+          <section class="page-view" id="platformConfigPage">
+            <div class="system-config-heading platform-config-heading">
+              <div><span class="page-eyebrow">系统配置 / 平台配置</span><h2>平台配置</h2><p>统一维护企业主体、各端品牌名称、图标资源与超级管理员。</p></div>
+              <div class="platform-config-heading-meta"><span class="config-status-badge" id="platformConfigStatus"><i></i>已发布 · V3</span><span id="platformConfigPublishedAt">2026-10-18 09:30 · 系统管理员</span></div>
+            </div>
+
+            <section class="platform-config-shell" aria-label="平台配置中心">
+              <aside class="platform-config-nav" aria-label="配置分组">
+                <div class="platform-config-nav-title"><strong>配置中心</strong><span>修改后先保存草稿，再统一发布</span></div>
+                <button class="active" data-platform-tab="enterprise" type="button"><i data-lucide="building-2" aria-hidden="true"></i><span><strong>企业信息</strong><small>主体与联系信息</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+                <button data-platform-tab="brand" type="button"><i data-lucide="palette" aria-hidden="true"></i><span><strong>品牌与应用</strong><small>名称、Logo 与图标</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+                <button data-platform-tab="administrators" type="button"><i data-lucide="shield-check" aria-hidden="true"></i><span><strong>管理员配置</strong><small>超级管理员与安全</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+                <button data-platform-tab="history" type="button"><i data-lucide="history" aria-hidden="true"></i><span><strong>发布记录</strong><small>版本与变更追溯</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+                <div class="platform-config-nav-note"><i data-lucide="info" aria-hidden="true"></i><span>平台配置仅向超级管理员和获得“发布配置”权限的角色开放。</span></div>
+              </aside>
+
+              <div class="platform-config-main">
+                <form id="platformConfigForm" novalidate>
+                  <section class="platform-config-panel active" data-platform-panel="enterprise">
+                    <header class="platform-config-panel-heading"><div><span>01</span><div><h3>企业信息</h3><p>企业全称用于合同、结算和打印；简称用于各端紧凑位置展示。</p></div></div><em>主体信息</em></header>
+                    <div class="platform-form-section">
+                      <div class="platform-section-title"><strong>主体信息</strong><span>带 * 的信息发布前必须填写</span></div>
+                      <div class="platform-field-grid">
+                        <label class="field required-field platform-field-wide"><span class="field-label">企业全称</span><input name="enterpriseFullName" maxlength="100" required value="浙江集卡物流运输有限公司" placeholder="请输入营业执照上的企业全称" /><small>用于结算单、导出表格及打印凭证</small></label>
+                        <label class="field required-field"><span class="field-label">企业简称</span><input name="enterpriseShortName" maxlength="20" required value="集卡物流" placeholder="2–20 个字符" /><small>用于页面空间较小的位置</small></label>
+                        <label class="field"><span class="field-label">统一社会信用代码</span><input name="creditCode" maxlength="18" value="91330206MA2J5K8X3P" placeholder="18 位统一社会信用代码" /><small>选填，发布时校验格式</small></label>
+                      </div>
+                    </div>
+                    <div class="platform-form-section">
+                      <div class="platform-section-title"><strong>联系信息</strong><span>展示于关于页面及服务支持入口</span></div>
+                      <div class="platform-field-grid">
+                        <label class="field"><span class="field-label">企业联系人</span><input name="enterpriseContact" maxlength="30" value="王经理" placeholder="请输入联系人姓名" /></label>
+                        <label class="field"><span class="field-label">联系电话</span><input name="enterprisePhone" maxlength="20" value="0574-8688 6688" placeholder="手机或固定电话" /></label>
+                        <label class="field"><span class="field-label">客服服务时间</span><input name="serviceHours" maxlength="40" value="工作日 08:30–18:00" placeholder="例如：工作日 09:00–18:00" /></label>
+                        <label class="field platform-field-wide"><span class="field-label">企业地址</span><input name="enterpriseAddress" maxlength="120" value="浙江省宁波市北仑区港城路 88 号" placeholder="请输入企业注册地址或办公地址" /></label>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="platform-config-panel" data-platform-panel="brand" hidden>
+                    <header class="platform-config-panel-heading"><div><span>02</span><div><h3>品牌与应用</h3><p>统一品牌名称，并按需为管理端和司机端设置独立名称。</p></div></div><em>全端展示</em></header>
+                    <div class="platform-form-section">
+                      <div class="platform-section-title"><strong>平台名称</strong><span>修改内容会同步显示在右侧预览</span></div>
+                      <div class="platform-field-grid">
+                        <label class="field required-field"><span class="field-label">平台名称</span><input name="platformName" maxlength="30" required value="集卡物流系统" placeholder="2–30 个字符" /></label>
+                        <label class="field"><span class="field-label">平台英文名</span><input name="platformEnglishName" maxlength="50" value="Container Trucking" placeholder="可选" /></label>
+                        <label class="field"><span class="field-label">浏览器标题后缀</span><input name="browserTitleSuffix" maxlength="30" value="集卡物流系统" placeholder="显示在浏览器标签页" /></label>
+                      </div>
+                      <label class="platform-inherit-toggle"><span><strong>各应用继承平台名称</strong><small>关闭后可分别设置管理移动端和司机端名称</small></span><input id="platformNameInherit" name="inheritApplicationNames" type="checkbox" checked /><b aria-hidden="true"></b></label>
+                      <div class="platform-field-grid platform-application-names" id="platformApplicationNames" aria-disabled="true">
+                        <label class="field"><span class="field-label">管理移动端名称</span><input name="adminMobileName" maxlength="20" value="集卡物流管理端" disabled /></label>
+                        <label class="field"><span class="field-label">司机端 / 小程序名称</span><input name="driverAppName" maxlength="20" value="集卡司机端" disabled /></label>
+                      </div>
+                      <div class="platform-wechat-note"><i data-lucide="message-square-warning" aria-hidden="true"></i><div><strong>微信小程序名称说明</strong><span>此处仅控制小程序内部展示名称。微信官方名称及头像需在微信公众平台修改，并可能需要重新审核。</span></div></div>
+                    </div>
+                    <div class="platform-form-section">
+                      <div class="platform-section-title"><strong>品牌资源</strong><span>上传后可在右侧查看实际缩放效果</span></div>
+                      <div class="platform-upload-grid">
+                        <label class="platform-upload-card"><input name="primaryLogo" type="file" accept="image/png,image/jpeg,image/webp" /><span class="platform-upload-preview landscape" data-upload-preview="primaryLogo"><b>集</b></span><span><strong>平台主 Logo</strong><small>建议 320×96，PNG/WebP，≤ 2MB</small><em>点击上传</em></span></label>
+                        <label class="platform-upload-card"><input name="squareIcon" type="file" accept="image/png,image/jpeg,image/webp" /><span class="platform-upload-preview square" data-upload-preview="squareIcon"><b>集</b></span><span><strong>方形图标</strong><small>建议 512×512，PNG/WebP，≤ 2MB</small><em>点击上传</em></span></label>
+                        <label class="platform-upload-card"><input name="favicon" type="file" accept="image/png,image/x-icon" /><span class="platform-upload-preview favicon" data-upload-preview="favicon"><b>集</b></span><span><strong>浏览器图标</strong><small>建议 64×64，PNG/ICO，≤ 512KB</small><em>点击上传</em></span></label>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="platform-config-panel" data-platform-panel="administrators" hidden>
+                    <header class="platform-config-panel-heading"><div><span>03</span><div><h3>管理员配置</h3><p>超级管理员拥有平台配置发布权限；普通账号与角色仍在“用户与权限”维护。</p></div></div><em>敏感配置</em></header>
+                    <div class="platform-security-alert"><i data-lucide="shield-alert" aria-hidden="true"></i><div><strong>系统必须始终保留至少 1 个启用的超级管理员</strong><span>不能停用或删除最后一个超级管理员，更换操作需要身份确认并写入审计日志。</span></div></div>
+                    <div class="platform-admin-card">
+                      <span class="platform-admin-avatar">系</span>
+                      <div><strong id="platformAdminName">系统管理员</strong><span id="platformAdminAccount">admin · 超级管理员</span><small><i></i>账号正常 · 最近登录 2026-10-18 08:42</small></div>
+                      <div class="platform-admin-actions"><button class="btn quiet" id="changePlatformAdminBtn" type="button"><i data-lucide="repeat-2" aria-hidden="true"></i>更换超级管理员</button><button class="btn quiet" id="openUserAccessBtn" type="button">前往用户与权限</button></div>
+                    </div>
+                    <div class="platform-admin-policy-grid">
+                      <section><i data-lucide="key-round" aria-hidden="true"></i><div><strong>发布权限</strong><span>仅超级管理员及获得发布权限的角色可操作</span></div><b>已启用</b></section>
+                      <section><i data-lucide="scroll-text" aria-hidden="true"></i><div><strong>操作审计</strong><span>保存、发布和管理员变更均完整记录</span></div><b>已启用</b></section>
+                      <section><i data-lucide="monitor-check" aria-hidden="true"></i><div><strong>二次确认</strong><span>发布前展示影响端及本次字段变更</span></div><b>已启用</b></section>
+                    </div>
+                  </section>
+
+                  <section class="platform-config-panel" data-platform-panel="history" hidden>
+                    <header class="platform-config-panel-heading"><div><span>04</span><div><h3>发布记录</h3><p>查看平台配置版本、操作人及变更范围。</p></div></div><em id="platformHistoryCount">3 个版本</em></header>
+                    <div class="platform-history-list" id="platformHistoryList"></div>
+                  </section>
+                </form>
+              </div>
+
+              <aside class="platform-preview-panel" aria-label="多端实时预览">
+                <header><div><strong>多端实时预览</strong><span>当前草稿效果</span></div><i data-lucide="scan-eye" aria-hidden="true"></i></header>
+                <div class="platform-preview-browser"><div><i></i><i></i><i></i><span id="platformPreviewBrowserTitle">平台配置 - 集卡物流系统</span></div><section><aside><span id="platformPreviewMark">集</span><div><strong id="platformPreviewName">集卡物流系统</strong><small id="platformPreviewEnglish">Container Trucking</small></div></aside><main><span>系统配置 / 平台配置</span><strong>平台配置</strong><div></div><div></div></main></section></div>
+                <div class="platform-preview-devices">
+                  <section><span>管理移动端</span><div><b id="platformPreviewAdminName">集卡物流管理端</b><i data-lucide="bell" aria-hidden="true"></i></div><p><em></em><em></em><em></em></p></section>
+                  <section><span>司机端 / 小程序</span><div><b id="platformPreviewDriverName">集卡司机端</b><i data-lucide="bell" aria-hidden="true"></i></div><p><em></em><em></em><em></em></p></section>
+                </div>
+                <div class="platform-preview-impact"><strong>发布影响范围</strong><span><i data-lucide="monitor" aria-hidden="true"></i>PC 后台</span><span><i data-lucide="smartphone" aria-hidden="true"></i>管理移动端</span><span><i data-lucide="truck" aria-hidden="true"></i>司机端</span><span><i data-lucide="file-text" aria-hidden="true"></i>业务单据</span></div>
+              </aside>
+            </section>
+
+            <footer class="platform-config-actions"><div><span id="platformUnsavedState"><i></i>当前配置与已发布版本一致</span><small>发布后各端刷新页面生效</small></div><div><button class="btn quiet" id="resetPlatformConfigBtn" type="button">恢复已发布版本</button><button class="btn primary" id="savePlatformDraftBtn" type="button">保存草稿</button><button class="btn accent" id="publishPlatformConfigBtn" type="button"><i data-lucide="send" aria-hidden="true"></i>发布配置</button></div></footer>
+            <div class="user-access-feedback" id="platformConfigFeedback" role="status" aria-live="polite" hidden></div>
+          </section>
+
           <section class="page-view" id="photoRequirementPage">
             <div class="system-config-heading">
               <div><span class="page-eyebrow">系统配置 / 司机拍照要求</span><h2>司机拍照要求</h2><p>按任务类型维护司机提交运单时需要完成的拍照项目。</p></div>
@@ -688,6 +809,37 @@
             </section>
           </section>
 
+          <section class="page-view" id="operationLogPage">
+            <div class="system-config-heading operation-log-heading">
+              <div><span class="page-eyebrow">系统配置 / 操作日志</span><h2>操作日志</h2><p>查询关键业务操作与权限访问记录，支持追溯操作对象、执行结果和变更内容。</p></div>
+              <span class="config-status-badge operation-log-readonly-badge"><i></i>管理员只读</span>
+            </div>
+            <form class="query-panel operation-log-query" id="operationLogQueryForm">
+              <div class="query-grid operation-log-query-grid">
+                <label class="field"><span>关键词</span><input name="keyword" type="search" placeholder="操作内容、业务编号、姓名或账号" /></label>
+                <label class="field"><span>操作模块</span><select name="module"><option value="">全部模块</option></select></label>
+                <label class="field"><span>操作类型</span><select name="action"><option value="">全部类型</option></select></label>
+                <label class="field"><span>操作人</span><select name="operator"><option value="">全部操作人</option></select></label>
+                <label class="field"><span>操作结果</span><select name="result"><option value="">全部结果</option><option value="success">成功</option><option value="failure">失败</option></select></label>
+                <label class="field"><span>开始日期</span><input name="startDate" type="date" /></label>
+                <label class="field"><span>结束日期</span><input name="endDate" type="date" /></label>
+              </div>
+              <div class="query-footer"><span class="selection-summary" id="operationLogFilterSummary">操作记录</span><div class="action-bar"><button class="btn quiet query-clear" type="reset">重置</button><button class="btn primary" type="submit">查询</button></div></div>
+            </form>
+            <section class="table-card operation-log-table-card" aria-label="操作日志列表">
+              <div class="table-summary"><div><strong>操作记录</strong><span>日志由系统自动生成，不可修改或删除</span></div><span class="draft-badge" id="operationLogCount">0 条</span></div>
+              <div class="table-wrap"><table class="fixed-action-table operation-log-table"><thead><tr><th>操作时间</th><th>操作模块</th><th>操作类型</th><th>操作人</th><th>操作对象</th><th>操作内容</th><th>结果</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="operationLogBody"></tbody></table></div>
+            </section>
+            <footer class="pagination operation-log-pagination" aria-label="操作日志分页"><label>每页条数<select id="operationLogPageSize"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select></label><div class="page-controls"><button id="operationLogPrevPage" type="button" disabled>上一页</button><button class="page-current" id="operationLogCurrentPage" type="button" aria-current="page">1</button><button id="operationLogNextPage" type="button" disabled>下一页</button><span class="total-records" id="operationLogTotal">共 0 条记录</span></div></footer>
+            <div class="operation-log-feedback" id="operationLogFeedback" role="status" aria-live="polite"></div>
+          </section>
+
+          <dialog class="vehicle-dialog operation-log-dialog" id="operationLogDetailDialog" aria-labelledby="operationLogDetailTitle">
+            <header class="vehicle-dialog-header"><div><strong id="operationLogDetailTitle">操作日志详情</strong><span id="operationLogDetailSubtitle">完整审计信息</span></div><button class="icon-btn" id="closeOperationLogDetailBtn" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
+            <div class="operation-log-detail-body" id="operationLogDetailBody"></div>
+            <div class="form-actions operation-log-dialog-actions"><button class="btn quiet" id="operationLogDetailCloseBtn" type="button">关闭</button></div>
+          </dialog>
+
           <!-- legacy dialog removed: rules now live on the system configuration page -->
           <!--
             <dialog class="vehicle-dialog auto-rules-dialog" data-legacy-id="legacyAutoRulesDialog">
@@ -723,7 +875,7 @@
           <section class="page-view" id="financePage">
             <div class="finance-heading">
               <div>
-                <span class="page-eyebrow">财务管理 / 运输成本台账</span>
+                <span class="page-eyebrow">数据看板 / 运输成本台账</span>
                 <h2>运输成本台账</h2>
                 <p>派单后自动生成运输明细，运单完成后补齐节点时间，费用由财务补录。</p>
               </div>
@@ -760,7 +912,7 @@
             </section>
             <footer class="pagination" aria-label="财务报表分页"><label>每页条数<select id="financePageSize"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select></label><div class="page-controls"><button id="financePrevPage" type="button" disabled>上一页</button><button class="page-current" id="financeCurrentPage" type="button">1</button><button id="financeNextPage" type="button" disabled>下一页</button><label>跳至<input id="financePageJump" type="number" min="1" value="1" />页</label><span class="total-records" id="financeTotalText">共 0 条记录</span></div></footer>
 
-            <dialog class="add-dialog admin-form-dialog finance-expense-dialog" id="financeExpenseDialog" data-breadcrumb="财务管理 / 运输成本台账 / 费用补录">
+            <dialog class="add-dialog admin-form-dialog finance-expense-dialog" id="financeExpenseDialog" data-breadcrumb="数据看板 / 运输成本台账 / 费用补录">
               <form id="financeExpenseForm">
                 <header class="vehicle-dialog-header"><div><strong>费用补录</strong><span id="financeExpenseSubtitle">为当前运单补录车辆费用和司机劳务费</span></div><button aria-label="关闭" class="icon-btn" id="closeFinanceExpenseBtn" type="button">×</button></header>
                 <div class="finance-expense-context" id="financeExpenseContext"></div>
@@ -790,7 +942,7 @@
           <section class="page-view" id="driverExpensePage">
             <div class="finance-heading">
               <div>
-                <span class="page-eyebrow">财务管理 / 司机费用上报</span>
+                <span class="page-eyebrow">结算管理 / 司机费用上报</span>
                 <h2>司机费用上报</h2>
                 <p>集中核对司机提交的运输费用、关联运单和凭证，完成单条或批量审核。</p>
               </div>
@@ -852,11 +1004,11 @@
 
           <section class="page-view" id="settlementPage">
             <div class="finance-heading">
-              <div><span class="page-eyebrow">财务管理 / 结算管理</span><h2>结算管理</h2><p>运单完成后进入待结算池，统一管理对账、发票、收付款和驾驶员工资。</p></div>
+              <div><span class="page-eyebrow">结算管理 / 结算中心</span><h2>结算中心</h2><p>运单完成后进入待结算池，统一管理对账、发票、收付款和驾驶员工资。</p></div>
               <span class="finance-sync-badge"><i></i>按完成运单实时归集</span>
             </div>
             <div class="finance-summary-grid settlement-summary-grid" id="settlementSummary"></div>
-            <div class="settlement-tabs" role="tablist" aria-label="结算管理视图">
+            <div class="settlement-tabs" role="tablist" aria-label="结算中心视图">
               <button class="active" data-settlement-tab="pending" type="button" role="tab" aria-selected="true">待结算</button>
               <button data-settlement-tab="orders" type="button" role="tab" aria-selected="false">结算单与对账单</button>
               <button data-settlement-tab="payroll" type="button" role="tab" aria-selected="false">驾驶员工资</button>
@@ -904,31 +1056,33 @@
             <div id="customerListView">
             <form class="query-panel query-collapsed" id="customerQueryForm">
               <div class="query-grid customer-query-grid">
-                <label class="field">客户编号<input name="customerNo" placeholder="请输入客户编号" /></label>
-                <label class="field">客户名称<input name="customerName" placeholder="全称或简称" /></label>
+                <label class="field">单位编号<input name="customerNo" placeholder="请输入单位编号" /></label>
+                <label class="field">单位名称<input name="customerName" placeholder="全称或简称" /></label>
+                <label class="field">单位角色<select name="businessRole"><option value="">全部角色</option><option>客户</option><option>三方供应商</option></select></label>
                 <label class="field">客户类型<select name="customerType"><option value="">全部类型</option><option>国际货运代理（货代）</option><option>船公司 / 船代</option><option>第三方物流 / 供应链公司</option><option>跨境电商物流商</option></select></label>
-                <label class="field query-extra">客户状态<select name="customerStatus"><option value="">全部状态</option><option>启用</option><option>停用</option></select></label>
+                <label class="field query-extra">单位状态<select name="customerStatus"><option value="">全部状态</option><option>启用</option><option>停用</option></select></label>
               </div>
-              <div class="query-footer"><span class="selection-summary" id="customerQuerySummary">客户档案</span><div class="action-bar"><button class="btn quiet query-clear" type="button">清空</button><button class="btn quiet query-toggle" type="button" aria-expanded="false">展开</button><button class="btn primary" type="submit">查询</button><span class="query-action-separator" aria-hidden="true"></span><button class="btn accent" id="addCustomerBtn" type="button">新增客户</button></div></div>
+              <div class="query-footer"><span class="selection-summary" id="customerQuerySummary">往来单位档案</span><div class="action-bar"><button class="btn quiet query-clear" type="button">清空</button><button class="btn quiet query-toggle" type="button" aria-expanded="false">展开</button><button class="btn primary" type="submit">查询</button><span class="query-action-separator" aria-hidden="true"></span><button class="btn accent" id="addCustomerBtn" type="button">新增单位</button></div></div>
             </form>
-            <section class="table-card" aria-label="客户档案列表"><div class="table-summary"><div><strong>客户档案列表</strong><span id="customerResultText">客户基础、联系与结算资料</span></div><span class="draft-badge" id="customerActiveBadge">启用 0</span></div><div class="table-wrap"><table class="fixed-action-table"><colgroup><col style="width:8%" /><col style="width:17%" /><col style="width:8%" /><col style="width:7%" /><col style="width:9%" /><col style="width:10%" /><col style="width:13%" /><col style="width:9%" /><col style="width:7%" /><col style="width:12%" /></colgroup><thead><tr><th>客户编号</th><th>客户全称</th><th>简称</th><th>客户类型</th><th>主要联系人</th><th>手机</th><th>默认装货地址</th><th>结算周期</th><th>状态</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="customerBody"></tbody></table></div></section>
+            <section class="table-card" aria-label="往来单位档案列表"><div class="table-summary"><div><strong>往来单位档案列表</strong><span id="customerResultText">客户与三方供应商统一维护</span></div><span class="draft-badge" id="customerActiveBadge">启用 0</span></div><div class="table-wrap"><table class="fixed-action-table"><colgroup><col style="width:7%" /><col style="width:15%" /><col style="width:7%" /><col style="width:9%" /><col style="width:9%" /><col style="width:8%" /><col style="width:9%" /><col style="width:11%" /><col style="width:8%" /><col style="width:6%" /><col style="width:11%" /></colgroup><thead><tr><th>单位编号</th><th>单位全称</th><th>简称</th><th>单位角色</th><th>客户类型</th><th>主要联系人</th><th>手机</th><th>默认装货地址</th><th>结算周期</th><th>状态</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="customerBody"></tbody></table></div></section>
             <footer class="pagination" aria-label="客户档案分页"><label>每页条数<select id="customerPageSize"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select></label><div class="page-controls"><button id="customerPrevPage" type="button" disabled>上一页</button><button class="page-current" id="customerCurrentPage" type="button">1</button><button id="customerNextPage" type="button" disabled>下一页</button><label>跳至<input id="customerPageJump" type="number" min="1" value="1" />页</label><span class="total-records" id="customerTotalText">共 0 条记录</span></div></footer>
             </div>
 
             <section class="customer-entry-page" id="customerFormView" hidden>
               <header class="customer-entry-header">
                 <button class="customer-back" id="closeCustomerFormBtn" type="button" aria-label="返回客户列表">←</button>
-                <div><span>系统配置 / 客户管理 / 客户建档</span><h2 id="customerFormTitle">新增客户</h2><p>完善客户资料后，可在新建运单时直接选择并自动带出常用地址。</p></div>
+                <div><span>系统配置 / 客户管理 / 单位建档</span><h2 id="customerFormTitle">新增单位</h2><p>客户与三方供应商统一建档；单位角色决定其可用于哪些业务。</p></div>
               </header>
               <nav class="customer-section-nav" aria-label="客户表单分组"><button class="is-active" type="button">基础信息</button><button type="button">联系信息</button><button type="button">地址信息</button><button type="button">结算信息</button></nav>
               <form id="customerForm" novalidate>
                 <div class="customer-form-notice"><strong>建档提示</strong><span><b>*</b> 为必填项。请确保联系人、地址和结算资料准确，带有格式要求的字段将在保存时校验。</span></div>
                 <section class="customer-entry-section">
-                  <div class="customer-section-heading"><span>01</span><div><h3>基础信息</h3><p>用于识别客户主体，并控制该客户是否可用于业务单据。</p></div></div>
+                  <div class="customer-section-heading"><span>01</span><div><h3>基础信息</h3><p>用于识别往来单位主体，并控制其可用于客户业务或三方运力。</p></div></div>
                   <div class="customer-entry-grid">
-                    <label class="field"><span>客户编号</span><input name="customerNo" readonly maxlength="30" aria-describedby="customerNoHint" /><small class="field-hint" id="customerNoHint">系统自动生成，无需填写。</small></label>
-                    <label class="field required-field customer-wide"><span class="field-label">客户全称</span><input name="customerName" required maxlength="100" placeholder="请输入营业执照上的企业全称" /><small class="field-hint">将用于运单、对账及开票资料。</small><em class="field-error" data-error-for="customerName"></em></label>
+                    <label class="field"><span>单位编号</span><input name="customerNo" readonly maxlength="30" aria-describedby="customerNoHint" /><small class="field-hint" id="customerNoHint">系统自动生成，无需填写。</small></label>
+                    <label class="field required-field customer-wide"><span class="field-label">单位全称</span><input name="customerName" required maxlength="100" placeholder="请输入营业执照上的企业全称" /><small class="field-hint">将用于运单、对账及结算资料。</small><em class="field-error" data-error-for="customerName"></em></label>
                     <label class="field"><span>简称</span><input name="shortName" maxlength="50" placeholder="请输入便于识别的简称" /><small class="field-hint">用于列表快速识别，可不填写。</small></label>
+                    <label class="field required-field"><span class="field-label">单位角色</span><select name="businessRole" required><option value="客户">客户</option><option value="三方供应商">三方供应商</option><option value="客户+三方供应商">客户+三方供应商</option></select><small class="field-hint">同一单位可同时用于客户业务和三方运力。</small><em class="field-error" data-error-for="businessRole"></em></label>
                     <label class="field required-field"><span class="field-label">客户类型</span><select name="customerType" required><option value="">请选择客户类型</option><option>国际货运代理（货代）</option><option>船公司 / 船代</option><option>第三方物流 / 供应链公司</option><option>跨境电商物流商</option></select><small class="field-hint">选择最符合客户主营业务的类别。</small><em class="field-error" data-error-for="customerType"></em></label>
                     <label class="field required-field customer-wide"><span class="field-label">统一社会信用代码</span><input name="creditCode" required maxlength="18" placeholder="请输入 18 位统一社会信用代码" /><small class="field-hint">由数字和大写字母组成，共 18 位。</small><em class="field-error" data-error-for="creditCode"></em></label>
                     <label class="field required-field"><span class="field-label">客户状态</span><select name="customerStatus" required><option value="启用">启用</option><option value="停用">停用</option></select><small class="field-hint">停用后不可在新运单中选择。</small><em class="field-error" data-error-for="customerStatus"></em></label>
@@ -963,10 +1117,10 @@
                   </div>
                 </section>
               </form>
-              <footer class="customer-entry-actions"><span>保存后将返回客户列表</span><div><button class="btn quiet" id="cancelCustomerFormBtn" type="button">取消</button><button class="btn primary" type="submit" form="customerForm">保存客户</button></div></footer>
+              <footer class="customer-entry-actions"><span>保存后将返回往来单位列表</span><div><button class="btn quiet" id="cancelCustomerFormBtn" type="button">取消</button><button class="btn primary" type="submit" form="customerForm">保存单位</button></div></footer>
             </section>
-            <dialog class="vehicle-dialog customer-dialog customer-detail-dialog" id="customerDetailDialog"><header class="vehicle-dialog-header"><div><strong id="customerDetailTitle">客户详情</strong><span id="customerDetailSubtitle"></span></div><button class="icon-btn" id="closeCustomerDetailBtn" aria-label="关闭" type="button">×</button></header><div class="customer-detail-body" id="customerDetailBody"></div><div class="form-actions customer-dialog-actions"><button class="btn quiet" id="customerDetailCloseBtn" type="button">关闭</button><button class="btn primary" id="customerDetailEditBtn" type="button">编辑客户</button></div></dialog>
-            <dialog class="confirm-dialog" id="deleteCustomerDialog"><div class="confirm-icon" aria-hidden="true">!</div><h2>删除客户档案</h2><p id="deleteCustomerText">删除后无法恢复。</p><div class="confirm-actions"><button class="btn quiet" id="cancelDeleteCustomerBtn" type="button">取消</button><button class="btn danger" id="confirmDeleteCustomerBtn" type="button">确认删除</button></div></dialog>
+            <dialog class="vehicle-dialog customer-dialog customer-detail-dialog" id="customerDetailDialog"><header class="vehicle-dialog-header"><div><strong id="customerDetailTitle">单位详情</strong><span id="customerDetailSubtitle"></span></div><button class="icon-btn" id="closeCustomerDetailBtn" aria-label="关闭" type="button">×</button></header><div class="customer-detail-body" id="customerDetailBody"></div><div class="form-actions customer-dialog-actions"><button class="btn quiet" id="customerDetailCloseBtn" type="button">关闭</button><button class="btn primary" id="customerDetailEditBtn" type="button">编辑单位</button></div></dialog>
+            <dialog class="confirm-dialog" id="deleteCustomerDialog"><div class="confirm-icon" aria-hidden="true">!</div><h2>删除往来单位</h2><p id="deleteCustomerText">删除后无法恢复。</p><div class="confirm-actions"><button class="btn quiet" id="cancelDeleteCustomerBtn" type="button">取消</button><button class="btn danger" id="confirmDeleteCustomerBtn" type="button">确认删除</button></div></dialog>
           </section>
 
           <section class="page-view" id="reminderTemplatePage">
@@ -1052,11 +1206,59 @@
             </dialog>
           </section>
 
-          <section class="page-view" id="thirdPartySupplierPage">
-            <div class="finance-heading"><div><span class="page-eyebrow">系统配置 / 三方供应商档案</span><h2>三方供应商档案</h2><p>统一维护司机、车辆和挂车引用的三方运力单位。</p></div><span class="finance-sync-badge"><i></i>全业务统一引用</span></div>
-            <form class="query-panel" id="thirdPartySupplierQueryForm"><div class="query-grid"><label class="field"><span>供应商名称</span><input name="keyword" type="search" placeholder="搜索名称、联系人或电话" /></label><label class="field"><span>状态</span><select name="status"><option value="">全部状态</option><option>启用</option><option>停用</option></select></label></div><div class="query-footer query-footer-end"><div class="action-bar"><button class="btn quiet" type="reset">清空</button><button class="btn primary" type="submit">查询</button><button class="btn accent" id="addThirdPartySupplierBtn" type="button">新增供应商</button></div></div></form>
-            <section class="table-card"><div class="table-summary"><div><strong>供应商列表</strong><span id="thirdPartySupplierResultText">统一三方名称，避免同一单位重复录入</span></div><span class="draft-badge" id="thirdPartySupplierActiveBadge">启用 0</span></div><div class="table-wrap"><table class="fixed-action-table"><thead><tr><th>供应商编号</th><th>供应商名称</th><th>联系人</th><th>联系电话</th><th>状态</th><th>备注</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="thirdPartySupplierBody"></tbody></table></div></section>
-            <dialog class="add-dialog vehicle-dialog admin-form-dialog" id="thirdPartySupplierDialog"><form id="thirdPartySupplierForm"><header class="vehicle-dialog-header"><div><strong id="thirdPartySupplierFormTitle">新增三方供应商</strong><span>保存后可在司机、车辆和挂车档案中搜索选择</span></div><button class="icon-btn" id="closeThirdPartySupplierBtn" type="button" aria-label="关闭">×</button></header><div class="driver-form-body"><section class="driver-form-section"><h3>供应商信息</h3><div class="form-grid"><label class="field required-field"><span class="field-label">供应商名称</span><input name="name" required maxlength="100" /></label><label class="field"><span>联系人</span><input name="contact" maxlength="50" /></label><label class="field"><span>联系电话</span><input name="phone" maxlength="30" /></label><label class="field required-field"><span class="field-label">状态</span><select name="status" required><option>启用</option><option>停用</option></select></label><label class="field field-wide"><span>备注</span><textarea name="remark" rows="3" maxlength="300"></textarea></label></div></section></div><div class="form-actions"><button class="btn quiet" id="cancelThirdPartySupplierBtn" type="button">取消</button><button class="btn primary" type="submit">保存供应商</button></div></form></dialog>
+          <section class="page-view" id="feedbackManagementPage">
+            <div class="system-config-heading feedback-management-heading">
+              <div><span class="page-eyebrow">系统配置 / 意见反馈管理</span><h2>意见反馈管理</h2><p>统一查看司机端和管理端提交的问题与建议，跟踪处理状态并向提交人回复。</p></div>
+              <span class="config-status-badge"><i></i>两端实时同步</span>
+            </div>
+
+            <div class="feedback-summary-grid" id="feedbackSummary" aria-label="意见反馈统计"></div>
+
+            <div class="feedback-source-toolbar">
+              <div id="feedbackSourceFilters" role="group" aria-label="反馈来源">
+                <button class="active" data-feedback-source="all" type="button" aria-pressed="true">全部来源</button>
+                <button data-feedback-source="driver" type="button" aria-pressed="false">司机端</button>
+                <button data-feedback-source="manager" type="button" aria-pressed="false">管理端</button>
+              </div>
+              <button class="btn quiet" id="feedbackExportBtn" type="button"><i data-lucide="download" aria-hidden="true"></i>导出当前结果</button>
+            </div>
+
+            <form class="query-panel" id="feedbackQueryForm">
+              <div class="query-grid feedback-query-grid">
+                <label class="field"><span>关键词</span><input name="keyword" type="search" placeholder="反馈编号、提交人、描述或业务编号" /></label>
+                <label class="field"><span>问题类型</span><select name="categoryCode" id="feedbackCategoryFilter"><option value="">全部类型</option></select></label>
+                <label class="field"><span>处理状态</span><select name="status"><option value="">全部状态</option><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已处理</option><option value="closed">已关闭</option></select></label>
+                <label class="field"><span>开始日期</span><input name="startDate" type="date" /></label>
+                <label class="field"><span>结束日期</span><input name="endDate" type="date" /></label>
+              </div>
+              <div class="query-footer"><span class="selection-summary" id="feedbackResultText">筛选结果 0 条反馈</span><div class="action-bar"><button class="btn quiet" id="feedbackClearBtn" type="button">清空</button><button class="btn primary" type="submit">查询</button></div></div>
+            </form>
+
+            <section class="table-card" aria-label="意见反馈列表">
+              <div class="table-summary"><div><strong>意见反馈记录</strong><span>司机端与管理端反馈统一进入本列表</span></div><span class="draft-badge" id="feedbackCountBadge">0 条待处理</span></div>
+              <div class="table-wrap"><table class="fixed-action-table feedback-table"><thead><tr><th>反馈编号</th><th>来源端</th><th>提交人</th><th>问题类型</th><th>问题描述</th><th>关联业务</th><th>附件</th><th>提交时间</th><th>状态</th><th>处理人</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="feedbackManagementBody"></tbody></table></div>
+            </section>
+            <footer class="pagination" aria-label="意见反馈分页"><label>每页条数<select id="feedbackPageSize"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select></label><div class="page-controls"><button id="feedbackPrevPage" type="button" disabled>上一页</button><button class="page-current" id="feedbackCurrentPage" type="button">1</button><button id="feedbackNextPage" type="button" disabled>下一页</button><span class="total-records" id="feedbackTotalText">共 0 条记录</span></div></footer>
+
+            <dialog class="vehicle-dialog admin-form-dialog feedback-detail-dialog" id="feedbackDetailDialog" aria-labelledby="feedbackDetailTitle">
+              <form class="feedback-detail-form" id="feedbackDetailForm">
+                <header class="vehicle-dialog-header"><div><strong id="feedbackDetailTitle">意见反馈详情</strong><span id="feedbackDetailSubtitle">反馈信息与处理记录</span></div><button class="icon-btn" id="closeFeedbackDetailBtn" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
+                <div class="feedback-detail-scroll">
+                  <section class="feedback-detail-section"><h3>提交人与反馈信息</h3><div class="feedback-detail-grid" id="feedbackDetailInfo"></div></section>
+                  <section class="feedback-detail-section"><h3>问题描述</h3><p class="feedback-detail-description" id="feedbackDetailDescription"></p></section>
+                  <section class="feedback-detail-section"><h3>图片与视频附件</h3><div class="feedback-media-grid" id="feedbackDetailAttachments"></div></section>
+                  <section class="feedback-detail-section"><h3>处理意见</h3><div class="feedback-process-grid">
+                    <label class="field required-field"><span class="field-label">处理状态</span><select name="status" required><option value="pending">待处理</option><option value="processing">处理中</option><option value="resolved">已处理</option><option value="closed">已关闭</option></select></label>
+                    <label class="field"><span>优先级</span><select name="priority"><option value="normal">普通</option><option value="high">重要</option><option value="urgent">紧急</option></select></label>
+                    <label class="field"><span>处理人</span><input name="handlerName" maxlength="30" placeholder="请输入处理人" /></label>
+                    <label class="field field-wide"><span>回复提交人</span><textarea name="publicReply" rows="3" maxlength="500" placeholder="该内容会同步到司机端或管理端"></textarea></label>
+                    <label class="field field-wide"><span>内部备注</span><textarea name="internalNote" rows="3" maxlength="500" placeholder="仅后台人员可见"></textarea></label>
+                  </div></section>
+                  <section class="feedback-detail-section"><h3>处理记录</h3><div class="feedback-timeline" id="feedbackDetailTimeline"></div></section>
+                </div>
+                <div class="form-actions"><span class="form-tip">保存后状态和公开回复将同步至提交端</span><div><button class="btn quiet" id="cancelFeedbackDetailBtn" type="button">取消</button><button class="btn primary" type="submit">保存处理结果</button></div></div>
+              </form>
+            </dialog>
           </section>
 
           <section class="page-view" id="vehiclePage">
@@ -1181,7 +1383,7 @@
                     <label class="field">车队名称<input name="fleetName" placeholder="请输入车队名称" /></label>
                     <label class="field"><span>默认挂车</span><select name="trailerId" id="vehicleTrailerSelect"><option value="">不指定</option></select></label>
                     <label class="field required-field"><span class="field-label">运力归属</span><select name="capacityOwnership" data-capacity-ownership required><option>自营</option><option>三方</option></select></label>
-                    <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartySupplierOptions" placeholder="搜索供应商名称" /></label>
+                    <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartyCustomerOptions" placeholder="从客户管理选择三方供应商" /></label>
                     <label class="field required-field"><span class="field-label">车辆状态</span><select name="vehicleState" required><option>在用</option><option>停用</option><option>维修中</option></select></label>
                   </div></section>
                   <section class="driver-form-section"><h3>车辆参数</h3><div class="form-grid">
@@ -1493,7 +1695,7 @@
                     <label class="field required-field"><span class="field-label">车架号</span><input name="vin" required /></label>
                     <label class="field">所属车队<input name="fleet" placeholder="请输入所属车队" /></label>
                     <label class="field required-field"><span class="field-label">运力归属</span><select name="capacityOwnership" data-capacity-ownership required><option>自营</option><option>三方</option></select></label>
-                    <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartySupplierOptions" placeholder="搜索供应商名称" /></label>
+                    <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartyCustomerOptions" placeholder="从客户管理选择三方供应商" /></label>
                     <label class="field required-field"><span class="field-label">挂车状态</span><select name="trailerState" required><option>在用</option><option>停用</option><option>维修中</option></select></label>
                   </div></section>
                   <section class="driver-form-section"><h3>证照与审验</h3><div class="form-grid">
@@ -1690,7 +1892,7 @@
                       <label class="field required-field"><span class="field-label">入职日期</span><input name="entryDate" type="date" required /></label>
                       <label class="field required-field"><span class="field-label">司机状态</span><select name="driverState" required><option>空闲</option><option>运输中</option><option>休假中</option><option>停用</option></select></label>
                       <label class="field required-field"><span class="field-label">运力归属</span><select name="capacityOwnership" data-capacity-ownership required><option>自营</option><option>三方</option></select></label>
-                      <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartySupplierOptions" placeholder="搜索供应商名称" /></label>
+                      <label class="field required-field" data-third-party-field hidden><span class="field-label">三方供应商</span><input name="supplierName" list="thirdPartyCustomerOptions" placeholder="从客户管理选择三方供应商" /></label>
                       <label class="field required-field"><span class="field-label">所属车队</span><input name="fleet" required /></label>
                     </div>
                   </section>
@@ -1928,10 +2130,18 @@
       </form>
     </dialog>
     <dialog class="confirm-dialog" id="deletePhotoRequirementDialog"><div class="confirm-icon" aria-hidden="true">!</div><h2>删除拍照要求</h2><p id="deletePhotoRequirementText">删除后，新派运单将不再包含此要求。</p><div class="confirm-actions"><button class="btn quiet" id="cancelDeletePhotoRequirementBtn" type="button">取消</button><button class="btn danger" id="confirmDeletePhotoRequirementBtn" type="button">确认删除</button></div></dialog>
+    <dialog class="vehicle-dialog admin-form-dialog platform-admin-dialog" id="platformAdminDialog" aria-labelledby="platformAdminDialogTitle">
+      <form id="platformAdminForm" method="dialog">
+        <header class="vehicle-dialog-header"><div><strong id="platformAdminDialogTitle">更换超级管理员</strong><span>更换后，原管理员保留普通系统管理员角色</span></div><button class="icon-btn" id="closePlatformAdminDialog" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
+        <div class="admin-form-body platform-admin-dialog-body"><div class="platform-security-alert compact"><i data-lucide="triangle-alert" aria-hidden="true"></i><div><strong>这是敏感操作</strong><span>新管理员将获得平台配置发布及账号安全管理权限。</span></div></div><label class="field required-field"><span class="field-label">选择新超级管理员</span><select name="administrator" required><option value="">请选择启用中的管理员账号</option><option value="张调度|zhangdd">张调度（zhangdd）· 调度管理员</option><option value="李车管|licheguan">李车管（licheguan）· 车队管理员</option><option value="赵财务|zhaocw">赵财务（zhaocw）· 财务管理员</option></select></label><label class="field required-field"><span class="field-label">当前账号密码</span><input name="password" type="password" required minlength="6" placeholder="请输入当前账号密码进行确认" /></label><label class="platform-admin-confirm-check"><input name="confirmed" type="checkbox" required /><span>我已确认新管理员身份，并了解权限变更影响</span></label></div>
+        <div class="form-actions"><span class="form-tip">操作完成后将记录当前账号、时间与来源 IP</span><div><button class="btn quiet" id="cancelPlatformAdminDialog" type="button">取消</button><button class="btn primary" type="submit">确认更换</button></div></div>
+      </form>
+    </dialog>
+    <dialog class="confirm-dialog platform-publish-dialog" id="platformPublishDialog" aria-labelledby="platformPublishTitle"><div class="confirm-icon" aria-hidden="true"><i data-lucide="send"></i></div><h2 id="platformPublishTitle">发布平台配置</h2><p id="platformPublishText">发布后将同步影响 PC 后台、管理移动端、司机端及业务单据。确认发布当前草稿？</p><div class="platform-publish-impact"><span>PC 后台</span><span>管理移动端</span><span>司机端</span><span>业务单据</span></div><div class="confirm-actions"><button class="btn quiet" id="cancelPlatformPublish" type="button">取消</button><button class="btn primary" id="confirmPlatformPublish" type="button">确认发布</button></div></dialog>
     <dialog class="confirm-dialog app-notice-dialog" id="appNoticeDialog" aria-labelledby="appNoticeTitle" aria-describedby="appNoticeText"><div class="confirm-icon" aria-hidden="true">i</div><h2 id="appNoticeTitle">操作提示</h2><p id="appNoticeText" role="alert"></p><div class="confirm-actions"><button class="btn primary" id="closeAppNoticeBtn" type="button">知道了</button></div></dialog>
     <dialog class="confirm-dialog" id="appConfirmDialog" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmText"><div class="confirm-icon" aria-hidden="true">?</div><h2 id="appConfirmTitle">确认操作</h2><p id="appConfirmText"></p><div class="confirm-actions"><button class="btn quiet" id="cancelAppConfirmBtn" type="button">取消</button><button class="btn primary" id="acceptAppConfirmBtn" type="button">确认</button></div></dialog>
 
-    <datalist id="thirdPartySupplierOptions"></datalist>
+    <datalist id="thirdPartyCustomerOptions"></datalist>
     <script src="vendor/lucide.min.js"></script>
     <script src="capacity-ownership.js"></script>
     <script src="admin-data-bridge.js"></script>
@@ -1942,6 +2152,8 @@
     <script src="photo-requirements.js"></script>
     <script src="expense-report.js"></script>
     <script src="dispatch-rules.js"></script>
+    <script src="dispatch-operation-log.js"></script>
+    <script src="plan-task-archive.js"></script>
     <script src="app.js"></script>
     <script src="settlement-management.js"></script>
     <script src="dispatch-management.js"></script>
@@ -1950,5 +2162,8 @@
     <script src="admin-dialogs.js"></script>
     <script src="query-controls.js"></script>
     <script src="user-access.js"></script>
+    <script src="operation-log.js"></script>
+    <script src="feedback-management.js"></script>
+    <script src="platform-config.js"></script>
 </body>
 </html>
