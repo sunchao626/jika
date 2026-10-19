@@ -20,7 +20,7 @@
     { group: "系统配置", id: "reminders", name: "消息提醒模板", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "announcements", name: "公告管理", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "feedbackManagement", name: "意见反馈管理", actions: ["view", "edit", "export", "special"], special: "处理与回复" },
-    { group: "系统配置", id: "photoRequirements", name: "司机拍照要求", actions: ["view", "create", "edit", "delete"] },
+    { group: "系统配置", id: "transportTaskConfig", name: "任务类型配置", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "autoDispatchConfig", name: "自动派单配置", actions: ["view", "edit", "special"], special: "规则配置" },
     { group: "系统配置", id: "userAccess", name: "用户与权限", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "operationLogs", name: "操作日志", actions: ["view"] },
@@ -54,8 +54,10 @@
     const source = role?.permissions || {};
     const permissions = EMPTY_PERMISSIONS();
     MODULES.forEach((module) => {
+      const legacyPermissions = module.id === "transportTaskConfig" && source[module.id] === undefined ? source.photoRequirements : null;
+      const sourcePermissions = source[module.id] || legacyPermissions || {};
       module.actions.forEach((action) => {
-        permissions[module.id][action] = Boolean(source[module.id]?.[action]);
+        permissions[module.id][action] = Boolean(sourcePermissions[action]);
       });
       if (Object.values(permissions[module.id]).some(Boolean)) permissions[module.id].view = true;
     });

@@ -223,10 +223,15 @@ button { cursor: pointer; }
 .search-box svg { width: 18px; height: 18px; fill: none; stroke: #9aa5b5; stroke-width: 1.8; }
 .search-box input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--text); background: transparent; }
 .search-box input::placeholder { color: #b1bac8; }
-.order-status-tabs { display: grid; grid-template-columns: repeat(4, 1fr); margin: 15px 0; border-bottom: 1px solid var(--line); }
+.order-status-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 15px 0; border-bottom: 1px solid var(--line); }
 .order-status-tabs button { position: relative; height: 38px; border: 0; background: transparent; color: #8792a4; font-size: 12px; }
 .order-status-tabs button.active { color: var(--primary); font-weight: 700; }
 .order-status-tabs button.active::after { position: absolute; right: 16px; bottom: -1px; left: 16px; height: 3px; border-radius: 3px 3px 0 0; background: var(--primary); content: ""; }
+.work-stage-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 2px 0 14px; }
+.work-stage-tabs button { display: flex; min-width: 0; height: 46px; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; background: white; color: var(--muted); font-size: 13px; font-weight: 700; }
+.work-stage-tabs button strong { display: grid; min-width: 22px; height: 22px; place-items: center; border-radius: 11px; padding: 0 6px; background: #eef1f6; color: #758196; font-size: 11px; }
+.work-stage-tabs button.active { border-color: var(--primary); color: var(--primary); box-shadow: 0 5px 14px rgba(59,54,118,.09); }
+.work-stage-tabs button.active strong { background: var(--primary); color: white; }
 .order-card { border: 1px solid var(--line); border-radius: 15px; padding: 15px; background: white; }
 .order-card-top { display: flex; align-items: center; justify-content: space-between; }
 .order-card-top strong { color: var(--ink); font-size: 13px; }
@@ -239,7 +244,9 @@ button { cursor: pointer; }
 .order-contact-action { min-height: 38px; flex: 0.8; border: 1px solid #dfe3ef; border-radius: 19px; padding: 0 16px; background: #fff; color: #616b82; font-size: 11px; font-weight: 700; }
 .order-contact-action:active { transform: scale(.97); }
 .order-progress-action { min-height: 38px; flex: 1.2; border: 1px solid var(--primary); border-radius: 19px; padding: 0 16px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 700; box-shadow: 0 7px 16px rgba(90,79,242,.18); }
+.order-accept-action { min-height: 38px; flex: 1.2; border: 1px solid var(--primary); border-radius: 19px; padding: 0 16px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 700; box-shadow: 0 7px 16px rgba(90,79,242,.18); }
 .order-progress-action:active { transform: scale(.97); }
+.order-accept-action:active { transform: scale(.97); }
 
 .profile-view { padding-top: 12px; }
 .profile-hero { display: flex; align-items: center; gap: 13px; padding: 12px 4px 20px; }
@@ -269,7 +276,7 @@ button { cursor: pointer; }
 .profile-order-panel header span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
 .profile-order-panel header button { border: 0; padding: 5px 0 5px 8px; background: transparent; color: #77849a; font-size: 10px; }
 .profile-order-panel header button b { margin-left: 2px; color: #a4aebb; font-size: 16px; font-weight: 400; }
-.profile-order-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid #eef1f6; }
+.profile-order-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #eef1f6; }
 .profile-order-stats button { position: relative; min-width: 0; height: 78px; border: 0; border-right: 1px solid #f0f2f6; background: white; color: #68758a; }
 .profile-order-stats button:last-child { border-right: 0; }
 .profile-order-stats strong { display: block; color: var(--ink); font-size: 20px; line-height: 1; }
@@ -277,6 +284,7 @@ button { cursor: pointer; }
 .profile-order-stats button[data-order-stage="pickup"]::after { background: #e79a3d; }
 .profile-order-stats button[data-order-stage="transit"]::after { background: var(--primary); }
 .profile-order-stats button[data-order-stage="completed"]::after { background: var(--success); }
+.profile-order-stats button[data-order-stage="cancelled"]::after { background: var(--danger); }
 .profile-order-stats button::after { position: absolute; right: 50%; bottom: 9px; width: 16px; height: 2px; transform: translateX(50%); border-radius: 2px; background: #93a0b5; content: ""; }
 
 .profile-menu-group { margin-top: 14px; }
@@ -410,7 +418,7 @@ button { cursor: pointer; }
   bottom: 0;
   left: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   min-height: calc(64px + var(--safe-bottom));
   padding: 6px 18px var(--safe-bottom);
   border-top: 1px solid rgba(224,230,239,.9);
@@ -930,6 +938,8 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 .order-status-tabs button { height: 36px; border-radius: 18px; color: #85879a; }
 .order-status-tabs button.active { background: #fff; color: var(--primary); box-shadow: 0 5px 14px rgba(59,54,118,.09); }
 .order-status-tabs button.active::after { display: none; }
+.work-stage-tabs button { border-color: rgba(255,255,255,.95); border-radius: 14px; background: rgba(255,255,255,.68); }
+.work-stage-tabs button.active { background: white; }
 
 .order-card { border-radius: 19px; padding: 17px; }
 .order-card-top strong { color: #383a55; font-size: 13px; }
@@ -940,6 +950,9 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 .task-extra-meta > span { color: #77798f; }
 
 .profile-view { padding: 10px 16px calc(104px + var(--safe-bottom)); background: transparent; }
+.profile-order-stats button { height: 72px; }
+.profile-order-stats span { font-size: 9px; }
+.my-orders-page { min-width: 0; }
 .profile-hero { margin: 0; padding: 14px 5px 24px; }
 .avatar {
   width: 62px;
@@ -1373,7 +1386,6 @@ a:focus-visible { outline: 3px solid rgba(90, 79, 242, .2); outline-offset: 2px;
 .capacity-ownership-badge { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 7px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; font-weight: 700; line-height: 1.2; }
 .capacity-ownership-badge.self { color: #116149; background: #e7f7f0; border-color: #9fd8c4; }
 .capacity-ownership-badge.third { color: #8a4b08; background: #fff4df; border-color: #edc781; }
-.capacity-ownership-badge.mixed { color: #9b2c2c; background: #fff0f0; border-color: #ef9b9b; }
 .capacity-ownership-badge.pending { color: #5c6470; background: #f2f4f7; border-color: #d5dae1; }
 
 /* Driver profile actions, vehicle editing and credential attachments. */

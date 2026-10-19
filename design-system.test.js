@@ -21,8 +21,8 @@ for (const css of [read("styles.css"), driverCss, managerCss]) {
   assert.doesNotMatch(css, /--primary:\s*#/i, "surface styles must not redefine the platform primary color");
 }
 
-assert.match(driver, /id="orderStatusTabs"[^>]*role="group"[^>]*aria-label="运单状态筛选"/);
-assert.match(driver, /class="filter-chip active"[^>]*aria-pressed="true"/);
+assert.match(driverScript, /id="orderStatusTabs"[^`]*role="group"[^`]*aria-label="运单状态筛选"/);
+assert.match(driverScript, /class="filter-chip \$\{state\.orderFilter === status \? "active" : ""\}" data-status="\$\{status\}" aria-pressed="\$\{state\.orderFilter === status\}"/);
 assert.match(driverScript, /item\.setAttribute\("aria-pressed", String\(active\)\)/);
 assert.match(managerScript, /class="filter-chip \$\{active \? "active" : ""\}"[^>]*aria-pressed="\$\{active\}"/);
 assert.match(tokens, /\.order-status-tabs button\.filter-chip,[\s\S]*\.module-filter-row button\.filter-chip/);

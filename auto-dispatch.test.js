@@ -91,6 +91,11 @@ assert.ok(Number(find("#autoExceptionCount").textContent) <= 3, "demo exceptions
 assert.ok(Number(find("#autoResultCount").textContent) >= 4, "demo results should include multiple dispatched tasks");
 assert.ok(Number(find("#autoFleetCount").textContent) >= 8, "demo fleet should include more capacity rows");
 
+tabs[0].listeners.click();
+assert.match(find("#autoTableHead").innerHTML, /<th>运单号<\/th>[\s\S]*<th>计划靠台时间<\/th>/);
+assert.doesNotMatch(find("#autoTableHead").innerHTML, /任务 \/ 来源|计划日期/);
+assert.doesNotMatch(find("#autoTaskBody").innerHTML, /待派单运单/);
+
 tabs[2].listeners.click();
 assert.match(find("#autoTaskBody").innerHTML, /WB-PENDING/);
 assert.match(find("#autoTaskBody").innerHTML, /已派单/);

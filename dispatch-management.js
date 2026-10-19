@@ -10,6 +10,7 @@
     confirmMessage: page.querySelector("#dispatchManagementConfirmMessage"),
     confirmSummary: page.querySelector("#dispatchManagementConfirmSummary"),
     confirmMatches: page.querySelector("#dispatchManagementConfirmMatches"),
+    driverConflicts: page.querySelector("#dispatchManagementDriverConflicts"),
     vehicleDialog: page.querySelector("#dispatchManagementVehicleDialog"),
     vehicleFilter: page.querySelector("#dispatchManagementVehicleFilter"),
     vehicleOwnershipFilter: page.querySelector("#dispatchManagementVehicleOwnershipFilter"),
@@ -105,8 +106,9 @@
     demoTasks = demoTaskSeeds.map((task, index) => {
       const taskDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (index < 5 ? 0 : index < 10 ? 1 : -1));
       const dateText = `${taskDate.getFullYear()}-${String(taskDate.getMonth() + 1).padStart(2, "0")}-${String(taskDate.getDate()).padStart(2, "0")}`;
-      const time = String(task.executionTime || "08:00").slice(10) || " 08:00";
-      return { ...task, status: "待派单", orderDate: dateText, executionTime: `${dateText}${time}`, timeline: [] };
+      const time = String(task.plannedBerthingTime || task.executionTime || "08:00").slice(10) || " 08:00";
+      const plannedBerthingTime = `${dateText}${time}`;
+      return { ...task, status: "待派单", orderDate: dateText, planExecutionDate: dateText, plannedBerthingTime, executionTime: plannedBerthingTime, timeline: [] };
     });
     demoAssignments.clear();
     selectedTaskIds.clear();
@@ -160,10 +162,11 @@
   }
 
   function getCapacityDisplayProgress(resource, index) {
-    const taskType = capacityNodeSequences[resource.activeDispatch?.taskType]
-      ? resource.activeDispatch.taskType
-      : capacityDemoTaskTypes[index % capacityDemoTaskTypes.length];
-    const nodes = capacityNodeSequences[taskType];
+    const taskType = resource.activeDispatch?.taskType || capacityDemoTaskTypes[index % capacityDemoTaskTypes.length];
+    const nodes = resource.activeDispatch?.taskConfigSnapshot?.nodes?.map((node) => node.name)
+      || window.DispatchTaskNodes?.get?.(taskType)
+      || capacityNodeSequences[taskType]
+      || capacityNodeSequences[capacityDemoTaskTypes[index % capacityDemoTaskTypes.length]];
     let currentIndex = -1;
     let stage = "待开始";
     if (resource.state === "运输中") {
@@ -225,13 +228,21 @@
         driver && { ...driver, role: "司机", name: driver.name },
         { ...vehicle, role: "车辆", name: vehicle.plateNo },
         trailer && { ...trailer, role: "挂车", name: trailer.plateNo },
-      ], { missingRequired: !driver }) || { type: "待确定", tooltip: "" };
+      ], { missingRequired: !driver || Boolean(vehicle.trailerId && !trailer) }) || { type: vehicle.capacityOwnership || "自营", compatible: Boolean(driver && vehicle && (!vehicle.trailerId || trailer)), tooltip: "" };
       return resource;
-    }).sort((left, right) => (stateOrder[left.state] ?? 9) - (stateOrder[right.state] ?? 9) || ({ 自营: 0, "自营+三方": 1, 三方: 2 }[left.ownership.type] ?? 9) - ({ 自营: 0, "自营+三方": 1, 三方: 2 }[right.ownership.type] ?? 9));
+    }).sort((left, right) => (stateOrder[left.state] ?? 9) - (stateOrder[right.state] ?? 9) || ({ 自营: 0, 三方: 1 }[left.ownership.type] ?? 9) - ({ 自营: 0, 三方: 1 }[right.ownership.type] ?? 9));
+  }
+
+  function ownershipCompatible(resource) {
+    return resource.ownership?.compatible !== false;
   }
 
   function getPendingTasks() {
-    return demoTasks.filter((task) => task.status === "待派单");
+    return demoTasks.filter((task) => task.status === "待派单").sort((left, right) => {
+      const leftTime = new Date(String(left.plannedBerthingTime || left.executionTime || "").replace(" ", "T")).getTime();
+      const rightTime = new Date(String(right.plannedBerthingTime || right.executionTime || "").replace(" ", "T")).getTime();
+      return (Number.isFinite(leftTime) ? leftTime : Number.MAX_SAFE_INTEGER) - (Number.isFinite(rightTime) ? rightTime : Number.MAX_SAFE_INTEGER);
+    });
   }
 
   function statusCount(status) {
@@ -244,7 +255,7 @@
     const todayText = dateText(today);
     const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
     const tomorrowText = dateText(tomorrow);
-    const taskDate = (task) => String(task.executionTime || task.orderDate || getWaybill(task).executionTime || getWaybill(task).orderDate || "").slice(0, 10);
+    const taskDate = (task) => String(task.plannedBerthingTime || task.executionTime || getWaybill(task).plannedBerthingTime || getWaybill(task).executionTime || task.orderDate || "").slice(0, 10);
     const pendingTasks = getPendingTasks();
     const taskStats = [
       ["待派单总计", pendingTasks.length, "pending", "clock-3", ""],
@@ -277,12 +288,11 @@
   function getTaskContext(task) {
     const waybill = getWaybill(task);
     return {
-      source: task.planTaskNo || waybill.planTaskNo || "临时任务",
       customer: task.customerName || waybill.customerName || "未关联客户",
       project: task.projectName || waybill.projectName || "未分配项目",
       taskType: task.taskType || waybill.taskType || "提空装货",
       route: task.routeName || fixedRoutes.find((route) => route.id === task.routeId)?.routeName || "未指定线路",
-      planDate: String(task.executionTime || task.orderDate || "-").replace("T", " ").slice(0, 16),
+      plannedBerthingTime: String(task.plannedBerthingTime || waybill.plannedBerthingTime || task.executionTime || waybill.executionTime || "-").replace("T", " ").slice(0, 16),
     };
   }
 
@@ -296,7 +306,7 @@
       const waybill = getWaybill(task);
       const identifiers = [task.id, task.waybillNo, task.planTaskNo, task.dispatchNo, waybill.waybillNo, waybill.planTaskNo, waybill.dispatchNo]
         .filter(Boolean).join(" ").toLocaleLowerCase();
-      const date = String(task.executionTime || task.orderDate || waybill.executionTime || waybill.orderDate || "").slice(0, 10);
+      const date = String(task.plannedBerthingTime || waybill.plannedBerthingTime || task.executionTime || waybill.executionTime || task.orderDate || waybill.orderDate || "").slice(0, 10);
       return (!customerSearch || `${context.customer} ${context.project}`.toLocaleLowerCase().includes(customerSearch))
         && (!taskType || context.taskType === taskType)
         && (!taskDate || date === taskDate)
@@ -312,13 +322,12 @@
       const selected = selectedTaskIds.has(task.id);
       return `<tr class="${selected ? "selected" : ""}" data-dispatch-management-task="${escapeHtml(task.id)}" tabindex="0" aria-selected="${selected}">
         <td><input type="checkbox" name="dispatchManagementTask" value="${escapeHtml(task.id)}" ${selected ? "checked" : ""} aria-label="选择任务 ${escapeHtml(task.waybillNo)}" /></td>
-        <td><strong title="${escapeHtml(task.waybillNo)}">${escapeHtml(task.waybillNo)}</strong><small title="${escapeHtml(context.source)}">${escapeHtml(context.source)}</small></td>
-        <td><strong title="${escapeHtml(context.customer)}">${escapeHtml(context.customer)}</strong><small title="${escapeHtml(context.project)}">${escapeHtml(context.project)}</small></td>
+        <td><strong title="${escapeHtml(context.customer)}">${escapeHtml(context.customer)}</strong><small title="${escapeHtml(`${task.waybillNo} · ${context.project}`)}">${escapeHtml(`${task.waybillNo} · ${context.project}`)}</small></td>
         <td><span class="dispatch-task-route" title="${escapeHtml(context.route)}">${escapeHtml(context.route)}</span></td>
         <td><span class="dispatch-task-type" title="${escapeHtml(context.taskType)}">${escapeHtml(context.taskType)}</span></td>
-        <td><span class="dispatch-task-date" title="${escapeHtml(context.planDate)}">${escapeHtml(context.planDate)}</span></td>
+        <td><span class="dispatch-task-date" title="${escapeHtml(context.plannedBerthingTime)}">${escapeHtml(context.plannedBerthingTime)}</span></td>
       </tr>`;
-    }).join("") : `<tr><td colspan="6"><div class="dispatch-management-empty"><i data-lucide="${tasks.length ? "search-x" : "circle-check-big"}" aria-hidden="true"></i><strong>${tasks.length ? "没有符合条件的任务" : "暂无待派单任务"}</strong></div></td></tr>`;
+    }).join("") : `<tr><td colspan="5"><div class="dispatch-management-empty"><i data-lucide="${tasks.length ? "search-x" : "circle-check-big"}" aria-hidden="true"></i><strong>${tasks.length ? "没有符合条件的任务" : "暂无待派单任务"}</strong></div></td></tr>`;
     elements.taskCount.textContent = `${filteredTasks.length} 条待匹配`;
     elements.taskPageText.textContent = `第 ${taskPage} / ${totalPages} 页 · 共 ${filteredTasks.length} 条`;
     elements.taskPrev.disabled = taskPage <= 1;
@@ -365,6 +374,70 @@
     }).length;
   }
 
+  function getDriverScheduleConflicts(plan) {
+    const terminalStatuses = new Set(["已完成", "完成", "取消", "已取消", "撤销"]);
+    const runningStatuses = new Set(["运输中", "作业中", "执行中"]);
+    const assignedStatuses = new Set(["已派单", "已接单", "待提货", ...runningStatuses]);
+    const parseTime = (value) => {
+      const timestamp = new Date(String(value || "").trim().replace("T", " ").replace(" ", "T")).getTime();
+      return Number.isFinite(timestamp) ? timestamp : null;
+    };
+    const plannedTimeOf = (task) => task.plannedBerthingTime || task.executionTime || getWaybill(task).plannedBerthingTime || getWaybill(task).executionTime || "";
+    const driverMatches = (task, driver) => task.driverId && driver?.id
+      ? task.driverId === driver.id
+      : Boolean(task.driverName && driver?.name && task.driverName === driver.name);
+    const existingTasks = [...dispatches, ...demoTasks].filter((task) =>
+      task.waybillNo && !terminalStatuses.has(task.status) && assignedStatuses.has(task.status) && (task.driverId || task.driverName));
+    const conflicts = [];
+    plan.assignments.forEach(({ task, resource }, assignmentIndex) => {
+      const driver = resource.driver;
+      if (!driver) return;
+      const plannedTime = plannedTimeOf(task);
+      const plannedTimestamp = parseTime(plannedTime);
+      const seenWaybills = new Set();
+      existingTasks.forEach((existing) => {
+        if (existing.waybillNo === task.waybillNo || seenWaybills.has(existing.waybillNo) || !driverMatches(existing, driver)) return;
+        seenWaybills.add(existing.waybillNo);
+        const existingTime = plannedTimeOf(existing);
+        const existingTimestamp = parseTime(existingTime);
+        const running = runningStatuses.has(existing.status);
+        const minutesApart = plannedTimestamp != null && existingTimestamp != null ? Math.round(Math.abs(plannedTimestamp - existingTimestamp) / 60000) : null;
+        if (!running && (minutesApart == null || minutesApart > 60)) return;
+        conflicts.push({
+          assignmentIndex,
+          driverName: driver.name || existing.driverName || "该司机",
+          waybillNo: existing.waybillNo,
+          plannedTime: existingTime,
+          status: existing.status,
+          reason: running ? "司机当前有进行中任务" : `计划靠台时间相差 ${minutesApart} 分钟`,
+        });
+      });
+      plan.assignments.slice(0, assignmentIndex).forEach((other) => {
+        if (!other.resource.driver || !driverMatches({ driverId: other.resource.driver.id, driverName: other.resource.driver.name }, driver)) return;
+        const otherTimestamp = parseTime(plannedTimeOf(other.task));
+        const minutesApart = plannedTimestamp != null && otherTimestamp != null ? Math.round(Math.abs(plannedTimestamp - otherTimestamp) / 60000) : null;
+        if (minutesApart == null || minutesApart > 60) return;
+        conflicts.push({
+          assignmentIndex,
+          driverName: driver.name || "该司机",
+          waybillNo: other.task.waybillNo,
+          plannedTime: plannedTimeOf(other.task),
+          status: "本次待派",
+          reason: `本批次任务计划靠台时间相差 ${minutesApart} 分钟`,
+        });
+      });
+    });
+    return conflicts;
+  }
+
+  function renderDriverScheduleConflicts(plan) {
+    const conflicts = getDriverScheduleConflicts(plan);
+    elements.driverConflicts.hidden = conflicts.length === 0;
+    elements.driverConflicts.innerHTML = conflicts.length
+      ? `<strong>司机任务时间提醒（${conflicts.length}）</strong><span>以下安排存在时间冲突风险，仍可确认并继续派单。</span><ul>${conflicts.map((conflict) => `<li><b>${escapeHtml(conflict.driverName)}</b> · 当前待派 ${escapeHtml(plan.assignments[conflict.assignmentIndex]?.task.waybillNo || "-")} · 冲突任务 ${escapeHtml(conflict.waybillNo)} · ${escapeHtml(String(conflict.plannedTime || "时间未维护").replace("T", " ").slice(0, 16))} · ${escapeHtml(conflict.status)} · ${escapeHtml(conflict.reason)}</li>`).join("")}</ul>`
+      : "";
+  }
+
   function renderCapacity(resources, pendingTasks = []) {
     const filter = elements.capacityFilter.value;
     const ownershipFilter = elements.capacityOwnershipFilter?.value || "";
@@ -376,10 +449,10 @@
     const totalPages = Math.max(1, Math.ceil(filtered.length / capacityPageSize));
     capacityPage = Math.min(Math.max(1, capacityPage), totalPages);
     const visibleResources = filtered.slice((capacityPage - 1) * capacityPageSize, capacityPage * capacityPageSize);
-    visibleCapacityPlates = visibleResources.filter((resource) => resource.state === "空闲").map((resource) => resource.vehicle.plateNo);
+    visibleCapacityPlates = visibleResources.filter((resource) => resource.state === "空闲" && ownershipCompatible(resource)).map((resource) => resource.vehicle.plateNo);
     elements.capacityList.innerHTML = visibleResources.length ? `<div class="dispatch-capacity-list-head" aria-hidden="true"><span>选择</span><span>匹配值</span><span>司机 / 电话</span><span>车辆 / 挂车</span><span>当前进度</span></div>${visibleResources.map((resource, resourceIndex) => {
       const { vehicle, driver, trailer, state, activeDispatch, displayProgress } = resource;
-      const selectable = state === "空闲";
+      const selectable = state === "空闲" && ownershipCompatible(resource);
       const selected = selectedPlates.has(vehicle.plateNo);
       const focused = focusedCapacityPlate === vehicle.plateNo;
       const match = getCapacityMatch(resource, pendingTasks);
@@ -426,14 +499,14 @@
 
   function updateSelectionState(tasks, resources) {
     const taskMap = new Map(tasks.map((task) => [task.id, task]));
-    const resourceMap = new Map(resources.filter((resource) => resource.state === "空闲").map((resource) => [resource.vehicle.plateNo, resource]));
+    const resourceMap = new Map(resources.filter((resource) => resource.state === "空闲" && ownershipCompatible(resource)).map((resource) => [resource.vehicle.plateNo, resource]));
     [...selectedTaskIds].forEach((id) => { if (!taskMap.has(id)) selectedTaskIds.delete(id); });
     [...selectedPlates].forEach((plate) => { if (!resourceMap.has(plate)) selectedPlates.delete(plate); });
     const selectedTasks = [...selectedTaskIds].map((id) => taskMap.get(id)).filter(Boolean);
     const selectedResources = [...selectedPlates].map((plate) => resourceMap.get(plate)).filter(Boolean);
     elements.manualButton.disabled = selectedTasks.length === 0 || selectedResources.length < selectedTasks.length;
     elements.manualLabel.textContent = selectedTasks.length > 1 ? `批量派单 (${selectedTasks.length})` : "手动派单";
-    elements.autoButton.disabled = tasks.length === 0 || resources.every((item) => item.state !== "空闲");
+    elements.autoButton.disabled = tasks.length === 0 || resources.every((item) => item.state !== "空闲" || !ownershipCompatible(item));
   }
 
   function render() {
@@ -554,13 +627,15 @@
     Object.assign(task, {
       dispatchMode: mode,
       dispatchTime: now,
+      plannedBerthingTime: task.plannedBerthingTime || getWaybill(task).plannedBerthingTime || task.executionTime || getWaybill(task).executionTime || "",
       driverId: resource.driver?.id || "",
       driverName: resource.driver?.name || "未绑定司机",
       phone: resource.driver?.phone || "-",
       vehicleId: resource.vehicle.plateNo,
       trailerId: resource.trailer?.id || "",
       vehicleType: energyValue,
-      photoRequirements: window.PhotoRequirementConfig?.forTaskType(window.DispatchTaskNodes?.resolve?.(getTaskContext(task).taskType) || getTaskContext(task).taskType) || [],
+      taskConfigSnapshot: task.taskConfigSnapshot || window.DispatchTaskNodes?.snapshot?.(getTaskContext(task).taskType),
+      photoRequirements: (task.taskConfigSnapshot || window.DispatchTaskNodes?.snapshot?.(getTaskContext(task).taskType))?.nodes?.flatMap((node) => node.photoRequirements || []) || [],
       note,
       status: "已派单",
       currentNode: "待提货",
@@ -577,7 +652,7 @@
     const targetTasks = mode === "manual"
       ? pending.filter((task) => selectedTaskIds.has(task.id))
       : selectedTaskIds.size ? pending.filter((task) => selectedTaskIds.has(task.id)) : pending;
-    const capacity = getCapacityResources().filter((resource) => resource.state === "空闲");
+    const capacity = getCapacityResources().filter((resource) => resource.state === "空闲" && ownershipCompatible(resource));
     const resources = mode === "manual"
       ? capacity.filter((resource) => selectedPlates.has(resource.vehicle.plateNo))
       : capacity;
@@ -623,14 +698,18 @@
   function renderConfirmMatches() {
     const plan = pendingDispatchPlan;
     if (!plan) return;
+    renderDriverScheduleConflicts(plan);
     elements.confirmMatches.innerHTML = plan.assignments.map(({ task, resource, note }, index) => {
       const context = getTaskContext(task);
       const monthlyAccepted = getDriverMonthlyAcceptedCount(resource.driver?.id);
+      const ownershipType = resource.ownership?.type || "待确定";
+      const driverOrganization = window.CapacityOwnership?.organizationName?.(resource.driver || {}) || "待确定";
+      const vehicleOrganization = window.CapacityOwnership?.organizationName?.(resource.vehicle || {}) || "待确定";
       return `<tr data-confirm-assignment="${index}">
         <td><strong>${escapeHtml(context.customer)}</strong><small>${escapeHtml(context.project)}</small></td>
         <td><span title="${escapeHtml(context.route)}">${escapeHtml(context.route)}</span><small>${escapeHtml(context.taskType)}</small></td>
-        <td><strong>${escapeHtml(resource.driver?.name || "未绑定司机")}${resource.driver ? `<em class="driver-monthly-accepted">本月 ${monthlyAccepted}</em>` : ""}</strong><small>${escapeHtml(resource.driver?.phone || "-")}</small></td>
-        <td><strong>${escapeHtml(resource.vehicle.plateNo)}</strong><small>${escapeHtml(resource.trailer?.plateNo || resource.trailer?.id || "无挂车")}</small><button class="link-btn dispatch-replace-vehicle" type="button" data-replace-vehicle="${index}">更换车辆</button></td>
+        <td><strong>${escapeHtml(resource.driver?.name || "未绑定司机")}${resource.driver ? `<em class="driver-monthly-accepted">本月 ${monthlyAccepted}</em>` : ""}</strong><small>${escapeHtml(resource.driver?.phone || "-")}</small><small>${escapeHtml(driverOrganization)}</small></td>
+        <td><strong>${escapeHtml(resource.vehicle.plateNo)}</strong><small>${escapeHtml(resource.trailer?.plateNo || resource.trailer?.id || "无挂车")}</small><small>${window.CapacityOwnership?.badgeMarkup?.(ownershipType, resource.ownership?.tooltip) || escapeHtml(ownershipType)} · ${escapeHtml(vehicleOrganization)}</small><button class="link-btn dispatch-replace-vehicle" type="button" data-replace-vehicle="${index}">更换车辆</button></td>
         <td><input class="dispatch-confirm-note" type="text" maxlength="200" value="${escapeHtml(note || "")}" placeholder="添加派单备注" aria-label="${escapeHtml(context.customer)}派单备注" data-confirm-note="${index}" /></td>
       </tr>`;
     }).join("");
@@ -644,7 +723,11 @@
     const assignment = pendingDispatchPlan.assignments[vehiclePickerAssignmentIndex];
     if (!assignment) return;
     const status = elements.vehicleFilter.value;
-    const ownershipFilter = elements.vehicleOwnershipFilter?.value || "";
+    const ownershipFilter = assignment.resource.ownership?.type || "自营";
+    if (elements.vehicleOwnershipFilter) {
+      elements.vehicleOwnershipFilter.value = ownershipFilter;
+      elements.vehicleOwnershipFilter.disabled = true;
+    }
     const search = elements.vehicleDriverSearch.value.trim().toLocaleLowerCase();
     const reservedPlates = new Set(pendingDispatchPlan.assignments
       .filter((item, index) => index !== vehiclePickerAssignmentIndex)
@@ -652,17 +735,17 @@
     const resources = getCapacityResources().filter((resource) => {
       const driverText = `${resource.driver?.name || ""} ${resource.driver?.phone || ""}`.toLocaleLowerCase();
       return (!status || resource.state === status)
-        && (!ownershipFilter || resource.ownership.type === ownershipFilter)
+        && resource.ownership.type === ownershipFilter
         && (!search || driverText.includes(search))
         && (!reservedPlates.has(resource.vehicle.plateNo) || resource.vehicle.plateNo === assignment.resource.vehicle.plateNo);
     });
     elements.vehicleList.innerHTML = resources.length ? resources.map((resource) => {
-      const selectable = resource.state === "空闲";
+      const selectable = resource.state === "空闲" && ownershipCompatible(resource);
       const selected = assignment.resource.vehicle.plateNo === resource.vehicle.plateNo;
       const trailer = resource.trailer ? `${resource.trailer.plateNo} · ${resource.trailer.trailerType || "挂车"}` : "未绑定挂车";
       return `<button class="dispatch-vehicle-option ${selected ? "selected" : ""}" type="button" data-picker-plate="${escapeHtml(resource.vehicle.plateNo)}" ${selectable ? "" : "disabled"}>
-        <span><strong>${escapeHtml(resource.driver?.name || "未绑定司机")}</strong><small>${escapeHtml(resource.driver?.phone || "暂无联系电话")}</small>${window.CapacityOwnership?.badgeMarkup?.(resource.ownership.type, resource.ownership.tooltip) || ""}</span>
-        <span><strong>${escapeHtml(resource.vehicle.plateNo)}</strong><small>${escapeHtml(trailer)}</small></span>
+        <span><strong>${escapeHtml(resource.driver?.name || "未绑定司机")}</strong><small>${escapeHtml(resource.driver?.phone || "暂无联系电话")}</small><small>${escapeHtml(window.CapacityOwnership?.organizationName?.(resource.driver || {}) || "待确定")}</small>${window.CapacityOwnership?.badgeMarkup?.(resource.ownership.type, resource.ownership.tooltip) || ""}</span>
+        <span><strong>${escapeHtml(resource.vehicle.plateNo)}</strong><small>${escapeHtml(trailer)}</small><small>${escapeHtml(window.CapacityOwnership?.organizationName?.(resource.vehicle || {}) || "待确定")}</small></span>
         <em class="dispatch-resource-state state-${escapeHtml(resource.state)}">${escapeHtml(resource.state)}</em>
       </button>`;
     }).join("") : '<div class="dispatch-management-empty"><i data-lucide="search-x" aria-hidden="true"></i><strong>当前筛选下暂无运力</strong></div>';
@@ -672,8 +755,11 @@
   function openVehiclePicker(index) {
     if (!pendingDispatchPlan?.assignments[index]) return;
     vehiclePickerAssignmentIndex = index;
-    elements.vehicleFilter.value = "";
-    if (elements.vehicleOwnershipFilter) elements.vehicleOwnershipFilter.value = "";
+    elements.vehicleFilter.value = "空闲";
+    if (elements.vehicleOwnershipFilter) {
+      elements.vehicleOwnershipFilter.value = pendingDispatchPlan.assignments[index].resource.ownership?.type || "自营";
+      elements.vehicleOwnershipFilter.disabled = true;
+    }
     elements.vehicleDriverSearch.value = "";
     renderVehiclePicker();
     if (!elements.vehicleDialog.open) elements.vehicleDialog.showModal();
@@ -683,7 +769,7 @@
     const plan = pendingDispatchPlan;
     if (!plan) return;
     const currentPending = new Map(getPendingTasks().map((task) => [task.id, task]));
-    const currentIdle = new Map(getCapacityResources().filter((resource) => resource.state === "空闲").map((resource) => [resource.vehicle.plateNo, resource]));
+    const currentIdle = new Map(getCapacityResources().filter((resource) => resource.state === "空闲" && ownershipCompatible(resource)).map((resource) => [resource.vehicle.plateNo, resource]));
     const validAssignments = plan.assignments.filter(({ task, resource }) => currentPending.has(task.id) && currentIdle.has(resource.vehicle.plateNo));
     if (validAssignments.length !== plan.assignments.length) {
       pendingDispatchPlan = null;
@@ -815,7 +901,7 @@
     if (!option || option.disabled || !pendingDispatchPlan) return;
     const resource = getCapacityResources().find((item) => item.vehicle.plateNo === option.dataset.pickerPlate);
     const assignment = pendingDispatchPlan.assignments[vehiclePickerAssignmentIndex];
-    if (!resource || resource.state !== "空闲" || !assignment) return;
+    if (!resource || resource.state !== "空闲" || !ownershipCompatible(resource) || !assignment || resource.ownership.type !== assignment.resource.ownership?.type) return;
     const alreadyUsed = pendingDispatchPlan.assignments.some((item, index) => index !== vehiclePickerAssignmentIndex && item.resource.vehicle.plateNo === resource.vehicle.plateNo);
     if (alreadyUsed) return;
     assignment.resource = resource;

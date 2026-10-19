@@ -83,9 +83,19 @@ test("permission dependencies and data scope summaries stay consistent", () => {
 test("renamed modules keep stable permission identifiers and grants", () => {
   assert.equal(api.MODULES.find((module) => module.id === "waybill").name, "计划与任务");
   assert.equal(api.MODULES.find((module) => module.id === "dispatchManagement").name, "任务派单");
+  assert.equal(api.MODULES.find((module) => module.id === "transportTaskConfig").name, "任务类型配置");
+  assert.equal(api.MODULES.some((module) => module.id === "photoRequirements"), false);
   const dispatcher = api.load().roles.find((role) => role.id === "role-dispatch");
   assert.equal(dispatcher.permissions.waybill.view, true);
   assert.equal(dispatcher.permissions.dispatchManagement.special, true);
+});
+
+test("legacy photo requirement permissions migrate to transport task configuration", () => {
+  const role = api.normalizeConfiguration({ roles: [{ id: "legacy-role", name: "旧角色", permissions: { photoRequirements: { view: true, edit: true } } }], users: [] }).roles[0];
+  assert.equal(role.permissions.transportTaskConfig.view, true);
+  assert.equal(role.permissions.transportTaskConfig.edit, true);
+  assert.equal(role.permissions.transportTaskConfig.create, false);
+  assert.equal(Object.hasOwn(role.permissions, "photoRequirements"), false);
 });
 
 test("configuration persists normalized permission and scope data", () => {

@@ -9,6 +9,7 @@
     { customerNo: "KH-1086", customerName: "苏州新程电子科技有限公司", shortName: "苏州新程", customerType: "直客", creditCode: "91320594MA28T1086C", customerStatus: "启用", contactName: "王工", mobile: "13700001086", phone: "0512-62861086", email: "shipping@xincheng.example", registeredAddress: "苏州工业园区星湖街86号", loadAddress: "苏州工业园区", unloadAddress: "上海外高桥", settlementCycle: "月结45天", invoiceTitle: "苏州新程电子科技有限公司", taxNo: "91320594MA28T1086C", bankName: "中国银行苏州工业园区支行", bankAccount: "6216610000001086", remark: "暂停发运时保留档案" },
     { customerNo: "KH-1102", customerName: "宁波海盛集装箱服务有限公司", shortName: "宁波海盛", customerType: "货代", creditCode: "91330212MA28T1102X", customerStatus: "启用", contactName: "吴先生", mobile: "13500001102", phone: "0574-87121102", email: "contact@haisheng.example", registeredAddress: "宁波市鄞州区宁穿路102号", loadAddress: "宁波穿山港区", unloadAddress: "宁波镇海堆场", settlementCycle: "现结", invoiceTitle: "宁波海盛集装箱服务有限公司", taxNo: "91330212MA28T1102X", bankName: "招商银行宁波分行", bankAccount: "6214830000001102", remark: "" },
     { customerNo: "KH-1120", customerName: "上海港联贸易有限公司", shortName: "上海港联", customerType: "贸易企业", creditCode: "91310109MA28T1120L", customerStatus: "停用", contactName: "何经理", mobile: "13100001120", phone: "021-65801120", email: "finance@ganglian.example", registeredAddress: "上海市虹口区东大名路120号", loadAddress: "上海外高桥", unloadAddress: "苏州工业园区", settlementCycle: "月结60天", invoiceTitle: "上海港联贸易有限公司", taxNo: "91310109MA28T1120L", bankName: "交通银行上海分行", bankAccount: "6222600000001120", remark: "合作暂停" },
+    { customerNo: "KH-1201", customerName: "宁波安达汽车维修有限公司", shortName: "宁波安达维修", customerType: "维修厂", creditCode: "91330206MA2J1201X", customerStatus: "启用", contactName: "周师傅", mobile: "13800001201", phone: "0574-86881201", email: "service@anda-repair.example", registeredAddress: "宁波市北仑区霞浦街道维修园区12号", loadAddress: "宁波市北仑区霞浦街道维修园区12号", unloadAddress: "宁波市北仑区霞浦街道维修园区12号", settlementCycle: "月结30天", invoiceTitle: "宁波安达汽车维修有限公司", taxNo: "91330206MA2J1201X", bankName: "中国工商银行宁波北仑支行", bankAccount: "6222020200001201", remark: "集卡车辆维修与保养" },
   ];
   const fields = ["customerNo", "customerName", "shortName", "businessRole", "customerType", "creditCode", "customerStatus", "contactName", "mobile", "phone", "email", "registeredAddress", "loadAddress", "unloadAddress", "settlementCycle", "invoiceTitle", "taxNo", "bankName", "bankAccount", "remark"];
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
@@ -40,6 +41,8 @@
     return normalizeBusinessRole(item?.businessRole, item?.businessRoles).split("+").includes(role);
   }
 
+  function isRepairShop(item) { return item?.customerType === "维修厂"; }
+
   function normalizeCustomer(item) {
     const legacyTypes = {
       "直客": "第三方物流 / 供应链公司",
@@ -48,7 +51,7 @@
       "贸易企业": "跨境电商物流商",
       "其他": "第三方物流 / 供应链公司",
     };
-    const customerTypes = ["国际货运代理（货代）", "船公司 / 船代", "第三方物流 / 供应链公司", "跨境电商物流商"];
+    const customerTypes = ["国际货运代理（货代）", "船公司 / 船代", "第三方物流 / 供应链公司", "跨境电商物流商", "维修厂"];
     const businessRole = normalizeBusinessRole(item.businessRole, item.businessRoles);
     const supplierOnly = businessRole === ROLE_SUPPLIER;
     const customerType = customerTypes.includes(item.customerType) ? item.customerType : legacyTypes[item.customerType] || (supplierOnly ? "" : "第三方物流 / 供应链公司");
@@ -108,7 +111,13 @@
     }
     return seed.map(normalizeCustomer);
   }
-  let customers = migrateLegacySuppliers(loadCustomers());
+  function ensureRepairShop(records) {
+    if (records.some(isRepairShop)) return records;
+    const demoShop = { ...seed.find(isRepairShop) };
+    if (records.some((item) => item.customerNo === demoShop.customerNo)) demoShop.customerNo = nextCustomerNo(records);
+    return [...records, normalizeCustomer(demoShop)];
+  }
+  let customers = ensureRepairShop(migrateLegacySuppliers(loadCustomers()));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
   if (window.CapacityOwnership?.STORAGE_KEY) localStorage.setItem(window.CapacityOwnership.STORAGE_KEY, "[]");
   if (window.AdminDataBridge) {
@@ -127,11 +136,11 @@
   function refreshWaybillOptions() {
     const options = document.querySelector("#customerOptions");
     if (!options) return;
-    options.innerHTML = customers.filter((item) => item.customerStatus === "启用" && hasBusinessRole(item, ROLE_CUSTOMER))
+    options.innerHTML = customers.filter((item) => item.customerStatus === "启用" && hasBusinessRole(item, ROLE_CUSTOMER) && !isRepairShop(item))
       .map((item) => `<option value="${escapeHtml(item.customerName)}"></option>`).join("");
   }
   function getActiveCustomerByName(name) {
-    return customers.find((item) => item.customerStatus === "启用" && hasBusinessRole(item, ROLE_CUSTOMER) && item.customerName === String(name || "").trim()) || null;
+    return customers.find((item) => item.customerStatus === "启用" && hasBusinessRole(item, ROLE_CUSTOMER) && !isRepairShop(item) && item.customerName === String(name || "").trim()) || null;
   }
   function filteredCustomers() {
     const values = new FormData(query);
@@ -149,6 +158,7 @@
       "船公司 / 船代": "shipping",
       "第三方物流 / 供应链公司": "supply-chain",
       "跨境电商物流商": "ecommerce",
+      "维修厂": "repair-shop",
     }[type] || "other");
   }
   function generateCustomerNo() {
@@ -297,7 +307,8 @@
   }
   function isCustomerLinked(customer) {
     const capacityCollections = [typeof vehicles === "undefined" ? [] : vehicles, typeof trailers === "undefined" ? [] : trailers, typeof drivers === "undefined" ? [] : drivers];
-    return waybills.some((item) => item.customerName === customer.customerName) || capacityCollections.some((collection) => collection.some((item) => item.supplierId === customer.customerNo || item.supplierId === customer.legacySupplierId || item.supplierName === customer.customerName));
+    const linkedRepair = typeof vehicleRepairRecords !== "undefined" && vehicleRepairRecords.some((item) => item.repairVendorCustomerNo === customer.customerNo || item.repairVendor === customer.customerName);
+    return linkedRepair || waybills.some((item) => item.customerName === customer.customerName) || capacityCollections.some((collection) => collection.some((item) => item.supplierId === customer.customerNo || item.supplierId === customer.legacySupplierId || item.supplierName === customer.customerName));
   }
   function requestDelete(number) {
     const customer = customers.find((item) => item.customerNo === number);
@@ -305,7 +316,7 @@
     deletingNo = number;
     const linked = isCustomerLinked(customer);
     page.querySelector("#deleteCustomerText").textContent = linked
-      ? `${customer.customerName} 已被业务单据或三方运力引用，不能删除。可将单位状态调整为停用。`
+      ? `${customer.customerName} 已被业务单据、运力或维修记录引用，不能删除。可将单位状态调整为停用。`
       : `确认删除 ${customer.customerName} 吗？删除后无法恢复。`;
     page.querySelector("#confirmDeleteCustomerBtn").disabled = linked;
     deleteDialog.showModal();
@@ -369,15 +380,15 @@
     if (event.key === window.AdminDataBridge?.STORAGE_KEY) {
       const snapshot = window.AdminDataBridge.read();
       if (Array.isArray(snapshot?.customers)) {
-        customers = snapshot.customers.map(normalizeCustomer);
+        customers = ensureRepairShop(snapshot.customers.map(normalizeCustomer));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
       }
     } else if (event.key !== STORAGE_KEY) return;
-    customers = loadCustomers();
+    customers = ensureRepairShop(loadCustomers());
     refreshWaybillOptions();
     render();
   });
-  window.CustomerManager = { render, refreshWaybillOptions, getActiveCustomerByName, hasBusinessRole, getSuppliers: () => customers.filter((item) => item.customerStatus === "启用" && hasBusinessRole(item, ROLE_SUPPLIER)) };
+  window.CustomerManager = { render, refreshWaybillOptions, getActiveCustomerByName, hasBusinessRole, getSuppliers: () => customers.filter((item) => item.customerStatus === "启用" && hasBusinessRole(item, ROLE_SUPPLIER)), getRepairShops: () => customers.filter((item) => item.customerStatus === "启用" && isRepairShop(item)) };
   refreshWaybillOptions();
   render();
 })();

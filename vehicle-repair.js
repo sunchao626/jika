@@ -28,6 +28,7 @@
       description: String(item.description || ""),
       repairLocation: String(item.repairLocation || ""),
       repairVendor: String(item.repairVendor || ""),
+      repairVendorCustomerNo: String(item.repairVendorCustomerNo || ""),
       vendorContact: String(item.vendorContact || ""),
       expectedCost: Math.max(0, Number(item.expectedCost) || 0),
       actualCost: Math.max(0, Number(item.actualCost) || 0),
@@ -46,7 +47,16 @@
 
   function load(storage = globalThis.localStorage) {
     try {
-      const value = JSON.parse(storage?.getItem(STORAGE_KEY) || "[]");
+      const saved = storage?.getItem(STORAGE_KEY);
+      if (saved == null) return [normalizeRecord({
+        id: "WX-DEMO-001", repairNo: "WX-DEMO-001", plateNo: "苏E·T5568", vehicleType: "集装箱骨架车", fleet: "苏州园区集卡车队",
+        capacityOwnershipSnapshot: "自营", vehicleOrganizationSnapshot: "万物时空", source: "后台新增", createdBy: "张调度",
+        reporterName: "张调度", reportedAt: "2026-10-12T10:20", category: "制动系统", description: "制动间隙偏大，已完成检修和路试。",
+        repairLocation: "苏州工业园区维修点", repairVendor: "宁波安达汽车维修有限公司", vendorContact: "周师傅",
+        expectedCost: 1800, actualCost: 1650, status: "已完成", startedAt: "2026-10-12T11:00", completedAt: "2026-10-12T16:30",
+        result: "更换制动分泵并完成路试。", previousVehicleState: "停用",
+      })];
+      const value = JSON.parse(saved);
       return Array.isArray(value) ? value.map(normalizeRecord).filter((item) => item.id && item.plateNo) : [];
     } catch {
       return [];

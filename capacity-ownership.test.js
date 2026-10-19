@@ -19,25 +19,44 @@ assert.equal(migrated.capacityOwnership, "三方");
 assert.equal(migrated.supplierName, "杭州危险品运输车队");
 assert.ok(migrated.supplierId);
 
-const mixed = CapacityOwnership.groupSnapshot([
+const legacyMixed = CapacityOwnership.normalizeResource({ capacityOwnership: "混合运力", supplierId: "", supplierName: "" }, "vehicle");
+assert.equal(legacyMixed.capacityOwnership, "自营");
+assert.equal(legacyMixed.ownership, "自有");
+assert.equal(CapacityOwnership.normalizeType("待确定"), "自营");
+const staleAlias = CapacityOwnership.normalizeResource({ capacityOwnership: "待确定", ownership: "外协", supplierName: "临港外协集卡车队" }, "vehicle");
+assert.equal(staleAlias.capacityOwnership, "三方", "a determinate legacy alias wins over a stale pending field");
+
+const mismatched = CapacityOwnership.groupSnapshot([
   { role: "司机", name: "王师傅", capacityOwnership: "自营" },
   { role: "车辆", name: "浙B12345", capacityOwnership: "三方", supplierName: "临港外协集卡车队" },
 ]);
-assert.equal(mixed.type, "自营+三方");
-assert.deepEqual(mixed.supplierNames, ["临港外协集卡车队"]);
-assert.match(mixed.tooltip, /司机：王师傅 · 万物时空/);
-assert.match(mixed.tooltip, /车辆：浙B12345 · 临港外协集卡车队/);
+assert.equal(mismatched.type, "三方", "the vehicle determines the stored snapshot while compatibility remains false");
+assert.equal(mismatched.compatible, false);
+assert.deepEqual(mismatched.supplierNames, ["临港外协集卡车队"]);
+assert.match(mismatched.tooltip, /司机：王师傅 · 万物时空/);
+assert.match(mismatched.tooltip, /车辆：浙B12345 · 临港外协集卡车队/);
 
-assert.equal(CapacityOwnership.matchesFilter("自营", "自营+三方", true), true);
-assert.equal(CapacityOwnership.matchesFilter("三方", "自营+三方", true), true);
-assert.equal(CapacityOwnership.matchesFilter("自营", "自营+三方"), false);
+assert.equal(CapacityOwnership.normalizeType("自营+三方"), "自营");
+assert.equal(CapacityOwnership.isCompatible([
+  { capacityOwnership: "三方" }, { capacityOwnership: "三方" },
+]), true);
+assert.equal(CapacityOwnership.isCompatible([
+  { capacityOwnership: "自营" }, { capacityOwnership: "三方" },
+]), false);
+const missingResource = CapacityOwnership.groupSnapshot([
+  { role: "司机", capacityOwnership: "自营" },
+  { role: "车辆", capacityOwnership: "三方" },
+], { missingRequired: true });
+assert.equal(missingResource.type, "三方");
+assert.equal(missingResource.compatible, false, "a missing assigned resource must fail compatibility checks");
+assert.equal(CapacityOwnership.groupSnapshot([]).type, "自营");
+assert.equal(CapacityOwnership.matchesFilter("自营", "三方"), false);
 
 const sorted = CapacityOwnership.sortSelfFirst([
   { id: "third", capacityOwnership: "三方" },
   { id: "self", capacityOwnership: "自营" },
-  { id: "mixed", capacityOwnership: "自营+三方" },
 ]);
-assert.deepEqual(sorted.map((item) => item.id), ["self", "mixed", "third"]);
+assert.deepEqual(sorted.map((item) => item.id), ["self", "third"]);
 
 storage.set(CapacityOwnership.STORAGE_KEY, "[]");
 storage.set(CapacityOwnership.CUSTOMER_STORAGE_KEY, JSON.stringify([

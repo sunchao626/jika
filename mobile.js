@@ -98,6 +98,7 @@ const CERTIFICATION_STORAGE_KEY = "container-logistics-driver-certifications-v1"
 const EXPENSE_STORAGE_KEY = "container-logistics-driver-expenses-v1";
 const ANNOUNCEMENT_STORAGE_KEY = "container-logistics-announcements-v1";
 const DRIVER_MESSAGE_READ_STORAGE_KEY = "container-logistics-driver-message-read-v1";
+const NODE_NOTIFICATION_STORAGE_KEY = "container-logistics-transport-node-notifications-v1";
 const FONT_SIZE_STORAGE_KEY = "container-logistics-driver-font-size-v1";
 const DRIVER_PROFILE_STORAGE_KEY = "container-logistics-driver-profile-v1";
 const DRIVER_VEHICLE_STORAGE_KEY = "container-logistics-driver-vehicle-profile-v1";
@@ -391,6 +392,23 @@ function driverMessages() {
     icon: "map-pinned",
   }));
 
+  try {
+    const nodeNotifications = JSON.parse(localStorage.getItem(NODE_NOTIFICATION_STORAGE_KEY) || "[]");
+    (Array.isArray(nodeNotifications) ? nodeNotifications : [])
+      .filter((item) => (item.channels || []).includes("司机移动端")
+        && (item.recipients || []).includes("司机")
+        && (!item.driverId || item.driverId === state.currentDriverId))
+      .forEach((item) => messages.push({
+        id: `node-${item.id}`,
+        type: "task",
+        title: item.title || "运输节点提醒",
+        desc: item.content || `${item.waybillNo} · ${item.nodeName}`,
+        time: item.createdAt ? new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false }) : "刚刚",
+        dispatchId: item.dispatchId,
+        icon: "map-pinned",
+      }));
+  } catch (_error) { /* Keep the rest of the driver message center available. */ }
+
   const driver = currentDriver();
   [
     { label: "驾驶证", date: driver.licenseExpiry },
@@ -516,6 +534,7 @@ const state = {
   dispatches: loadDispatches(),
   currentDriverId: DEFAULT_DRIVER_ID,
   driverMessageFilter: "all",
+  workStage: "active",
   orderFilter: "all",
   orderStage: "all",
   orderSearch: "",
@@ -533,12 +552,10 @@ const elements = {
   header: document.querySelector("#mobileHeader"),
   title: document.querySelector("#mobileTitle"),
   tasksView: document.querySelector("#tasksView"),
-  ordersView: document.querySelector("#ordersView"),
   messagesView: document.querySelector("#messagesView"),
   profileView: document.querySelector("#profileView"),
   bottomNav: document.querySelector("#bottomNav"),
   taskList: document.querySelector("#taskList"),
-  orderList: document.querySelector("#orderList"),
   detailView: document.querySelector("#detailView"),
   detailContent: document.querySelector("#detailContent"),
   detailActionBar: document.querySelector("#detailActionBar"),
@@ -612,8 +629,9 @@ function acceptedOrders() {
 
 function dispatchCategory(dispatch) {
   if (dispatch.status === "已派单") return "pending";
-  if (dispatch.status === "运输中") return "active";
   if (dispatch.status === "已完成") return "completed";
+  if (dispatch.currentNode === "已拒绝" || ["取消", "已取消", "待派单"].includes(dispatch.status)) return "cancelled";
+  if (dispatch.status === "运输中" || isTaskAwaitingStart(dispatch) || isTaskInProgress(dispatch)) return "active";
   return "cancelled";
 }
 
@@ -638,12 +656,16 @@ function statusDescription(dispatch) {
 }
 
 function dispatchTaskType(dispatch) {
+  if (dispatch?.taskConfigSnapshot?.name) return dispatch.taskConfigSnapshot.name;
   const taskType = dispatch?.taskType || waybillMeta[dispatch?.waybillNo]?.taskType;
-  return Object.prototype.hasOwnProperty.call(TASK_NODE_SEQUENCES, taskType) ? taskType : DEFAULT_TASK_TYPE;
+  return window.DispatchTaskNodes.resolve(taskType);
 }
 
 function taskNodes(dispatch) {
-  return TASK_NODE_SEQUENCES[dispatchTaskType(dispatch)];
+  const snapshotNodes = dispatch?.taskConfigSnapshot?.nodes;
+  return Array.isArray(snapshotNodes) && snapshotNodes.length
+    ? snapshotNodes.map((node) => node.name)
+    : window.DispatchTaskNodes.get(dispatchTaskType(dispatch));
 }
 
 function taskNodeIndex(dispatch, nodes = taskNodes(dispatch)) {
@@ -735,7 +757,11 @@ function renderDetailActionBar(dispatch, category = dispatchCategory(dispatch)) 
   return `<button data-detail-action="copy" type="button">复制运单号</button><button class="primary" data-detail-action="back" type="button">返回运单列表</button>`;
 }
 
-function photoRequirementsForDispatch(dispatch) {
+function photoRequirementsForDispatch(dispatch, nodeName = "") {
+  if (Array.isArray(dispatch?.taskConfigSnapshot?.nodes)) {
+    const snapshotNode = dispatch.taskConfigSnapshot.nodes.find((node) => node.name === nodeName);
+    return snapshotNode?.photoRequirements || [];
+  }
   return Array.isArray(dispatch.photoRequirements)
     ? dispatch.photoRequirements
     : window.PhotoRequirementConfig.forTaskType(dispatchTaskType(dispatch));
@@ -748,7 +774,10 @@ function uploadedPhotosForRequirement(dispatch, requirement) {
 }
 
 function requirementPhotoProgress(dispatch) {
-  return photoRequirementsForDispatch(dispatch).reduce((progress, requirement) => {
+  const requirements = dispatch?.taskConfigSnapshot?.nodes?.length
+    ? dispatch.taskConfigSnapshot.nodes.flatMap((node) => node.photoRequirements || [])
+    : photoRequirementsForDispatch(dispatch);
+  return requirements.reduce((progress, requirement) => {
     const required = Number(requirement.quantity) || 0;
     const uploaded = Math.min(required, uploadedPhotosForRequirement(dispatch, requirement).length);
     progress.required += required;
@@ -831,7 +860,7 @@ async function openPhotoViewer(dispatchId, node, selectedPhotoId = "", selectedP
       .filter((item) => item.node === node)
       .flatMap((item) => item.photos || [])
       .filter((name) => !selectedPhotoName || name === selectedPhotoName);
-    const configuredLabels = photoRequirementsForDispatch(dispatch).flatMap((requirement) =>
+    const configuredLabels = photoRequirementsForDispatch(dispatch, node).flatMap((requirement) =>
       Array.from({ length: Number(requirement.quantity) || 0 }, (_, index) => `${requirement.name} ${index + 1}/${requirement.quantity}`));
     const photoLabels = legacyPhotos.length ? legacyPhotos : configuredLabels.length ? configuredLabels : [`${node}照片 1`, `${node}照片 2`, `${node}照片 3`];
     attachments = photoLabels.map((label, index) => ({ id: `placeholder-${index}`, label, placeholder: true }));
@@ -904,7 +933,7 @@ function openSelectedCredentialPreview(input) {
 }
 
 function renderProgressPhotoRequirements(dispatch, node) {
-  const requirements = photoRequirementsForDispatch(dispatch);
+  const requirements = photoRequirementsForDispatch(dispatch, node);
   const section = document.querySelector("#photoRequirements");
   const list = document.querySelector("#photoSlotList");
   const hint = document.querySelector("#photoRequirementsHint");
@@ -914,14 +943,15 @@ function renderProgressPhotoRequirements(dispatch, node) {
     list.innerHTML = "";
     return;
   }
-  const progress = requirementPhotoProgress(dispatch);
-  document.querySelector("#photoRequirementsTitle").textContent = `任务拍照要求 · ${progress.uploaded}/${progress.required} 张已上传`;
+  const progress = requirements.reduce((result, requirement) => {
+    result.required += Number(requirement.quantity) || 0;
+    result.uploaded += Math.min(Number(requirement.quantity) || 0, uploadedPhotosForRequirement(dispatch, requirement).length);
+    return result;
+  }, { required: 0, uploaded: 0 });
+  document.querySelector("#photoRequirementsTitle").textContent = `${node} · ${progress.uploaded}/${progress.required} 张已上传`;
   count.textContent = `${progress.uploaded}/${progress.required}`;
-  const isFinalNode = node === taskNodes(dispatch).at(-1);
-  section.dataset.finalNode = String(isFinalNode);
-  hint.textContent = isFinalNode
-    ? "请补齐所有拍照要求后完成任务。"
-    : "照片可随任务进度分批上传，任务完成前需满足全部数量。";
+  section.dataset.finalNode = "true";
+  hint.textContent = "完成当前节点前请补齐本节点的拍照要求。";
   list.innerHTML = requirements.map((requirement) => {
     const required = Number(requirement.quantity) || 0;
     const existingCount = uploadedPhotosForRequirement(dispatch, requirement).length;
@@ -938,7 +968,12 @@ function renderProgressPhotoRequirements(dispatch, node) {
 function updateProgressPhotoCount() {
   const inputs = [...document.querySelectorAll("#photoSlotList [data-photo-slot]")];
   const dispatch = state.dispatches.find((item) => item.id === state.activeDispatchId);
-  const existing = dispatch ? requirementPhotoProgress(dispatch) : { uploaded: 0, required: 0 };
+  const requirements = dispatch ? photoRequirementsForDispatch(dispatch, nextNode(dispatch)) : [];
+  const existing = requirements.reduce((result, requirement) => {
+    result.required += Number(requirement.quantity) || 0;
+    result.uploaded += Math.min(Number(requirement.quantity) || 0, uploadedPhotosForRequirement(dispatch, requirement).length);
+    return result;
+  }, { uploaded: 0, required: 0 });
   const selectedCount = inputs.length - missingPhotoCount(inputs);
   const count = document.querySelector("#photoRequirementsCount");
   if (count) count.textContent = `${existing.uploaded + selectedCount}/${existing.required}`;
@@ -1002,12 +1037,27 @@ function emptyState(title, description) {
 }
 
 function renderTasks() {
-  const rows = driverDispatches().filter((item) => dispatchCategory(item) === "pending");
-  elements.taskList.innerHTML = rows.length ? rows.map(taskCard).join("") : emptyState("暂无待接订单", "新派单到达后会在这里显示");
+  const dispatches = driverDispatches();
+  const pending = dispatches.filter((item) => dispatchCategory(item) === "pending");
+  const active = dispatches.filter((item) => dispatchCategory(item) === "active" || (dispatchCategory(item) !== "completed" && dispatchCategory(item) !== "cancelled" && (isTaskAwaitingStart(item) || isTaskInProgress(item))));
+  document.querySelector("#activeOrderCount").textContent = active.length;
+  document.querySelector("#pendingOrderCount").textContent = pending.length;
+  document.querySelectorAll("#workStageTabs button").forEach((button) => {
+    const selected = button.dataset.workStage === state.workStage;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-selected", String(selected));
+  });
+  const rows = state.workStage === "pending" ? pending : active;
+  elements.taskList.innerHTML = rows.length
+    ? rows.map(taskCard).join("")
+    : emptyState(state.workStage === "pending" ? "暂无待接订单" : "暂无进行中的运单", state.workStage === "pending" ? "新派单到达后会在这里显示" : "接单后尚未完成的运单会显示在这里");
 }
 
 function orderCard(dispatch) {
   const category = dispatchCategory(dispatch);
+  const acceptAction = category === "pending"
+    ? `<button class="order-accept-action" data-action="accept" data-id="${h(dispatch.id)}" type="button">立即接单</button>`
+    : "";
   const progressAction = category === "active"
     ? `<button class="order-progress-action" data-action="progress" data-id="${h(dispatch.id)}" data-node="${h(nextNode(dispatch))}" type="button">提交 ${h(nextNode(dispatch))}</button>`
     : "";
@@ -1017,23 +1067,24 @@ function orderCard(dispatch) {
       <div class="order-route">${h(dispatch.origin)}<span>→</span>${h(dispatch.destination)}</div>
       <div class="order-info"><span>派单时间　<b>${h(String(dispatch.dispatchTime || "-").replace("T", " ").slice(0, 16))}</b></span><span>车辆　<b>${h(dispatch.vehicleId || "-")}</b></span><span>箱信息　<b>${h(dispatch.boxes)}</b></span><span>收货人　<b>${h(dispatch.consignee || "-")}</b></span><span>到达时间　<b>${h(String(dispatch.arrivalTime || "-").replace("T", " ").slice(0, 16))}</b></span><span>到达地点　<b>${h(dispatch.arrivalLocation || "-")}</b></span><span class="order-info-full">还箱地　<b>${h(dispatch.loadAddress || "-")}</b></span></div>
       ${renderTaskNodeOverview(dispatch)}
-      <div class="order-card-actions"><button class="order-contact-action" data-action="contact" data-id="${h(dispatch.id)}" type="button">联系调度</button>${progressAction}</div>
+      <div class="order-card-actions"><button class="order-contact-action" data-action="contact" data-id="${h(dispatch.id)}" type="button">联系调度</button>${acceptAction}${progressAction}</div>
     </article>`;
 }
 
 function renderOrders() {
   const keyword = state.orderSearch.toLowerCase();
+  const orderList = document.querySelector("#orderList");
+  if (!orderList) return;
   const rows = driverDispatches().filter((item) => {
-    const isAcceptedOrder = item.status !== "已派单" && item.currentNode !== "已拒绝";
     const matchedStatus = state.orderFilter === "all" || dispatchCategory(item) === state.orderFilter;
     const matchedStage = state.orderStage === "all"
       || (state.orderStage === "pickup" && isTaskAwaitingStart(item))
       || (state.orderStage === "transit" && isTaskInProgress(item))
       || (state.orderStage === "completed" && item.status === "已完成");
     const searchText = `${item.waybillNo} ${item.routeName} ${item.boxes} ${item.origin} ${item.destination} ${dispatchTaskType(item)}`.toLowerCase();
-    return isAcceptedOrder && matchedStatus && matchedStage && searchText.includes(keyword);
+    return matchedStatus && matchedStage && searchText.includes(keyword);
   });
-  elements.orderList.innerHTML = rows.length ? rows.map(orderCard).join("") : emptyState("没有找到运单", "请调整状态筛选或搜索关键词");
+  orderList.innerHTML = rows.length ? rows.map(orderCard).join("") : emptyState("没有找到运单", "请调整状态筛选或搜索关键词");
 }
 
 function daysUntil(dateText) {
@@ -1046,10 +1097,11 @@ function renderProfile() {
   const driver = currentDriver();
   const certification = currentCertification();
   const certificationView = certificationMeta(certification.status);
-  const orders = acceptedOrders();
-  const pickup = orders.filter(isTaskAwaitingStart).length;
-  const transit = orders.filter(isTaskInProgress).length;
+  const orders = driverDispatches();
+  const pickup = orders.filter((item) => item.status !== "已派单" && item.status !== "已完成" && dispatchCategory(item) !== "cancelled" && isTaskAwaitingStart(item)).length;
+  const transit = orders.filter((item) => item.status !== "已完成" && dispatchCategory(item) !== "cancelled" && isTaskInProgress(item)).length;
   const completed = orders.filter((item) => item.status === "已完成").length;
+  const cancelled = orders.filter((item) => dispatchCategory(item) === "cancelled").length;
   const currentVehicleDispatch = driverDispatches().find((item) => item.vehicleId && item.status === "运输中")
     || driverDispatches().find((item) => item.vehicleId);
   const plateNo = currentVehicleDispatch?.vehicleId || "";
@@ -1070,7 +1122,8 @@ function renderProfile() {
     <button data-order-stage="all" type="button"><strong>${orders.length}</strong><span>全部运单</span></button>
     <button data-order-stage="pickup" type="button"><strong>${pickup}</strong><span>待执行</span></button>
     <button data-order-stage="transit" type="button"><strong>${transit}</strong><span>运输中</span></button>
-    <button data-order-stage="completed" type="button"><strong>${completed}</strong><span>已完成</span></button>`;
+    <button data-order-stage="completed" type="button"><strong>${completed}</strong><span>已完成</span></button>
+    <button data-order-stage="cancelled" type="button"><strong>${cancelled}</strong><span>已取消</span></button>`;
 }
 
 function infoRows(rows) {
@@ -1314,6 +1367,7 @@ function renderSubpage(page) {
   const plateNo = current?.vehicleId || "暂未分配";
   const vehicle = vehicles[plateNo];
   const titles = {
+    myOrders: "我的运单",
     certification: "司机认证",
     personal: "个人信息",
     security: "账户安全",
@@ -1328,6 +1382,20 @@ function renderSubpage(page) {
   };
   elements.subpageTitle.textContent = titles[page] || "个人中心";
   setTimeout(() => window.lucide?.createIcons(), 0);
+
+  if (page === "myOrders") {
+    const filters = [
+      ["all", "全部"], ["pending", "待接单"], ["active", "进行中"], ["completed", "已完成"], ["cancelled", "已取消"],
+    ];
+    elements.subpageContent.innerHTML = `
+      <div class="my-orders-page">
+        <div class="search-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="orderSearch" type="search" value="${h(state.orderSearch)}" placeholder="搜索运单号、线路或箱号" /></div>
+        <div class="order-status-tabs" id="orderStatusTabs" role="group" aria-label="运单状态筛选">${filters.map(([status, label]) => `<button class="filter-chip ${state.orderFilter === status ? "active" : ""}" data-status="${status}" aria-pressed="${state.orderFilter === status}" type="button">${label}</button>`).join("")}</div>
+        <div class="order-list" id="orderList"></div>
+      </div>`;
+    renderOrders();
+    return;
+  }
 
   if (page === "feedback") {
     renderDriverFeedback();
@@ -1577,6 +1645,7 @@ function switchView(viewName) {
   document.querySelector("#headerEyebrow").textContent = viewName === "messages" ? "任务与预警通知" : "集卡司机端";
   target.scrollTo({ top: 0, behavior: "smooth" });
   if (viewName === "profile") renderProfile();
+  if (viewName === "tasks") renderTasks();
   if (viewName === "messages") renderDriverMessages();
 }
 
@@ -1594,8 +1663,9 @@ function openDetail(dispatchId) {
 function closeDetail() {
   clearTimelinePhotoUrls();
   elements.detailView.classList.remove("open");
-  elements.bottomNav.hidden = false;
-  elements.bottomNav.setAttribute("aria-hidden", "false");
+  const subpageOpen = elements.profileSubpage?.classList.contains("open") || false;
+  elements.bottomNav.hidden = subpageOpen;
+  elements.bottomNav.setAttribute("aria-hidden", String(subpageOpen));
   document.querySelector(".phone-shell").classList.remove("detail-open");
   elements.detailView.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
@@ -1623,11 +1693,20 @@ function acceptDispatch(dispatchId) {
   const dispatch = state.dispatches.find((item) => item.id === dispatchId);
   if (!dispatch || dispatch.status !== "已派单") return false;
   dispatch.taskType = dispatchTaskType(dispatch);
+  if (!dispatch.taskConfigSnapshot) {
+    const snapshot = window.DispatchTaskNodes.snapshot(dispatch.taskType);
+    if (snapshot && Array.isArray(dispatch.photoRequirements) && dispatch.photoRequirements.length) {
+      snapshot.nodes = window.DispatchTaskNodes.distributeLegacyPhotoRequirements(dispatch.taskType, dispatch.photoRequirements, snapshot.nodes);
+    }
+    dispatch.taskConfigSnapshot = snapshot;
+  }
   dispatch.status = "运输中";
   dispatch.currentNode = "已接单";
   dispatch.acceptedAt = window.DispatchStore.nowText();
   dispatch.timeline = dispatch.timeline || [];
   dispatch.timeline.push({ node: "已接单", time: dispatch.acceptedAt, desc: "司机已确认接单，任务开始执行", photos: [] });
+  const firstNode = taskNodes(dispatch)[0];
+  if (firstNode) window.DispatchTaskNodes.notify?.(dispatch, firstNode, "start");
   persist("接单成功，已同步至调度后台");
   return true;
 }
@@ -1642,14 +1721,10 @@ function acceptAndOpenOrders(dispatchId) {
     return;
   }
   if (!acceptDispatch(dispatchId)) return;
-  state.orderFilter = "active";
-  state.orderStage = "all";
-  state.orderSearch = "";
-  document.querySelector("#orderSearch").value = "";
-  document.querySelectorAll("#orderStatusTabs button").forEach((button) => button.classList.toggle("active", button.dataset.status === "active"));
-  renderOrders();
   closeDetail();
-  switchView("orders");
+  if (elements.profileSubpage.classList.contains("open")) closeProfileSubpage();
+  state.workStage = "active";
+  switchView("tasks");
 }
 
 function openReject(dispatchId) {
@@ -1717,19 +1792,13 @@ function handleDispatchAction(event) {
 }
 
 elements.taskList.addEventListener("click", handleDispatchAction);
-elements.orderList.addEventListener("click", handleDispatchAction);
 
 function openOrdersForStage(stage) {
-  const filterByStage = { all: "all", pickup: "active", transit: "active", completed: "completed" };
-  const titleByStage = { all: "我的运单", pickup: "待执行运单", transit: "运输中运单", completed: "已完成运单" };
+  const filterByStage = { all: "all", pickup: "active", transit: "active", completed: "completed", cancelled: "cancelled" };
   state.orderStage = stage;
   state.orderFilter = filterByStage[stage] || "all";
   state.orderSearch = "";
-  document.querySelector("#orderSearch").value = "";
-  document.querySelectorAll("#orderStatusTabs button").forEach((button) => button.classList.toggle("active", button.dataset.status === state.orderFilter));
-  renderOrders();
-  switchView("orders");
-  elements.title.textContent = titleByStage[stage] || "我的运单";
+  openProfileSubpage("myOrders");
 }
 
 elements.profileView.addEventListener("click", (event) => {
@@ -1747,21 +1816,31 @@ elements.profileView.addEventListener("click", (event) => {
   if (pageButton) openProfileSubpage(pageButton.dataset.profilePage);
 });
 
-document.querySelector("#orderStatusTabs").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-status]");
+document.querySelector("#workStageTabs").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-work-stage]");
   if (!button) return;
-  state.orderFilter = button.dataset.status;
-  state.orderStage = "all";
-  elements.title.textContent = "我的运单";
-  document.querySelectorAll("#orderStatusTabs button").forEach((item) => {
-    const active = item === button;
-    item.classList.toggle("active", active);
-    item.setAttribute("aria-pressed", String(active));
-  });
-  renderOrders();
+  state.workStage = button.dataset.workStage;
+  renderTasks();
 });
 
-document.querySelector("#orderSearch").addEventListener("input", (event) => {
+elements.subpageContent.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-status]");
+  if (button) {
+    state.orderFilter = button.dataset.status;
+    state.orderStage = "all";
+    document.querySelectorAll("#orderStatusTabs button").forEach((item) => {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
+    renderOrders();
+    return;
+  }
+  if (event.target.closest("#orderList")) handleDispatchAction(event);
+});
+
+elements.subpageContent.addEventListener("input", (event) => {
+  if (event.target.id !== "orderSearch") return;
   state.orderSearch = event.target.value.trim();
   renderOrders();
 });
@@ -2225,7 +2304,7 @@ elements.detailActionBar.addEventListener("click", async (event) => {
   if (action === "reject") openReject(id);
   if (action === "progress") openProgress(id);
   if (action === "contact") showToast("调度中心电话：400-800-6688");
-  if (action === "back") { closeDetail(); switchView("orders"); }
+  if (action === "back") closeDetail();
   if (action === "copy" && dispatch) {
     try { await navigator.clipboard.writeText(dispatch.waybillNo); showToast("运单号已复制"); }
     catch { showToast(`运单号：${dispatch.waybillNo}`); }
@@ -2272,7 +2351,7 @@ document.querySelector("#progressForm").addEventListener("submit", async (event)
   const node = nextNode(dispatch);
   const remark = String(formData.get("remark") || "").trim();
   const photoInputs = [...event.currentTarget.querySelectorAll("[data-photo-slot]")];
-  const requirements = photoRequirementsForDispatch(dispatch);
+  const requirements = photoRequirementsForDispatch(dispatch, node);
   const selectedByRequirement = new Map();
   photoInputs.filter((input) => input.files?.length).forEach((input) => {
     selectedByRequirement.set(input.dataset.photoRequirementId, (selectedByRequirement.get(input.dataset.photoRequirementId) || 0) + 1);
@@ -2284,7 +2363,13 @@ document.querySelector("#progressForm").addEventListener("submit", async (event)
   const nodes = taskNodes(dispatch);
   const isComplete = node === nodes[nodes.length - 1];
   if (isComplete && missingCount) {
-    showToast(`完成任务前还需上传 ${missingCount} 张拍照要求照片`);
+    if (!dispatch.taskConfigSnapshot?.nodes) {
+      showToast(`完成任务前还需上传 ${missingCount} 张照片以满足拍照要求`);
+      return;
+    }
+  }
+  if (dispatch.taskConfigSnapshot?.nodes && missingCount) {
+    showToast(`完成“${node}”前还需上传 ${missingCount} 张照片以满足拍照要求`);
     return;
   }
   const capturedPhotos = photoInputs.filter((input) => input.files?.length).map((input, index) => ({
@@ -2313,6 +2398,9 @@ document.querySelector("#progressForm").addEventListener("submit", async (event)
   if (isComplete) dispatch.status = "已完成";
   dispatch.timeline = dispatch.timeline || [];
   dispatch.timeline.push({ node, time: window.DispatchStore.nowText(), desc: remark || `司机已完成“${node}”节点`, photos: files, photoAttachments: capturedPhotos });
+  const next = taskNodes(dispatch)[taskNodes(dispatch).indexOf(node) + 1];
+  if (next) window.DispatchTaskNodes.notify?.(dispatch, next, "start");
+  window.DispatchTaskNodes.notify?.(dispatch, node, "completion");
   elements.progressDialog.close();
   persist(isComplete ? "任务已完成，状态已同步" : `已提交“${node}”节点`);
   renderDetail();
@@ -2333,6 +2421,11 @@ document.querySelectorAll(".bottom-sheet .sheet-close").forEach((button) => {
 });
 
 window.addEventListener("storage", (event) => {
+  if (event.key === NODE_NOTIFICATION_STORAGE_KEY) {
+    if (document.querySelector("#messagesView").classList.contains("active")) renderDriverMessages();
+    renderProfile();
+    return;
+  }
   if (event.key === window.FeedbackManager.STORAGE_KEY) {
     if (state.activeProfilePage === "feedback") renderDriverFeedback();
     return;
@@ -2387,6 +2480,11 @@ window.addEventListener("message", (event) => {
     changed = true;
   }
   if (changed) renderAll();
+});
+
+window.addEventListener("transport-node-notification-created", () => {
+  if (document.querySelector("#messagesView").classList.contains("active")) renderDriverMessages();
+  renderProfile();
 });
 
 document.addEventListener("visibilitychange", () => {

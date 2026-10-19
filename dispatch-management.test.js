@@ -38,6 +38,7 @@ assert.match(html, /id="dispatchManagementTaskNumberSearch"/);
 assert.match(html, /id="dispatchManagementCapacityDriverSearch"/);
 assert.match(html, /id="dispatchManagementResultDialog"/);
 assert.match(html, /id="dispatchManagementConfirmDialog"/);
+assert.match(html, /id="dispatchManagementDriverConflicts"[^>]*role="alert"/);
 assert.doesNotMatch(html, /id="dispatchManagementFeedback"/);
 assert.match(html, /id="dispatchManagementTaskPageSize"[^>]*>[\s\S]*value="10" selected>10 条\/页/);
 assert.doesNotMatch(html, /dispatch-management-selection/);
@@ -46,7 +47,8 @@ const dispatchTaskHead = html.match(/<table class="dispatch-management-task-tabl
 assert.doesNotMatch(dispatchTaskHead, /匹配状态/);
 assert.doesNotMatch(dispatchTaskHead, /操作/);
 assert.doesNotMatch(dispatchTaskHead, /拍照要求/);
-assert.match(dispatchTaskHead, /客户项目<\/th><th>运输线路<\/th>/);
+assert.match(dispatchTaskHead, /客户项目<\/th><th>运输线路<\/th><th>任务类型<\/th><th>计划靠台时间<\/th>/);
+assert.doesNotMatch(dispatchTaskHead, /任务 \/ 来源|计划日期/);
 assert.match(html, /选择[\s\S]*匹配值[\s\S]*司机 \/ 电话[\s\S]*车辆 \/ 挂车[\s\S]*当前进度/);
 assert.match(html, /<colgroup>[\s\S]*task-select-col[\s\S]*task-date-col[\s\S]*<\/colgroup>/);
 assert.match(styles, /\.dispatch-management-table-wrap \{[^}]*overflow-x: hidden/);
@@ -98,10 +100,15 @@ const vehicles = [
   { plateNo: "浙B20005", driver: "钱峰 / 13800000005", trailerId: "T-5", vehicleState: "在用", vehicleType: "集装箱牵引车", ratedLoad: 31, energyType: "燃油", currentLocation: "宁波北仑" },
 ];
 drivers.push({ id: "D-5", name: "钱峰", phone: "13800000005", driverState: "空闲", certificationStatus: "verified", qualificationExpiry: "2028-10-10" });
+drivers.push({ id: "D-6", name: "三方司机", phone: "13800000006", driverState: "空闲", certificationStatus: "verified", qualificationExpiry: "2028-10-10", capacityOwnership: "三方", supplierName: "测试车队" });
 vehicles[4].driver = "钱峰 / 13800000005";
 vehicles[4].trailerId = "T-5";
+vehicles.push({ plateNo: "浙B20006", driver: "三方司机 / 13800000006", trailerId: "T-6", vehicleState: "在用", vehicleType: "集装箱牵引车", capacityOwnership: "三方", supplierName: "测试车队" });
 const now = new Date();
+const nowDateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 dispatches.push({ id: "PD-5", waybillNo: "WB-5", driverId: "D-1", status: "已完成", acceptedAt: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-02 10:00` });
+dispatches.push({ id: "PD-CONFLICT", waybillNo: "WB-CONFLICT", driverId: "D-1", driverName: "王海", plannedBerthingTime: `${nowDateText} 16:30`, status: "运输中" });
+dispatches.push({ id: "PD-NEAR", waybillNo: "WB-NEAR", driverId: "D-1", driverName: "王海", plannedBerthingTime: `${nowDateText} 17:00`, status: "已派单" });
 const trailers = [
   { id: "T-1", plateNo: "挂001", trailerType: "集装箱骨架车", trailerState: "在用" },
   { id: "T-2", plateNo: "挂002", trailerType: "集装箱骨架车", trailerState: "在用" },
@@ -109,6 +116,7 @@ const trailers = [
   { id: "T-4", plateNo: "挂004", trailerType: "普通栏板车", trailerState: "在用" },
 ];
 trailers.push({ id: "T-5", plateNo: "挂005", trailerType: "集装箱骨架车", trailerState: "在用" });
+trailers.push({ id: "T-6", plateNo: "挂006", trailerType: "集装箱骨架车", trailerState: "在用", capacityOwnership: "三方", supplierName: "测试车队" });
 const fixedRoutes = [
   { id: "R-1", routeName: "北仑港至园区", origin: "宁波北仑港", defaultVehicle: "浙B20001", defaultDriver: "王海" },
   { id: "R-2", routeName: "港区短驳", origin: "宁波北仑港" },
@@ -165,9 +173,11 @@ assert.equal(windowMock.DispatchManagement.getDemoState().tasks.filter((task) =>
 assert.equal(windowMock.DispatchManagement.getDemoState().tasks.filter((task) => task.orderDate === tomorrowText).length, 5);
 assert.equal(getElement("#dispatchManagementTaskCount").textContent, "15 条待匹配");
 assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /东方港联/);
-assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010030/);
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010031/);
+assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010030/);
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /2026-10-18 19:20/);
+assert.ok(getElement("#dispatchManagementTaskBody").innerHTML.indexOf("2026-10-18 19:20") < getElement("#dispatchManagementTaskBody").innerHTML.indexOf("2026-10-18 19:40"), "pending tasks should be ordered by planned berthing time");
 assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /封号照片|1 项 · 2 张/);
-assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010031/);
 assert.doesNotMatch(getElement("#dispatchManagementCapacityList").innerHTML, /司机资质|核载 \/ 容积|dispatch-capacity-node-progress/);
 assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /dispatch-capacity-progress-track/);
 assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /匹配值/);
@@ -179,7 +189,7 @@ assert.ok(sharedRuleTags.includes("司机熟悉线路"));
 assert.doesNotMatch(getElement("#dispatchManagementCapacityList").innerHTML, /dispatch-capacity-avatar/);
 assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /dispatch-capacity-progress[^>]*>[\s\S]*dispatch-capacity-progress-track[\s\S]*%<\/b>/);
 assert.doesNotMatch(getElement("#dispatchManagementCapacityList").innerHTML, /待开始/);
-assert.equal((getElement("#dispatchManagementCapacityList").innerHTML.match(/dispatch-capacity-row/g) || []).length, 5,
+assert.equal((getElement("#dispatchManagementCapacityList").innerHTML.match(/dispatch-capacity-row/g) || []).length, 6,
   "all capacity resources should render as list rows");
 assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /王海<em class="driver-monthly-accepted">本月 1<\/em>/);
 assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /type="checkbox"/);
@@ -299,6 +309,10 @@ assert.match(getElement("#dispatchManagementConfirmMatches").innerHTML, /王海[
 assert.match(getElement("#dispatchManagementConfirmMatches").innerHTML, /data-confirm-note="0"/);
 assert.match(getElement("#dispatchManagementConfirmMatches").innerHTML, /data-replace-vehicle="0"/);
 assert.doesNotMatch(getElement("#dispatchManagementConfirmMatches").innerHTML, /dispatch-confirm-score|WB20261010021/);
+assert.equal(getElement("#dispatchManagementDriverConflicts").hidden, false, "ongoing work for the assigned driver should be warned on the confirmation page");
+assert.match(getElement("#dispatchManagementDriverConflicts").innerHTML, /WB-CONFLICT/);
+assert.match(getElement("#dispatchManagementDriverConflicts").innerHTML, /计划靠台时间相差 (40|60) 分钟/);
+assert.match(getElement("#dispatchManagementDriverConflicts").innerHTML, /仍可确认并继续派单/);
 assert.match(html, /<th>客户 \/ 项目<\/th>[\s\S]*<th>派单备注<\/th>/);
 assert.equal(windowMock.DispatchManagement.getPendingPlan().assignments.length, 2);
 getElement("#dispatchManagementConfirmCancel").listeners.click();
@@ -312,6 +326,10 @@ getElement("#dispatchManagementConfirmMatches").listeners.click({
   target: { closest: () => ({ dataset: { replaceVehicle: "0" } }) },
 });
 assert.equal(getElement("#dispatchManagementVehicleDialog").open, true);
+assert.equal(getElement("#dispatchManagementVehicleFilter").value, "空闲", "vehicle replacement should default to idle resources");
+assert.equal(getElement("#dispatchManagementVehicleOwnershipFilter").value, "自营", "replacement ownership should follow the assigned driver");
+assert.equal(getElement("#dispatchManagementVehicleOwnershipFilter").disabled, true, "replacement ownership should not be broadened by the user");
+assert.doesNotMatch(getElement("#dispatchManagementVehicleList").innerHTML, /浙B20006/, "a self-operated driver must not be offered third-party capacity");
 getElement("#dispatchManagementVehicleDriverSearch").value = "钱峰";
 getElement("#dispatchManagementVehicleDriverSearch").listeners.input();
 assert.match(getElement("#dispatchManagementVehicleList").innerHTML, /浙B20005/);
@@ -321,6 +339,8 @@ getElement("#dispatchManagementVehicleList").listeners.click({
 });
 assert.equal(getElement("#dispatchManagementVehicleDialog").open, false);
 assert.match(getElement("#dispatchManagementConfirmMatches").innerHTML, /钱峰[\s\S]*浙B20005/);
+assert.equal(getElement("#dispatchManagementDriverConflicts").hidden, false, "the reminder should remain for another assignment that still uses the conflicted driver");
+assert.match(getElement("#dispatchManagementDriverConflicts").innerHTML, /当前待派 WB20261010022/);
 getElement("#dispatchManagementConfirmSubmit").listeners.click();
 
 const manualState = windowMock.DispatchManagement.getDemoState();
@@ -348,6 +368,7 @@ assert.equal(savedWaybills, 0);
 assert.equal(savedDispatches, 0);
 assert.equal(renderedAutoDispatch, 0);
 
+vehicles.find((vehicle) => vehicle.plateNo === "浙B20006").vehicleState = "维修中";
 windowMock.DispatchManagement.reset();
 const resetState = windowMock.DispatchManagement.getDemoState();
 assert.equal(resetState.assignmentCount, 0);

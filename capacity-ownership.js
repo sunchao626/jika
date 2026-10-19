@@ -1,7 +1,7 @@
 (function initCapacityOwnership(global) {
   "use strict";
 
-  const TYPES = Object.freeze({ SELF: "自营", THIRD: "三方", MIXED: "自营+三方", PENDING: "待确定" });
+  const TYPES = Object.freeze({ SELF: "自营", THIRD: "三方", PENDING: "待确定" });
   const STORAGE_KEY = "container-logistics-third-party-suppliers-v1";
   const CUSTOMER_STORAGE_KEY = "container-logistics-customers-v1";
   const SUPPLIER_ROLE = "三方供应商";
@@ -38,8 +38,19 @@
     const source = text(value);
     if ([TYPES.SELF, "自有", "自有司机", "自营司机", "自有车辆"].includes(source)) return TYPES.SELF;
     if ([TYPES.THIRD, "外协", "外协司机", "三方司机", "外部", "外部司机"].includes(source)) return TYPES.THIRD;
-    if ([TYPES.MIXED, "混合", "混合运力"].includes(source)) return TYPES.MIXED;
-    return source || TYPES.PENDING;
+    if ([TYPES.PENDING, "自营+三方", "混合", "混合运力", ""].includes(source)) return TYPES.SELF;
+    return TYPES.SELF;
+  }
+
+  function resourceType(record = {}) {
+    const fields = [record.capacityOwnership, record.ownership, record.driverType];
+    for (const value of fields) {
+      const source = text(value);
+      if (!source || [TYPES.PENDING, "自营+三方", "混合", "混合运力"].includes(source)) continue;
+      return normalizeType(source);
+    }
+    if (text(record.supplierId || record.supplierName || record.thirdPartyName)) return TYPES.THIRD;
+    return TYPES.SELF;
   }
 
   function readLegacySuppliers() {
@@ -98,7 +109,7 @@
   }
 
   function organizationName(record = {}) {
-    const type = normalizeType(record.capacityOwnership || record.ownership || record.driverType);
+    const type = resourceType(record);
     if (type === TYPES.SELF) return SELF_ORGANIZATION;
     if (type === TYPES.THIRD) {
       const supplier = record.supplierId ? findSupplier(record.supplierId) : null;
@@ -108,7 +119,7 @@
   }
 
   function normalizeResource(record = {}, kind = "vehicle") {
-    const capacityOwnership = normalizeType(record.capacityOwnership || record.ownership || record.driverType);
+    const capacityOwnership = resourceType(record);
     let supplierName = capacityOwnership === TYPES.THIRD
       ? text(record.supplierName || record.thirdPartyName || record.organizationName || record.fleetName || record.fleet)
       : "";
@@ -132,36 +143,41 @@
   function groupSnapshot(resources = [], options = {}) {
     const normalized = resources.filter(Boolean).map((item) => ({
       role: text(item.role), name: text(item.name),
-      type: normalizeType(item.capacityOwnership || item.ownership || item.driverType),
+      type: resourceType(item),
       organizationName: organizationName(item), supplierId: text(item.supplierId), supplierName: text(item.supplierName) || (normalizeType(item.capacityOwnership || item.ownership || item.driverType) === TYPES.THIRD ? organizationName(item) : ""),
     }));
     const missingRequired = Boolean(options.missingRequired);
-    const types = new Set(normalized.map((item) => item.type).filter((type) => type === TYPES.SELF || type === TYPES.THIRD));
-    const type = missingRequired || !types.size ? TYPES.PENDING : types.size > 1 ? TYPES.MIXED : [...types][0];
+    const types = new Set(normalized.map((item) => item.type));
+    const compatible = !missingRequired && normalized.length > 0 && normalized.every((item) => [TYPES.SELF, TYPES.THIRD].includes(item.type)) && types.size === 1;
+    const vehicle = normalized.find((item) => item.role === "车辆");
+    const type = vehicle?.type || normalized[0]?.type || normalizeType(options.fallbackType);
     const supplierNames = [...new Set(normalized.filter((item) => item.type === TYPES.THIRD).map((item) => item.supplierName).filter(Boolean))];
-    return { type, resources: normalized, supplierNames, tooltip: normalized.map((item) => `${item.role || "运力"}：${item.name || "未选择"} · ${item.organizationName || TYPES.PENDING}`).join("\n") };
+    return { type, compatible, resources: normalized, supplierNames, tooltip: normalized.map((item) => `${item.role || "运力"}：${item.name || "未选择"} · ${item.organizationName || TYPES.PENDING}`).join("\n") };
+  }
+
+  function isCompatible(resources = [], options = {}) {
+    return groupSnapshot(resources, options).compatible;
   }
 
   function matchesFilter(value, filter, individualResource = false) {
     const target = text(filter);
     if (!target) return true;
-    if (individualResource && normalizeType(target) === TYPES.MIXED) return [TYPES.SELF, TYPES.THIRD].includes(normalizeType(value));
     return normalizeType(value) === normalizeType(target);
   }
 
   function badgeMarkup(value, tooltip = "") {
     const type = normalizeType(value);
-    const className = type === TYPES.SELF ? "self" : type === TYPES.THIRD ? "third" : type === TYPES.MIXED ? "mixed" : "pending";
+    const className = type === TYPES.SELF ? "self" : type === TYPES.THIRD ? "third" : "pending";
     const title = tooltip ? ` title="${escapeHtml(normalizeOrganizationText(tooltip))}"` : "";
     return `<span class="capacity-ownership-badge ${className}"${title}>${escapeHtml(type)}</span>`;
   }
 
   function sortSelfFirst(records, typeGetter = (item) => item.capacityOwnership) {
-    const priority = { [TYPES.SELF]: 0, [TYPES.MIXED]: 1, [TYPES.THIRD]: 2, [TYPES.PENDING]: 3 };
+    const priority = { [TYPES.SELF]: 0, [TYPES.THIRD]: 1, [TYPES.PENDING]: 2 };
     return [...records].sort((left, right) => (priority[normalizeType(typeGetter(left))] ?? 9) - (priority[normalizeType(typeGetter(right))] ?? 9));
   }
 
-  global.CapacityOwnership = Object.freeze({ TYPES, STORAGE_KEY, CUSTOMER_STORAGE_KEY, SUPPLIER_ROLE, SELF_ORGANIZATION, normalizeType, normalizeOrganizationName, normalizeOrganizationText, normalizeResource, organizationName, groupSnapshot, matchesFilter, badgeMarkup, sortSelfFirst, readSuppliers, findSupplier, escapeHtml });
+  global.CapacityOwnership = Object.freeze({ TYPES, STORAGE_KEY, CUSTOMER_STORAGE_KEY, SUPPLIER_ROLE, SELF_ORGANIZATION, normalizeType, normalizeOrganizationName, normalizeOrganizationText, normalizeResource, organizationName, groupSnapshot, isCompatible, matchesFilter, badgeMarkup, sortSelfFirst, readSuppliers, findSupplier, escapeHtml });
 })(typeof window !== "undefined" ? window : globalThis);
 
 if (typeof module !== "undefined" && module.exports) module.exports = globalThis.CapacityOwnership;

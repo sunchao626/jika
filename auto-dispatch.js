@@ -99,7 +99,7 @@
   };
   function ensureAutoDemoResources() {
     autoDemoResourceSeeds.drivers.forEach((seed) => { if (!drivers.some((driver) => driver.id === seed.id)) drivers.push({ ...seed }); });
-    autoDemoResourceSeeds.vehicles.forEach((seed) => { if (!vehicles.some((vehicle) => vehicle.plateNo === seed.plateNo)) vehicles.push({ ...seed }); });
+    autoDemoResourceSeeds.vehicles.forEach((seed) => { if (!vehicles.some((vehicle) => vehicle.plateNo === seed.plateNo)) vehicles.push({ ...seed, capacityOwnership: "自营", ownership: "自有" }); });
   }
   ensureAutoDemoResources();
   const autoDemoDispatches = [
@@ -132,7 +132,7 @@
     ...autoDemoConfirmedTasks.map((task) => ({ ...task, match: { ...task.match } })),
     ...dispatches.filter((item) => item.status === "待派单").map((item) => ({
       id: `pending-${item.id}`, waybillNo: item.waybillNo, routeId: item.routeId,
-      planDate: dateAfter(1), source: "待派单运单", status: "queue",
+      planDate: item.planExecutionDate || item.orderDate || dateAfter(1), plannedBerthingTime: item.plannedBerthingTime || item.executionTime || "", executionTime: item.plannedBerthingTime || item.executionTime || "", source: "待派单运单", status: "queue",
     })),
     { id: "order-201", waybillNo: `WB${dateCode}006`, routeId: "XL-002", planDate: dateAfter(2), source: "待调度订单", status: "queue" },
     { id: "order-202", waybillNo: `WB${dateCode}007`, routeId: "XL-003", planDate: dateAfter(1), source: "待调度订单", status: "queue" },
@@ -159,7 +159,7 @@
     dispatches.filter((item) => item.status === "待派单").forEach((item) => {
       if (tasks.some((task) => task.id === `pending-${item.id}`)) return;
       tasks.unshift({ id: `pending-${item.id}`, waybillNo: item.waybillNo, routeId: item.routeId,
-        planDate: item.orderDate || dateAfter(1), executionTime: item.executionTime || "", taskType: item.taskType || "提空装货",
+        planDate: item.planExecutionDate || item.orderDate || dateAfter(1), plannedBerthingTime: item.plannedBerthingTime || item.executionTime || "", executionTime: item.plannedBerthingTime || item.executionTime || "", taskType: item.taskType || "提空装货",
         autoDispatch: item.autoDispatch === undefined ? true : Boolean(item.autoDispatch), dispatchAdvanceMinutes: Number(item.dispatchAdvanceMinutes) || 0,
         source: "待派单运单", status: "queue" });
     });
@@ -248,6 +248,9 @@
     if (!availableVehicles.length) return { candidates: [], reason: "闲置车辆在该日期已安排任务" };
 
     const candidates = availableDrivers.flatMap((driver) => availableVehicles.map((vehicle) => {
+      const trailer = typeof trailers !== "undefined" ? trailers.find((item) => item.id === vehicle.trailerId) : null;
+      if (vehicle.trailerId && !trailer) return [];
+      if (window.CapacityOwnership?.isCompatible && !window.CapacityOwnership.isCompatible([driver, vehicle, trailer].filter(Boolean), { missingRequired: !driver || !vehicle || Boolean(vehicle.trailerId && !trailer) })) return [];
       const load = used.drivers.filter((id) => id === driver.id).length;
       const dedicated = vehicle.plateNo === route.defaultVehicle;
       const familiar = driver.name === route.defaultDriver;
@@ -268,19 +271,18 @@
         timeTight: false,
         unavailable: false,
       }, settings.ruleConfig);
-      const trailer = typeof trailers !== "undefined" ? trailers.find((item) => item.id === vehicle.trailerId) : null;
       const ownership = window.CapacityOwnership?.groupSnapshot?.([
         { ...driver, role: "司机", name: driver.name },
         { ...vehicle, role: "车辆", name: vehicle.plateNo },
         trailer && { ...trailer, role: "挂车", name: trailer.plateNo },
-      ]) || { type: "待确定", tooltip: "" };
+      ], { missingRequired: !driver || Boolean(vehicle.trailerId && !trailer) }) || { type: vehicle.capacityOwnership || "自营", compatible: false, tooltip: "" };
       return {
         driver, vehicle, load, dedicated, familiar, soon,
         ownership,
         score: sharedMatch?.score ?? 76 + (dedicated ? 15 : 0) + (familiar ? 4 : 0) + Math.max(0, 5 - load * 3),
         ruleTags: sharedMatch?.tags || [],
       };
-    })).filter((candidate) => !ownershipFilter?.value || (window.CapacityOwnership?.matchesFilter?.(candidate.ownership.type, ownershipFilter.value) ?? candidate.ownership.type === ownershipFilter.value)).sort((a, b) => ({ 自营: 0, "自营+三方": 1, 三方: 2 }[a.ownership.type] ?? 9) - ({ 自营: 0, "自营+三方": 1, 三方: 2 }[b.ownership.type] ?? 9) || b.score - a.score || Number(b.dedicated) - Number(a.dedicated) || a.load - b.load ||
+    })).flat().filter((candidate) => candidate && (!ownershipFilter?.value || (window.CapacityOwnership?.matchesFilter?.(candidate.ownership.type, ownershipFilter.value) ?? candidate.ownership.type === ownershipFilter.value))).sort((a, b) => ({ 自营: 0, 三方: 1 }[a.ownership.type] ?? 9) - ({ 自营: 0, 三方: 1 }[b.ownership.type] ?? 9) || b.score - a.score || Number(b.dedicated) - Number(a.dedicated) || a.load - b.load ||
       a.driver.id.localeCompare(b.driver.id) || a.vehicle.plateNo.localeCompare(b.vehicle.plateNo, "zh-CN"));
     return { candidates: candidates.slice(0, 4), reason: candidates.length ? "" : "当前运力归属筛选下暂无可用运力" };
   }
@@ -293,7 +295,7 @@
       driver && { ...driver, role: "司机", name: driver.name },
       { ...vehicle, role: "车辆", name: vehicle.plateNo },
       trailer && { ...trailer, role: "挂车", name: trailer.plateNo },
-    ], { missingRequired: !driver }) || { type: vehicle.capacityOwnership || "待确定", tooltip: "" };
+    ], { missingRequired: !driver || Boolean(vehicle.trailerId && !trailer) }) || { type: vehicle.capacityOwnership || "自营", compatible: false, tooltip: "" };
   }
 
   function visibleVehicles() {
@@ -329,8 +331,9 @@
 
   function isAutoDispatchDue(task) {
     if (task.autoDispatch === false) return false;
-    if (!task.executionTime) return true;
-    const executionAt = new Date(String(task.executionTime).replace(" ", "T")).getTime();
+    const scheduledTime = task.plannedBerthingTime || task.executionTime;
+    if (!scheduledTime) return true;
+    const executionAt = new Date(String(scheduledTime).replace(" ", "T")).getTime();
     if (!Number.isFinite(executionAt)) return true;
     return Date.now() >= executionAt - (Number(task.dispatchAdvanceMinutes) || 0) * 60000;
   }
@@ -349,6 +352,9 @@
       dispatchMode: automatic ? "auto" : "manual",
       waybillNo: task.waybillNo,
       orderDate: pending?.orderDate || task.planDate,
+      planExecutionDate: pending?.planExecutionDate || task.planDate,
+      plannedBerthingTime: pending?.plannedBerthingTime || task.plannedBerthingTime || task.executionTime || "",
+      executionTime: pending?.plannedBerthingTime || task.plannedBerthingTime || task.executionTime || "",
       routeId: route.id,
       routeName: route.routeName,
       origin: route.origin,
@@ -458,7 +464,7 @@
     const match = task.status === "confirmed" ? task.match : task.candidates?.[task.matchIndex || 0];
     const dedicated = vehicles.find((vehicle) => vehicle.plateNo === route?.defaultVehicle);
     const dedicatedState = dedicated ? vehicleOperation(dedicated).state : "未绑定";
-    const summary = route ? `<div class="auto-detail-grid"><div><span>固定线路</span><strong>${escapeHtml(route.routeName)}</strong></div><div><span>计划日期</span><strong>${escapeHtml(task.planDate)}</strong></div><div><span>起运地</span><strong>${escapeHtml(route.origin)}</strong></div><div><span>目的地</span><strong>${escapeHtml(route.destination)}</strong></div><div><span>线路专属车辆</span><strong>${escapeHtml(route.defaultVehicle || "未绑定")} · ${escapeHtml(dedicatedState)}</strong></div><div><span>预估收入 / 司机提成</span><strong>${formatMoney(Number(route.estimatedRevenue) || 0)} / ${formatMoney(calculateRouteCommission(route))}</strong></div></div>` : "";
+    const summary = route ? `<div class="auto-detail-grid"><div><span>固定线路</span><strong>${escapeHtml(route.routeName)}</strong></div><div><span>计划靠台时间</span><strong>${escapeHtml(String(task.plannedBerthingTime || task.executionTime || task.planDate).replace("T", " ").slice(0, 16))}</strong></div><div><span>起运地</span><strong>${escapeHtml(route.origin)}</strong></div><div><span>目的地</span><strong>${escapeHtml(route.destination)}</strong></div><div><span>线路专属车辆</span><strong>${escapeHtml(route.defaultVehicle || "未绑定")} · ${escapeHtml(dedicatedState)}</strong></div><div><span>预估收入 / 司机提成</span><strong>${formatMoney(Number(route.estimatedRevenue) || 0)} / ${formatMoney(calculateRouteCommission(route))}</strong></div></div>` : "";
     const others = task.status === "ready" && task.candidates.length > 1 ? `<div class="auto-candidate-list"><strong>其他候选运力</strong>${task.candidates.map((candidate, index) => `<button class="auto-candidate ${index === task.matchIndex ? "chosen" : ""}" type="button" data-auto-candidate="${index}"><span>${window.CapacityOwnership?.badgeMarkup?.(candidate.ownership.type, candidate.ownership.tooltip) || ""}${escapeHtml(candidate.driver.name)} · ${escapeHtml(candidate.vehicle.plateNo)}${candidate.dedicated ? " · 专属车辆" : ""} · 当日 ${candidate.load} 趟</span><b>${candidate.score} 分</b></button>`).join("")}</div>` : "";
     const destination = task.reason?.includes("线路") ? ["fixed-routes", "查看线路档案"] : task.reason?.includes("运单") ? ["dispatch-list", "查看派单列表"] : task.reason?.includes("司机") ? ["driver-archives", "查看司机档案"] : task.reason?.includes("车辆") ? ["vehicle-archives", "查看车辆档案"] : ["", ""];
     inspector.innerHTML = `<div class="auto-inspector-head"><div><span>任务详情</span><h3>${escapeHtml(task.waybillNo)}</h3></div><span class="auto-state ${task.status}">${{ queue: "待匹配", ready: "待确认", exception: "需处理", confirmed: "已派单" }[task.status]}</span></div>${summary}
@@ -551,7 +557,7 @@
     const idle = filteredVehicles.filter((vehicle) => vehicleOperation(vehicle).state === "闲置");
     const busy = filteredVehicles.filter((vehicle) => ["在途", "作业中"].includes(vehicleOperation(vehicle).state));
     page.querySelector("#autoMetrics").innerHTML = [
-      ["待匹配任务", queue.length, "待处理运单", "total"], ["当前闲置车辆", idle.length, "按计划日期校验排程", "ready"],
+      ["待匹配任务", queue.length, "待处理运单", "total"], ["当前闲置车辆", idle.length, "按计划靠台时间校验排程", "ready"],
       ["在途 / 作业中", busy.length, "当前不参与分配", "exception"], ["已完成派单", results.length, "已推送司机端", "result"],
     ].map(([label, value, hint, type]) => `<div class="auto-metric ${type}"><span>${label}</span><strong>${value}</strong><small>${hint}</small></div>`).join("");
     page.querySelector("#autoQueueCount").textContent = queue.length;
@@ -599,10 +605,10 @@
     if (!visible.some((task) => task.id === selectedId)) selectedId = visible[0]?.id;
     page.querySelector("#autoListTitle").textContent = { queue: "待处理任务", exception: "异常任务", result: "已完成派单" }[activeTab];
     page.querySelector("#autoListSubtitle").textContent = lastRun ? `最近执行：${lastRun}` : `待处理 ${queue.length} 条`;
-    page.querySelector("#autoTableHead").innerHTML = '<tr><th>任务 / 来源</th><th>运输线路</th><th>计划日期</th><th>匹配状态</th><th class="fixed-action-column">操作</th></tr>';
+    page.querySelector("#autoTableHead").innerHTML = '<tr><th>运单号</th><th>运输线路</th><th>计划靠台时间</th><th>匹配状态</th><th class="fixed-action-column">操作</th></tr>';
     body.innerHTML = visible.length ? visible.map((task) => {
       const status = { queue: "待匹配", ready: "待确认", exception: "需处理", confirmed: "已派单" }[task.status];
-      return `<tr class="${task.id === selectedId ? "selected" : ""}" data-auto-id="${escapeHtml(task.id)}"><td><strong>${escapeHtml(task.waybillNo)}</strong><small>${escapeHtml(task.source)}</small></td><td>${escapeHtml(routeFor(task)?.routeName || "线路未找到")}</td><td>${escapeHtml(task.planDate)}</td><td><span class="auto-state ${task.status}">${status}</span></td><td class="fixed-action-column"><button class="link-btn" type="button">查看</button></td></tr>`;
+      return `<tr class="${task.id === selectedId ? "selected" : ""}" data-auto-id="${escapeHtml(task.id)}"><td><strong>${escapeHtml(task.waybillNo)}</strong></td><td>${escapeHtml(routeFor(task)?.routeName || "线路未找到")}</td><td>${escapeHtml(String(task.plannedBerthingTime || task.executionTime || task.planDate).replace("T", " ").slice(0, 16))}</td><td><span class="auto-state ${task.status}">${status}</span></td><td class="fixed-action-column"><button class="link-btn" type="button">查看</button></td></tr>`;
     }).join("") : `<tr><td class="no-data-cell" colspan="5">${{ queue: "暂无待处理任务", exception: "暂无异常任务", result: "暂无已完成派单" }[activeTab]}</td></tr>`;
     renderInspector(tasks.find((task) => task.id === selectedId));
   }

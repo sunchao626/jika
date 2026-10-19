@@ -74,13 +74,13 @@
           <section class="nav-section">
             <button class="nav-parent" type="button"><span class="nav-icon">⚙</span>系统配置</button>
             <button class="nav-child" data-page="platform-config" type="button">平台配置</button>
+            <button class="nav-child" data-page="transport-task-config" type="button">任务类型配置</button>
             <button class="nav-child" data-page="customer-archives" type="button">客户管理</button>
             <button class="nav-child" data-page="reminder-templates" type="button">消息提醒模板</button>
             <button class="nav-child" data-page="announcements" type="button">公告管理</button>
             <button class="nav-child" data-page="feedback-management" type="button">意见反馈管理</button>
             <button class="nav-child" data-page="user-access" type="button">用户与权限</button>
             <button class="nav-child" data-page="operation-logs" type="button">操作日志</button>
-            <button class="nav-child" data-page="photo-requirements" type="button">司机拍照要求</button>
             <button class="nav-child" data-page="auto-dispatch-config" type="button">自动派单配置</button>
           </section>
           <button class="nav-item" type="button"><span class="nav-icon">?</span>关于我们</button>
@@ -235,6 +235,8 @@
               </div>
             </form>
 
+            <section class="plan-task-quick-stats" id="planTaskQuickStats" aria-label="计划任务快捷统计"></section>
+
             <section class="table-card" aria-label="计划任务数据表格">
               <div class="table-summary">
                 <div>
@@ -246,9 +248,10 @@
 
               <div class="table-wrap">
                 <table class="fixed-action-table plan-task-table">
+                  <colgroup><col class="plan-col-customer" /><col class="plan-col-project" /><col class="plan-col-route" /><col class="plan-col-nodes" /><col class="plan-col-type" /><col class="plan-col-date" /><col class="plan-col-execution" /><col class="plan-col-amount" /><col class="plan-col-actions" /></colgroup>
                   <thead>
                     <tr>
-                      <th>计划任务</th><th>客户</th><th>项目</th><th>线路</th><th>线路节点</th><th>任务类型</th><th>执行时间</th><th>运单进度</th><th>任务状态</th><th>预估金额</th><th class="fixed-action-column">操作</th>
+                      <th>客户</th><th>项目</th><th>线路</th><th>线路节点</th><th>任务类型</th><th>计划执行日期</th><th>子任务执行情况</th><th>预估金额</th><th class="fixed-action-column">操作</th>
                     </tr>
                   </thead>
                   <tbody id="waybillBody"></tbody>
@@ -383,7 +386,7 @@
                     <label class="field"><span>发票要求</span><select name="thirdPartyInvoiceRequired"><option value="true">需要进项发票</option><option value="false">无需发票</option></select></label>
                   </div></section>
                   <section class="driver-form-section"><h3>关联配置（可选）</h3><div class="form-grid">
-                    <label class="field">运力归属筛选<select id="routeCapacityOwnershipFilter"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                    <label class="field">运力归属筛选<select id="routeCapacityOwnershipFilter"><option value="">全部归属</option><option>自营</option><option>三方</option></select></label>
                     <label class="field">线路专属车辆<select name="defaultVehicle" id="routeDefaultVehicle"><option value="">不指定</option></select></label>
                     <label class="field">常用司机<select name="defaultDriver" id="routeDefaultDriver"><option value="">不指定</option></select></label>
                   </div></section>
@@ -425,7 +428,7 @@
                 <label class="field query-extra"><span>车牌</span><select name="plateNo" id="dispatchVehicleFilter"><option value="">全部车辆</option></select></label>
                 <label class="field query-extra"><span>派单状态</span><select name="dispatchStatus"><option value="">全部状态</option><option>待派单</option><option>已派单</option><option>运输中</option><option>已完成</option><option>取消</option></select></label>
                 <label class="field query-extra"><span>派单方式</span><select name="dispatchMode"><option value="">全部方式</option><option value="auto">自动派单</option><option value="manual">手动派单</option><option value="pending">待分配</option></select></label>
-                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
               </div>
               <div class="query-footer"><span class="selection-summary" id="dispatchSelectedText">已选择 0 条派单</span><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button><button class="btn quiet query-toggle" type="button" aria-expanded="false">展开</button><button class="btn primary" type="submit">查询</button><span class="query-action-separator" aria-hidden="true"></span><button class="btn accent" id="addDispatchBtn" type="button">新增派单</button><button class="btn primary" id="dispatchMoreBtn" type="button">更多功能</button>
@@ -435,7 +438,7 @@
 
             <section class="table-card" aria-label="派单列表"><div class="table-summary"><div><strong>派单列表</strong><span id="dispatchResultText">司机、车辆及运输节点实时跟踪</span></div><span class="draft-badge" id="dispatchActiveBadge">运输中 0</span></div>
               <div class="table-wrap"><table class="fixed-action-table"><thead><tr>
-                <th class="check-col"><label class="checkbox-label"><input id="dispatchSelectAll" type="checkbox" />全选</label></th><th>运单号</th><th>计划任务编号</th><th>任务类型</th><th class="dispatch-capacity-column">运力状态</th><th>派单方式</th><th>线路名称</th><th>车型</th><th>提箱地</th><th>装卸地</th><th>派单时间</th><th>司机姓名</th><th>联系电话</th><th>车牌</th><th>派单状态</th><th>当前节点</th><th class="fixed-action-column">操作</th>
+                <th class="check-col"><label class="checkbox-label"><input id="dispatchSelectAll" type="checkbox" />全选</label></th><th>计划靠台时间</th><th>任务类型</th><th>运单状态</th><th>运输节点</th><th>客户项目 / 线路名称</th><th>提箱地</th><th>装卸地</th><th>派单时间</th><th>实际靠台时间</th><th>司机 / 所属单位</th><th>车牌 / 所属单位</th><th class="fixed-action-column">操作</th>
               </tr></thead><tbody id="dispatchBody"></tbody></table></div>
             </section>
             <footer class="pagination" aria-label="派单列表分页"><label>每页条数<select id="dispatchPageSize"><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select></label><div class="page-controls"><button id="dispatchPrevPage" type="button" disabled>上一页</button><button class="page-current" id="dispatchCurrentPage" type="button">1</button><button id="dispatchNextPage" type="button" disabled>下一页</button><label>跳至<input id="dispatchPageJump" type="number" min="1" value="1" />页</label><span class="total-records" id="dispatchTotalText">共 0 条记录</span></div></footer>
@@ -444,7 +447,7 @@
               <header class="vehicle-dialog-header"><div><strong id="dispatchFormTitle">新建派单</strong><span id="dispatchFormDescription">选择已有运单，维护项目、线路、箱封号、运力及到达信息，提交后推送至司机微信小程序</span></div><button aria-label="关闭" class="icon-btn" id="closeDispatchFormBtn" type="button">×</button></header>
               <div class="driver-form-body"><section class="driver-form-section"><h3>选择运单</h3><div class="form-grid">
                 <label class="field required-field dispatch-waybill-picker"><span class="field-label">运单号</span><select name="waybillId" id="dispatchWaybillSelect" required><option value="">请选择已有运单</option></select></label>
-              </div><div class="dispatch-readonly-summary" aria-label="运单信息"><div><span>固定线路</span><input id="dispatchRouteName" readonly /></div><div><span>提箱地</span><input id="dispatchOrigin" readonly /></div><div><span>装卸地</span><input id="dispatchDestination" readonly /></div><div><span>还箱地</span><input id="dispatchLoadAddress" readonly /></div><div><span>箱信息</span><input id="dispatchBoxes" readonly /></div><div><span>预估收入</span><input id="dispatchRevenue" readonly /></div><div><span>司机提成</span><input id="dispatchCommission" readonly /></div></div></section><section class="driver-form-section"><h3>调度安排</h3><div class="form-grid">
+              </div><div class="dispatch-readonly-summary" aria-label="运单信息"><div><span>计划靠台时间</span><input id="dispatchPlannedBerthingTime" readonly /></div><div><span>固定线路</span><input id="dispatchRouteName" readonly /></div><div><span>提箱地</span><input id="dispatchOrigin" readonly /></div><div><span>装卸地</span><input id="dispatchDestination" readonly /></div><div><span>还箱地</span><input id="dispatchLoadAddress" readonly /></div><div><span>箱信息</span><input id="dispatchBoxes" readonly /></div><div><span>预估收入</span><input id="dispatchRevenue" readonly /></div><div><span>司机提成</span><input id="dispatchCommission" readonly /></div></div></section><section class="driver-form-section"><h3>调度安排</h3><div class="form-grid">
                 <label class="field required-field"><span class="field-label">司机</span><select name="driverId" id="dispatchDriverSelect" required disabled><option value="">请选择司机</option></select></label><label class="field required-field"><span class="field-label">车辆</span><select name="vehicleId" id="dispatchVehicleSelect" required disabled><option value="">请选择车辆</option></select></label><label class="field"><span class="field-label">挂车</span><select name="trailerId" id="dispatchTrailerSelect" disabled><option value="">选择车辆后自动带出</option></select></label><label class="field required-field"><span class="field-label">车型</span><select name="vehicleType" id="dispatchVehicleTypeSelect" required disabled><option value="">请选择车型</option><option value="LNG">LNG</option><option value="燃油车">燃油车</option><option value="新能源车">新能源车</option></select></label><label class="field"><span class="field-label">收货人</span><input name="consignee" placeholder="请输入收货人（选填）" /></label><label class="field"><span class="field-label">到达时间</span><input name="arrivalTime" type="datetime-local" /></label><label class="field"><span class="field-label">到达地点</span><input name="arrivalLocation" placeholder="请输入到达地点（选填）" /></label><label class="field field-span-2"><span class="field-label">备注</span><textarea name="note" rows="2" placeholder="请输入备注（选填）"></textarea></label>
               </div></section><section class="driver-form-section dispatch-editable-section" id="dispatchEditableSection" hidden><h3>编辑派单信息</h3><div class="form-grid">
                 <label class="field required-field"><span class="field-label">项目</span><select name="projectId" id="dispatchProjectSelect" required><option value="">请选择项目</option></select></label><label class="field required-field"><span class="field-label">线路</span><select name="routeId" id="dispatchRouteSelect" required><option value="">请选择线路</option></select></label>
@@ -489,7 +492,7 @@
                 <label class="field"><span>司机 / 车牌</span><input name="keyword" placeholder="请输入司机姓名或车牌" /></label>
                 <label class="field"><span>运力类型</span><select name="resourceType"><option value="">全部运力</option><option value="车辆">车辆</option><option value="司机">司机</option></select></label>
                 <label class="field"><span>当前状态</span><select name="status"><option value="">全部状态</option><option>运输中</option><option>空闲中</option><option>已停用</option><option>维修中</option><option>休假中</option><option value="需关注">维修中 / 休假中</option></select></label>
-                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
               </div>
               <div class="query-footer query-footer-end"><div class="action-bar"><button class="btn quiet query-clear" type="button">清空</button><button class="btn quiet query-toggle" type="button" aria-expanded="false">展开</button><button class="btn primary" type="submit">查询</button></div></div>
             </form>
@@ -524,13 +527,13 @@
                 <div class="dispatch-lane-filterbar task-filterbar" aria-label="待派单任务筛选">
                   <label><span>客户</span><input id="dispatchManagementTaskCustomerSearch" type="search" placeholder="搜索客户" aria-label="按客户搜索任务" /></label>
                   <label><span>任务类型</span><select id="dispatchManagementTaskTypeFilter" aria-label="按任务类型筛选"><option value="">全部类型</option><option>提空装货</option><option>提重送货</option><option>排空箱（A→B）</option><option>排重箱（A→B）</option></select></label>
-                  <label><span>日期</span><input id="dispatchManagementTaskDateFilter" type="date" aria-label="按计划日期筛选任务" /></label>
+                  <label><span>靠台日期</span><input id="dispatchManagementTaskDateFilter" type="date" aria-label="按计划靠台日期筛选任务" /></label>
                   <label class="task-number-filter"><span>任务单号 / 派单号</span><input id="dispatchManagementTaskNumberSearch" type="search" placeholder="输入单号搜索" aria-label="按任务单号或派单号搜索" /></label>
                 </div>
                 <div class="dispatch-management-table-wrap">
                   <table class="dispatch-management-task-table">
-                    <colgroup><col class="task-select-col" /><col class="task-source-col" /><col class="task-customer-col" /><col class="task-route-col" /><col class="task-type-col" /><col class="task-date-col" /></colgroup>
-                    <thead><tr><th>多选</th><th>任务 / 来源</th><th>客户项目</th><th>运输线路</th><th>任务类型</th><th>计划日期</th></tr></thead>
+                    <colgroup><col class="task-select-col" /><col class="task-customer-col" /><col class="task-route-col" /><col class="task-type-col" /><col class="task-date-col" /></colgroup>
+                    <thead><tr><th>多选</th><th>客户项目</th><th>运输线路</th><th>任务类型</th><th>计划靠台时间</th></tr></thead>
                     <tbody id="dispatchManagementTaskBody"></tbody>
                   </table>
                 </div>
@@ -546,7 +549,7 @@
                 <section class="dispatch-management-lane capacity-lane" aria-label="运力资源列表">
                 <header class="dispatch-lane-heading">
                   <div><span class="dispatch-lane-index">02</span><div><strong>运力资源</strong><small id="dispatchManagementCapacityCount">0 组运力</small></div></div>
-                <div class="dispatch-lane-controls"><label class="dispatch-select-all"><input id="dispatchManagementCapacitySelectAll" type="checkbox" />全选本页空闲</label><select id="dispatchManagementOwnershipFilter" aria-label="运力归属筛选"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select><select id="dispatchManagementCapacityFilter" aria-label="运力状态筛选"><option value="">全部状态</option><option value="空闲">空闲</option><option value="运输中">运输中</option><option value="即将完成">即将完成</option><option value="维修中">维修中</option><option value="停用">停用</option></select></div>
+                <div class="dispatch-lane-controls"><label class="dispatch-select-all"><input id="dispatchManagementCapacitySelectAll" type="checkbox" />全选本页空闲</label><select id="dispatchManagementOwnershipFilter" aria-label="运力归属筛选"><option value="">全部归属</option><option>自营</option><option>三方</option></select><select id="dispatchManagementCapacityFilter" aria-label="运力状态筛选"><option value="">全部状态</option><option value="空闲">空闲</option><option value="运输中">运输中</option><option value="即将完成">即将完成</option><option value="维修中">维修中</option><option value="停用">停用</option></select></div>
                 </header>
                 <div class="dispatch-lane-filterbar capacity-filterbar"><label class="dispatch-driver-search-label"><span>司机</span><input class="dispatch-driver-search" id="dispatchManagementCapacityDriverSearch" type="search" placeholder="搜索司机姓名或电话" aria-label="按司机姓名或电话搜索运力" /></label></div>
                 <div class="dispatch-management-capacity-list" id="dispatchManagementCapacityList"><div class="dispatch-capacity-list-head" aria-hidden="true"><span>选择</span><span>匹配值</span><span>司机 / 电话</span><span>车辆 / 挂车</span><span>当前进度</span></div></div>
@@ -560,13 +563,14 @@
               <header class="dispatch-confirm-heading"><span class="dispatch-confirm-icon"><i data-lucide="list-checks" aria-hidden="true"></i></span><div><h2 id="dispatchManagementConfirmTitle">确认派单匹配</h2><p id="dispatchManagementConfirmMessage">请核对任务与车辆信息，确认后执行派单。</p></div></header>
               <div class="dispatch-confirm-summary" id="dispatchManagementConfirmSummary"></div>
               <div class="dispatch-confirm-table-wrap"><table class="dispatch-confirm-table"><thead><tr><th>客户 / 项目</th><th>运输线路</th><th>司机 / 电话</th><th>车辆 / 挂车</th><th>派单备注</th></tr></thead><tbody id="dispatchManagementConfirmMatches"></tbody></table></div>
+              <div class="dispatch-confirm-driver-conflicts" id="dispatchManagementDriverConflicts" role="alert" aria-live="polite" hidden></div>
               <div class="dispatch-confirm-unassigned" id="dispatchManagementConfirmUnassigned" hidden></div>
               <div class="dispatch-confirm-actions"><button class="btn quiet" id="dispatchManagementConfirmCancel" type="button">取消</button><button class="btn primary" id="dispatchManagementConfirmSubmit" type="button"><i data-lucide="check" aria-hidden="true"></i>确认并派单</button></div>
             </dialog>
 
             <dialog class="dispatch-confirm-dialog dispatch-vehicle-picker-dialog" id="dispatchManagementVehicleDialog" aria-labelledby="dispatchManagementVehicleTitle">
               <header class="dispatch-confirm-heading"><span class="dispatch-confirm-icon"><i data-lucide="truck" aria-hidden="true"></i></span><div><h2 id="dispatchManagementVehicleTitle">更换车辆</h2><p>选择一组空闲运力；已分配给其他任务的车辆不可重复选择。</p></div></header>
-              <div class="dispatch-vehicle-picker-filters"><label>运力状态<select id="dispatchManagementVehicleFilter"><option value="">全部状态</option><option value="空闲">空闲</option><option value="运输中">运输中</option><option value="即将完成">即将完成</option><option value="维修中">维修中</option><option value="停用">停用</option></select></label><label>运力归属<select id="dispatchManagementVehicleOwnershipFilter"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label><label>司机<input id="dispatchManagementVehicleDriverSearch" type="search" placeholder="搜索司机姓名或电话" /></label></div>
+              <div class="dispatch-vehicle-picker-filters"><label>运力状态<select id="dispatchManagementVehicleFilter"><option value="">全部状态</option><option value="空闲" selected>空闲</option><option value="运输中">运输中</option><option value="即将完成">即将完成</option><option value="维修中">维修中</option><option value="停用">停用</option></select></label><label>运力归属<select id="dispatchManagementVehicleOwnershipFilter" disabled><option value="">跟随当前司机</option><option>自营</option><option>三方</option></select></label><label>司机<input id="dispatchManagementVehicleDriverSearch" type="search" placeholder="搜索司机姓名或电话" /></label></div>
               <div class="dispatch-vehicle-picker-list" id="dispatchManagementVehicleList"></div>
               <div class="dispatch-confirm-actions"><button class="btn quiet" id="dispatchManagementVehicleCancel" type="button">取消</button></div>
             </dialog>
@@ -597,8 +601,8 @@
             <div class="auto-view-tabs" role="tablist" aria-label="自动派单工作区"><button class="active" data-auto-view="dispatch" role="tab" aria-selected="true" type="button">自动派单</button><button data-auto-view="simulator" role="tab" aria-selected="false" type="button">派单模拟器</button></div>
             <div class="auto-stage" aria-label="自动派单处理阶段"><span>01 任务接入</span><span>02 运力识别</span><span>03 线路匹配</span><span>04 派单下发</span></div>
             <div class="auto-metrics" id="autoMetrics" aria-label="派单概览"></div>
-            <div class="auto-toolbar"><div class="auto-tabs" role="tablist" aria-label="任务分类"><button class="active" data-auto-tab="queue" role="tab" aria-selected="true" type="button">待处理 <span id="autoQueueCount">0</span></button><button data-auto-tab="exception" role="tab" aria-selected="false" type="button">异常任务 <span id="autoExceptionCount">0</span></button><button data-auto-tab="result" role="tab" aria-selected="false" type="button">已派单 <span id="autoResultCount">0</span></button><button data-auto-tab="fleet" role="tab" aria-selected="false" type="button">运力状态 <span id="autoFleetCount">0</span></button></div><div class="auto-toolbar-actions"><label>运力归属<select id="autoCapacityOwnershipFilter"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label><button class="auto-reset" id="autoResetBtn" type="button">重置匹配</button></div></div>
-            <div class="auto-workspace" id="autoWorkspace"><section class="auto-list" aria-label="任务与运力"><div class="auto-list-heading"><strong id="autoListTitle">待处理任务</strong><span id="autoListSubtitle"></span></div><div class="auto-table-wrap"><table class="fixed-action-table"><thead id="autoTableHead"><tr><th>任务 / 来源</th><th>运输线路</th><th>计划日期</th><th>匹配状态</th><th class="fixed-action-column">处理</th></tr></thead><tbody id="autoTaskBody"></tbody></table></div></section><aside class="auto-inspector" id="autoInspector" aria-live="polite"></aside></div>
+            <div class="auto-toolbar"><div class="auto-tabs" role="tablist" aria-label="任务分类"><button class="active" data-auto-tab="queue" role="tab" aria-selected="true" type="button">待处理 <span id="autoQueueCount">0</span></button><button data-auto-tab="exception" role="tab" aria-selected="false" type="button">异常任务 <span id="autoExceptionCount">0</span></button><button data-auto-tab="result" role="tab" aria-selected="false" type="button">已派单 <span id="autoResultCount">0</span></button><button data-auto-tab="fleet" role="tab" aria-selected="false" type="button">运力状态 <span id="autoFleetCount">0</span></button></div><div class="auto-toolbar-actions"><label>运力归属<select id="autoCapacityOwnershipFilter"><option value="">全部归属</option><option>自营</option><option>三方</option></select></label><button class="auto-reset" id="autoResetBtn" type="button">重置匹配</button></div></div>
+            <div class="auto-workspace" id="autoWorkspace"><section class="auto-list" aria-label="任务与运力"><div class="auto-list-heading"><strong id="autoListTitle">待处理任务</strong><span id="autoListSubtitle"></span></div><div class="auto-table-wrap"><table class="fixed-action-table"><thead id="autoTableHead"><tr><th>运单号</th><th>运输线路</th><th>计划靠台时间</th><th>匹配状态</th><th class="fixed-action-column">处理</th></tr></thead><tbody id="autoTaskBody"></tbody></table></div></section><aside class="auto-inspector" id="autoInspector" aria-live="polite"></aside></div>
             <section class="auto-simulator" id="autoSimulator" hidden aria-label="派单模拟器">
               <div class="auto-simulator-heading"><div><strong>派单模拟器</strong><span>基于当前自动派单规则，预览派单后司机与车辆的运力状态</span></div><span class="auto-simulator-badge">仅模拟</span></div>
               <div class="auto-simulator-controls"><label class="field"><span class="field-label">模拟订单</span><select id="autoSimulatorTaskSelect"></select></label><label class="field"><span class="field-label">推荐运力</span><select id="autoSimulatorCandidateSelect"></select></label><div class="auto-simulator-actions"><button class="btn quiet" id="autoSimulatorResetBtn" type="button">重置模拟</button><button class="btn primary" id="autoSimulatorRunBtn" type="button">派单</button></div></div>
@@ -760,18 +764,14 @@
             <div class="user-access-feedback" id="platformConfigFeedback" role="status" aria-live="polite" hidden></div>
           </section>
 
-          <section class="page-view" id="photoRequirementPage">
+          <section class="page-view" id="transportTaskConfigPage">
             <div class="system-config-heading">
-              <div><span class="page-eyebrow">系统配置 / 司机拍照要求</span><h2>司机拍照要求</h2><p>按任务类型维护司机提交运单时需要完成的拍照项目。</p></div>
-              <span class="config-status-badge"><i></i>派单时同步</span>
+              <div><span class="page-eyebrow">系统配置 / 任务类型配置</span><h2>任务类型配置</h2><p>维护任务类型及其运输节点、拍照要求和消息提醒。</p></div>
+              <span class="config-status-badge"><i></i>配置变更仅影响新任务</span>
             </div>
-            <section class="photo-requirement-config">
-              <div class="photo-requirement-toolbar">
-                <div><strong>任务类型</strong><span>每种任务类型对应一组拍照要求</span></div>
-                <div class="photo-requirement-tabs" id="photoRequirementTaskTypes" role="group" aria-label="选择任务类型"></div>
-              </div>
-              <div class="photo-requirement-list-heading"><div><strong id="photoRequirementListTitle">拍照要求</strong><span id="photoRequirementSummary">0 项 · 共需 0 张</span></div><button class="btn primary" id="addPhotoRequirementBtn" type="button"><i data-lucide="plus" aria-hidden="true"></i>新增拍照要求</button></div>
-              <div class="table-wrap photo-requirement-table-wrap"><table class="fixed-action-table photo-requirement-table"><thead><tr><th>拍照要求</th><th>照片规则描述</th><th>数量</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="photoRequirementBody"></tbody></table></div>
+            <section class="table-card transport-task-config-card" aria-label="任务类型配置">
+              <div class="table-summary"><div><strong>任务类型</strong><span>节点流程与拍照要求可直接进入对应配置</span></div><button class="btn primary" id="addTransportTaskTypeBtn" type="button"><i data-lucide="plus" aria-hidden="true"></i>新增任务类型</button></div>
+              <div class="table-wrap"><table class="fixed-action-table"><thead><tr><th>任务类型</th><th>运输节点流程</th><th>拍照要求</th><th>状态</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="transportTaskConfigBody"></tbody></table></div>
             </section>
           </section>
 
@@ -893,7 +893,7 @@
                 <label class="field query-extra"><span>运单 / 箱号</span><input name="keyword" placeholder="请输入运单号或集装箱号" /></label>
                 <label class="field query-extra"><span>司机 / 车号</span><input name="resourceKeyword" placeholder="请输入司机或车牌" /></label>
                 <label class="field query-extra"><span>运输状态</span><select name="status"><option value="">全部状态</option><option>已派单</option><option>运输中</option><option>已完成</option><option>取消</option></select></label>
-                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
               </div>
               <div class="query-footer"><span class="selection-summary" id="financeQuerySummary">已生成 0 条运输明细</span><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button>
@@ -959,7 +959,7 @@
                 <label class="field"><span>审核状态</span><select name="status"><option value="">全部状态</option><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已驳回</option></select></label>
                 <label class="field query-extra"><span>开始日期</span><input name="startDate" type="date" /></label>
                 <label class="field query-extra"><span>结束日期</span><input name="endDate" type="date" /></label>
-                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                <label class="field query-extra"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
               </div>
               <div class="query-footer"><span class="selection-summary" id="driverExpenseQuerySummary">筛选结果 0 条费用明细</span><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button>
@@ -1021,7 +1021,7 @@
                   <label class="field"><span>结算方向</span><select name="direction"><option value="receivable">客户应收</option><option value="payable">外调应付</option></select></label>
                   <label class="field"><span>项目</span><select name="projectId" id="settlementProjectFilter"><option value="">全部项目</option></select></label>
                   <label class="field"><span>搜索</span><input name="keyword" type="search" placeholder="运单号、客户、承运商或司机" /></label>
-                  <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                  <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
                 </div>
                 <div class="query-footer"><span class="selection-summary" id="settlementPendingSummary">已选择 0 条</span><div class="action-bar"><button class="btn quiet" id="settlementSelectAll" type="button"><i data-lucide="list-checks" aria-hidden="true"></i>全选结果</button><button class="btn primary" id="createSettlementOrder" type="button" disabled><i data-lucide="file-plus-2" aria-hidden="true"></i>生成结算单</button></div></div>
               </form>
@@ -1059,7 +1059,7 @@
                 <label class="field">单位编号<input name="customerNo" placeholder="请输入单位编号" /></label>
                 <label class="field">单位名称<input name="customerName" placeholder="全称或简称" /></label>
                 <label class="field">单位角色<select name="businessRole"><option value="">全部角色</option><option>客户</option><option>三方供应商</option></select></label>
-                <label class="field">客户类型<select name="customerType"><option value="">全部类型</option><option>国际货运代理（货代）</option><option>船公司 / 船代</option><option>第三方物流 / 供应链公司</option><option>跨境电商物流商</option></select></label>
+                <label class="field">客户类型<select name="customerType"><option value="">全部类型</option><option>国际货运代理（货代）</option><option>船公司 / 船代</option><option>第三方物流 / 供应链公司</option><option>跨境电商物流商</option><option>维修厂</option></select></label>
                 <label class="field query-extra">单位状态<select name="customerStatus"><option value="">全部状态</option><option>启用</option><option>停用</option></select></label>
               </div>
               <div class="query-footer"><span class="selection-summary" id="customerQuerySummary">往来单位档案</span><div class="action-bar"><button class="btn quiet query-clear" type="button">清空</button><button class="btn quiet query-toggle" type="button" aria-expanded="false">展开</button><button class="btn primary" type="submit">查询</button><span class="query-action-separator" aria-hidden="true"></span><button class="btn accent" id="addCustomerBtn" type="button">新增单位</button></div></div>
@@ -1083,7 +1083,7 @@
                     <label class="field required-field customer-wide"><span class="field-label">单位全称</span><input name="customerName" required maxlength="100" placeholder="请输入营业执照上的企业全称" /><small class="field-hint">将用于运单、对账及结算资料。</small><em class="field-error" data-error-for="customerName"></em></label>
                     <label class="field"><span>简称</span><input name="shortName" maxlength="50" placeholder="请输入便于识别的简称" /><small class="field-hint">用于列表快速识别，可不填写。</small></label>
                     <label class="field required-field"><span class="field-label">单位角色</span><select name="businessRole" required><option value="客户">客户</option><option value="三方供应商">三方供应商</option><option value="客户+三方供应商">客户+三方供应商</option></select><small class="field-hint">同一单位可同时用于客户业务和三方运力。</small><em class="field-error" data-error-for="businessRole"></em></label>
-                    <label class="field required-field"><span class="field-label">客户类型</span><select name="customerType" required><option value="">请选择客户类型</option><option>国际货运代理（货代）</option><option>船公司 / 船代</option><option>第三方物流 / 供应链公司</option><option>跨境电商物流商</option></select><small class="field-hint">选择最符合客户主营业务的类别。</small><em class="field-error" data-error-for="customerType"></em></label>
+                    <label class="field required-field"><span class="field-label">客户类型</span><select name="customerType" required><option value="">请选择客户类型</option><option>国际货运代理（货代）</option><option>船公司 / 船代</option><option>第三方物流 / 供应链公司</option><option>跨境电商物流商</option><option>维修厂</option></select><small class="field-hint">选择最符合客户主营业务的类别。</small><em class="field-error" data-error-for="customerType"></em></label>
                     <label class="field required-field customer-wide"><span class="field-label">统一社会信用代码</span><input name="creditCode" required maxlength="18" placeholder="请输入 18 位统一社会信用代码" /><small class="field-hint">由数字和大写字母组成，共 18 位。</small><em class="field-error" data-error-for="creditCode"></em></label>
                     <label class="field required-field"><span class="field-label">客户状态</span><select name="customerStatus" required><option value="启用">启用</option><option value="停用">停用</option></select><small class="field-hint">停用后不可在新运单中选择。</small><em class="field-error" data-error-for="customerStatus"></em></label>
                   </div>
@@ -1198,7 +1198,7 @@
                     <label class="field required-field"><span class="field-label">公告标题</span><input name="title" required maxlength="100" placeholder="例如：国庆期间港区作业安排" /></label>
                     <label class="field required-field"><span class="field-label">公告类型</span><select name="type" required><option value="">请选择公告类型</option><option>运营通知</option><option>安全提醒</option><option>制度公告</option><option>活动通知</option><option>其他</option></select></label>
                   </div></section>
-                  <section class="driver-form-section"><h3>接收司机</h3><fieldset class="announcement-scope-options"><legend class="sr-only">公告接收范围</legend><label><input type="radio" name="scope" value="all" checked /><span><strong>全部司机</strong><small>向当前司机档案中的全部司机发送</small></span></label><label><input type="radio" name="scope" value="partial" /><span><strong>部分司机</strong><small>按运力归属筛选后勾选接收人</small></span></label></fieldset><div class="announcement-driver-picker" id="announcementDriverPicker" hidden><div class="announcement-driver-toolbar"><label class="field"><span>运力归属</span><select id="announcementDriverOwnership"><option value="">全部归属</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label><button class="btn quiet" id="announcementSelectVisibleDrivers" type="button">全选当前结果</button></div><div class="announcement-driver-summary"><span id="announcementDriverResultText">请选择司机</span><span id="announcementSelectedDriverText">已选 0 名司机</span></div><div class="announcement-driver-list" id="announcementDriverList"></div></div></section>
+                  <section class="driver-form-section"><h3>接收司机</h3><fieldset class="announcement-scope-options"><legend class="sr-only">公告接收范围</legend><label><input type="radio" name="scope" value="all" checked /><span><strong>全部司机</strong><small>向当前司机档案中的全部司机发送</small></span></label><label><input type="radio" name="scope" value="partial" /><span><strong>部分司机</strong><small>按运力归属筛选后勾选接收人</small></span></label></fieldset><div class="announcement-driver-picker" id="announcementDriverPicker" hidden><div class="announcement-driver-toolbar"><label class="field"><span>运力归属</span><select id="announcementDriverOwnership"><option value="">全部归属</option><option>自营</option><option>三方</option></select></label><button class="btn quiet" id="announcementSelectVisibleDrivers" type="button">全选当前结果</button></div><div class="announcement-driver-summary"><span id="announcementDriverResultText">请选择司机</span><span id="announcementSelectedDriverText">已选 0 名司机</span></div><div class="announcement-driver-list" id="announcementDriverList"></div></div></section>
                   <section class="driver-form-section"><h3>消息内容</h3><div class="form-grid reminder-template-content-grid"><label class="field required-field reminder-template-wide"><span class="field-label">消息内容</span><textarea name="content" required rows="6" maxlength="1000" placeholder="请输入公告内容"></textarea><small class="field-hint">发布后目标司机将在司机端“消息通知”中收到公告。</small></label><label class="field field-wide file-field"><span>公告附件</span><input name="attachment" type="file" accept=".jpg,.jpeg,.png,.pdf" data-upload-label="公告附件" data-upload-hint="支持 JPG、PNG、PDF，单个文件不超过 10 MB" /></label></div><div class="reminder-template-preview"><div><span>司机端预览</span><strong id="announcementPreviewTitle">公告标题</strong></div><p id="announcementPreviewContent">公告内容将在这里显示。</p></div></section>
                 </div>
                 <div class="form-actions"><button class="btn quiet" id="cancelAnnouncementBtn" type="button">取消</button><button class="btn primary" type="submit">立即发布</button></div>
@@ -1293,7 +1293,7 @@
                     <option value="normal">正常</option>
                   </select>
                 </label>
-                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
               </div>
               <div class="query-footer query-footer-end"><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button>
@@ -1616,7 +1616,7 @@
                 <label class="field"><span>提交人</span><input name="reporterName" placeholder="请输入提交人" /></label>
                 <label class="field"><span>报修开始日期</span><input name="fromDate" type="date" /></label>
                 <label class="field"><span>报修结束日期</span><input name="toDate" type="date" /></label>
-                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
               </div>
               <div class="query-footer query-footer-end"><div class="action-bar">
                 <button class="btn quiet" type="reset">清空</button>
@@ -1627,34 +1627,35 @@
             </form>
             <section class="table-card vehicle-repair-table-card" aria-label="车辆维修记录">
               <div class="table-summary"><div><strong>维修记录</strong><span id="vehicleRepairResultText">记录车辆日常维修与处理情况</span></div><span class="draft-badge">车辆状态同步</span></div>
-              <div class="table-wrap"><table class="vehicle-repair-table"><thead><tr><th>维修单号</th><th>车牌号</th><th>运力归属</th><th>车辆所属单位</th><th>故障信息</th><th>维修地点</th><th>提交方式 / 提交人</th><th>报修时间</th><th>维修状态</th><th>实际费用</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="vehicleRepairBody"></tbody></table></div>
+              <div class="table-wrap"><table class="vehicle-repair-table"><thead><tr><th>维修单号</th><th>车牌号</th><th>运力归属</th><th>车辆所属单位</th><th>故障信息</th><th>维修厂</th><th>维修地点</th><th>提交方式 / 提交人</th><th>报修时间</th><th>维修状态</th><th>实际费用</th><th class="fixed-action-column">操作</th></tr></thead><tbody id="vehicleRepairBody"></tbody></table></div>
             </section>
-            <dialog class="add-dialog vehicle-dialog admin-form-dialog vehicle-repair-dialog" id="vehicleRepairDialog">
-              <form id="vehicleRepairForm">
-                <header class="vehicle-dialog-header"><div><strong id="vehicleRepairFormTitle">新增维修</strong><span>提交后车辆将立即标记为维修中并暂停派单</span></div><button aria-label="关闭" class="icon-btn" id="closeVehicleRepairBtn" type="button">×</button></header>
-                <div class="admin-form-scroll vehicle-repair-form-body">
-                  <section class="driver-form-section"><h3>报修信息</h3><div class="form-grid">
-                    <label class="field required-field"><span class="field-label">维修车辆</span><select name="plateNo" required></select></label>
-                    <label class="field required-field"><span class="field-label">故障类别</span><select name="category" required><option value="">请选择</option><option>发动机</option><option>轮胎</option><option>制动系统</option><option>电气系统</option><option>底盘与悬挂</option><option>其他</option></select></label>
-                    <label class="field required-field field-wide"><span class="field-label">故障描述</span><textarea name="description" rows="3" required maxlength="500" placeholder="描述故障现象、发生经过"></textarea></label>
-                    <label class="field field-wide">维修地点<input name="repairLocation" maxlength="120" placeholder="故障发生地或维修厂地址" /></label>
-                    <label class="field file-field field-wide">现场凭证<input name="evidenceFiles" type="file" accept="image/*,.pdf" multiple /><small>支持图片、PDF，单个文件不超过 10 MB</small></label>
-                    <div class="field field-wide repair-existing-evidence" id="vehicleRepairExistingEvidence" hidden></div>
-                    <label class="field">报修时间<input name="reportedAt" type="datetime-local" /></label>
-                  </div></section>
-                  <section class="driver-form-section"><h3>维修处理</h3><div class="form-grid">
-                    <label class="field">维修厂 / 服务商<input name="repairVendor" maxlength="100" /></label>
-                    <label class="field">维修联系人<input name="vendorContact" maxlength="60" /></label>
-                    <label class="field">预计费用（元）<input name="expectedCost" type="number" min="0" step="0.01" /></label>
-                    <label class="field">实际费用（元）<input name="actualCost" type="number" min="0" step="0.01" /></label>
-                    <label class="field">维修状态<select name="status"><option>待维修</option><option>维修中</option><option>已完成</option><option>已取消</option></select></label>
-                    <label class="field field-wide">维修结果 / 备注<textarea name="result" rows="2" maxlength="500"></textarea></label>
-                  </div></section>
-                </div>
-                <div class="form-actions"><button class="btn quiet" id="cancelVehicleRepairBtn" type="button">取消</button><button class="btn primary" type="submit">保存维修记录</button></div>
-              </form>
-            </dialog>
           </section>
+
+          <dialog class="add-dialog vehicle-dialog admin-form-dialog vehicle-repair-dialog" id="vehicleRepairDialog">
+            <form id="vehicleRepairForm">
+              <header class="vehicle-dialog-header"><div><strong id="vehicleRepairFormTitle">新增维修</strong><span>提交后车辆将立即标记为维修中并暂停派单</span></div><button aria-label="关闭" class="icon-btn" id="closeVehicleRepairBtn" type="button">×</button></header>
+              <div class="admin-form-scroll vehicle-repair-form-body">
+                <section class="driver-form-section"><h3>报修信息</h3><div class="form-grid">
+                  <label class="field required-field"><span class="field-label">维修车辆</span><select name="plateNo" required></select></label>
+                  <label class="field required-field"><span class="field-label">故障类别</span><select name="category" required><option value="">请选择</option><option>发动机</option><option>轮胎</option><option>制动系统</option><option>电气系统</option><option>底盘与悬挂</option><option>其他</option></select></label>
+                  <label class="field required-field field-wide"><span class="field-label">故障描述</span><textarea name="description" rows="3" required maxlength="500" placeholder="描述故障现象、发生经过"></textarea></label>
+                  <label class="field field-wide">维修地点<input name="repairLocation" maxlength="120" placeholder="故障发生地或维修厂地址" /></label>
+                  <label class="field file-field field-wide">现场凭证<input name="evidenceFiles" type="file" accept="image/*,.pdf" multiple /><small>支持图片、PDF，单个文件不超过 10 MB</small></label>
+                  <div class="field field-wide repair-existing-evidence" id="vehicleRepairExistingEvidence" hidden></div>
+                  <label class="field">报修时间<input name="reportedAt" type="datetime-local" /></label>
+                </div></section>
+                <section class="driver-form-section"><h3>维修处理</h3><div class="form-grid">
+                  <label class="field required-field"><span class="field-label">维修厂</span><select name="repairVendorCustomerNo" required><option value="">请选择维修厂</option></select></label>
+                  <label class="field">维修联系人<input name="vendorContact" maxlength="60" /></label>
+                  <label class="field">预计费用（元）<input name="expectedCost" type="number" min="0" step="0.01" /></label>
+                  <label class="field">实际费用（元）<input name="actualCost" type="number" min="0" step="0.01" /></label>
+                  <label class="field">维修状态<select name="status"><option>待维修</option><option>维修中</option><option>已完成</option><option>已取消</option></select></label>
+                  <label class="field field-wide">维修结果 / 备注<textarea name="result" rows="2" maxlength="500"></textarea></label>
+                </div></section>
+              </div>
+              <div class="form-actions"><button class="btn quiet" id="cancelVehicleRepairBtn" type="button">取消</button><button class="btn primary" type="submit">保存维修记录</button></div>
+            </form>
+          </dialog>
 
           <section class="page-view" id="trailerPage">
             <form class="query-panel query-collapsed" id="trailerQueryForm">
@@ -1662,7 +1663,7 @@
                 <label class="field"><span>挂车车牌号</span><input name="plateNo" placeholder="请输入挂车车牌号" /></label>
                 <label class="field"><span>挂车类型</span><input name="trailerType" placeholder="例如：集装箱骨架车" /></label>
                 <label class="field"><span>挂车状态</span><select name="trailerState"><option value="">全部状态</option><option>在用</option><option>停用</option><option>维修中</option></select></label>
-                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
               </div>
               <div class="query-footer query-footer-end"><div class="action-bar">
                 <button class="btn quiet query-clear" type="button">清空</button>
@@ -1753,7 +1754,7 @@
                     <option>已过期</option>
                   </select>
                 </label>
-                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option><option>自营+三方</option></select></label>
+                <label class="field"><span>运力归属</span><select name="capacityOwnership"><option value="">全部</option><option>自营</option><option>三方</option></select></label>
               </div>
               <div class="query-footer">
                 <span class="selection-summary" id="driverSelectedText">已选择 0 名司机</span>
@@ -2031,24 +2032,19 @@
         <nav class="plan-task-tabs" aria-label="计划任务创建方式"><button class="active" data-plan-mode="single" type="button">逐条新建</button><button data-plan-mode="batch" type="button">批量导入</button></nav>
         <div class="plan-task-body">
           <section class="plan-task-mode active" id="planTaskSingleMode">
-            <div class="plan-task-section"><div class="plan-task-section-title"><span class="section-index">01</span><div><h3>任务类型</h3><p>节点流程按运输模板执行，拍照要求由系统按任务类型匹配</p></div></div><div class="plan-task-type-grid">
-              <label class="plan-task-type-card selected"><input name="taskType" value="提空装货" type="radio" checked /><strong>提空装货</strong><span>提空箱 · 仓库装货 · 重箱进站落重</span></label>
-              <label class="plan-task-type-card"><input name="taskType" value="提重送货" type="radio" /><strong>提重送货</strong><span>提重箱 · 仓库卸货 · 空箱进站落空</span></label>
-              <label class="plan-task-type-card"><input name="taskType" value="排空箱（A→B）" type="radio" /><strong>排空箱（A→B）</strong><span>提空箱后直接落空，不经仓库装卸</span></label>
-              <label class="plan-task-type-card"><input name="taskType" value="排重箱（A→B）" type="radio" /><strong>排重箱（A→B）</strong><span>提重箱后重箱进站落重</span></label>
-            </div></div>
-            <div class="plan-task-section"><div class="plan-task-section-title"><span class="section-index">02</span><div><h3>计划信息</h3><p>执行时间、线路、柜型和客户信息</p></div></div><div class="plan-task-form-grid">
+            <div class="plan-task-section"><div class="plan-task-section-title"><span class="section-index">01</span><div><h3>任务类型</h3><p>选择任务类型，计划任务将按该类型配置的节点流程执行</p></div></div><div class="plan-transport-type-picker"><label class="field required-field"><span class="field-label">任务类型</span><select name="taskType" id="planTaskTypeSelect" required></select></label></div></div>
+            <div class="plan-task-section"><div class="plan-task-section-title"><span class="section-index">02</span><div><h3>计划信息</h3><p>计划执行日期、线路、柜型和客户信息</p></div></div><div class="plan-task-form-grid">
               <label class="field required-field"><span class="field-label">客户</span><select name="customerId" id="planCustomerSelect" required></select></label>
               <label class="field required-field"><span class="field-label">项目</span><select name="projectId" id="planProjectSelect" required></select></label>
               <label class="field"><span class="field-label">固定线路（选填）</span><select name="routeId" id="planRouteSelect"><option value="">不指定固定线路</option></select></label>
-              <label class="field required-field"><span class="field-label">执行时间</span><input name="executionTime" id="planExecutionTime" type="datetime-local" required /></label>
+              <label class="field required-field"><span class="field-label">计划执行日期</span><input name="planExecutionDate" id="planExecutionDate" type="date" required /></label>
               <label class="field required-field"><span class="field-label">柜型</span><select name="boxType" id="planBoxType"><option value="40HQ" selected>40HQ（默认）</option><option value="40GP">40GP</option><option value="20GP">20GP</option><option value="45HQ">45HQ</option></select></label>
               <input name="customerName" id="planCustomerName" type="hidden" />
               <input name="projectName" id="planProjectName" type="hidden" />
               <label class="field plan-task-quantity-field"><span class="field-label">任务数量</span><div class="plan-task-quantity-control"><input name="quantity" id="planTaskQuantity" type="number" min="1" max="100" value="1" /><button class="btn quiet plan-task-generate" id="generatePlanTaskBtn" type="button"><i data-lucide="list-plus" class="dashboard-icon" aria-hidden="true"></i>生成派单任务</button></div></label>
             </div></div>
             <section class="plan-task-section plan-task-list-section" id="planTaskListSection">
-              <div class="plan-task-section-title plan-task-list-heading"><span class="section-index">03</span><div><h3>任务清单 <small id="planTaskListCount">1 项</small></h3><p>每项任务可单独调整固定线路和柜型</p></div><button class="icon-btn plan-task-list-toggle" id="planTaskListToggleBtn" type="button" aria-expanded="true" aria-controls="planTaskListBody" title="收起任务清单"><i data-lucide="chevron-up" aria-hidden="true"></i></button></div>
+              <div class="plan-task-section-title plan-task-list-heading"><span class="section-index">03</span><div><h3>任务清单 <small id="planTaskListCount">1 项</small></h3><p>每项任务可单独设置计划靠台时间、线路和柜型</p></div><button class="icon-btn plan-task-list-toggle" id="planTaskListToggleBtn" type="button" aria-expanded="true" aria-controls="planTaskListBody" title="收起任务清单"><i data-lucide="chevron-up" aria-hidden="true"></i></button></div>
               <div id="planTaskListBody"><div class="plan-task-list" id="planTaskList"></div></div>
             </section>
             <section class="plan-task-section plan-task-form-archive" id="planTaskFormArchiveSection">
@@ -2058,12 +2054,12 @@
             </section>
           </section>
           <section class="plan-task-mode" id="planTaskBatchMode" hidden>
-            <div class="plan-task-section"><div class="plan-task-section-title"><span class="section-index">01</span><div><h3>批量导入计划任务</h3><p>每行一条大任务，可通过数量生成多条子运单</p></div></div><div class="plan-import-tools"><label class="btn quiet file-picker"><i data-lucide="upload" class="dashboard-icon" aria-hidden="true"></i>选择 CSV 文件<input id="planTaskCsvFile" type="file" accept=".csv,text/csv" /></label><button class="btn quiet" id="downloadPlanTaskTemplateBtn" type="button"><i data-lucide="download" class="dashboard-icon" aria-hidden="true"></i>下载模板</button></div><textarea id="planTaskBatchInput" name="batchInput" rows="8" placeholder="执行时间,线路,柜型,客户名称,项目名称,任务类型,运单数量,箱号1,铅封号1,箱号2,铅封号2\n2026-09-28 08:00,,40HQ,华贸,比亚迪,提空装货,3,,,,"></textarea><small class="plan-import-tip">首行为表头可省略；固定线路、箱号和铅封号均可留空；每条子任务最多两组箱号/铅封号。</small>
+            <div class="plan-task-section"><div class="plan-task-section-title"><span class="section-index">01</span><div><h3>批量导入计划任务</h3><p>每行一条计划，可通过数量生成多条子任务</p></div></div><div class="plan-import-tools"><label class="btn quiet file-picker"><i data-lucide="upload" class="dashboard-icon" aria-hidden="true"></i>选择 CSV 文件<input id="planTaskCsvFile" type="file" accept=".csv,text/csv" /></label><button class="btn quiet" id="downloadPlanTaskTemplateBtn" type="button"><i data-lucide="download" class="dashboard-icon" aria-hidden="true"></i>下载模板</button></div><textarea id="planTaskBatchInput" name="batchInput" rows="8" placeholder="计划执行日期,计划靠台时间,线路,柜型,客户名称,项目名称,任务类型,运单数量,箱号1,铅封号1,箱号2,铅封号2\n2026-09-28,2026-09-28 08:00,,40HQ,华贸,比亚迪,提空装货,3,,,,"></textarea><small class="plan-import-tip">首行为表头可省略；每行计划靠台时间将应用于生成的子任务，之后可逐项调整。</small>
               <div class="plan-text-recognition">
                 <div class="plan-text-recognition-heading"><div><strong>文字录入自动识别</strong><span>粘贴业务描述，预览识别出的计划字段和任务清单</span></div><span class="plan-recognition-badge"><i data-lucide="scan-text" class="dashboard-icon" aria-hidden="true"></i>识别预览</span></div>
                 <textarea class="plan-text-recognition-input" id="planTaskTextInput" rows="3" placeholder="例如：9月28日 08:00，华贸比亚迪项目，北仑港—比亚迪宁波基地，40HQ，生成 3 条计划任务"></textarea>
                 <div class="plan-text-recognition-toolbar"><span><i data-lucide="sparkles" class="dashboard-icon" aria-hidden="true"></i>已识别 8 个字段</span><button class="btn quiet" id="planTaskTextRecognizeBtn" type="button"><i data-lucide="wand-sparkles" class="dashboard-icon" aria-hidden="true"></i>识别并预览</button></div>
-                <div class="plan-recognition-preview"><div class="plan-recognition-preview-heading"><div><strong>识别结果预览</strong><span>静态示意 · 确认后生成任务</span></div><span class="plan-recognition-ready"><i data-lucide="check-circle-2" class="dashboard-icon" aria-hidden="true"></i>字段完整</span></div><div class="plan-recognition-fields"><div><span>执行时间</span><strong>2026-09-28 08:00</strong></div><div><span>客户 / 项目</span><strong>华贸 / 比亚迪</strong></div><div><span>固定线路</span><strong>北仑港—比亚迪宁波基地</strong></div><div><span>柜型 / 数量</span><strong>40HQ / 3 条</strong></div></div><div class="plan-recognition-task-preview"><div><span>待生成任务</span><small>线路和柜型可在生成后逐条调整</small></div><div class="plan-recognition-task-chips"><span>任务 1 · 40HQ</span><span>任务 2 · 40HQ</span><span>任务 3 · 40HQ</span></div></div></div>
+                <div class="plan-recognition-preview"><div class="plan-recognition-preview-heading"><div><strong>识别结果预览</strong><span>静态示意 · 确认后生成任务</span></div><span class="plan-recognition-ready"><i data-lucide="check-circle-2" class="dashboard-icon" aria-hidden="true"></i>字段完整</span></div><div class="plan-recognition-fields"><div><span>计划执行日期</span><strong>2026-09-28</strong></div><div><span>客户 / 项目</span><strong>华贸 / 比亚迪</strong></div><div><span>计划靠台时间</span><strong>2026-09-28 08:00</strong></div><div><span>柜型 / 数量</span><strong>40HQ / 3 条</strong></div></div><div class="plan-recognition-task-preview"><div><span>待生成任务</span><small>线路和柜型可在生成后逐条调整</small></div><div class="plan-recognition-task-chips"><span>任务 1 · 40HQ</span><span>任务 2 · 40HQ</span><span>任务 3 · 40HQ</span></div></div></div>
               </div>
             </div>
             <p class="plan-import-tip">导入任务将统一进入待派发池，之后可在任务派单中选择自动派单或手动派单。</p>
@@ -2123,18 +2119,6 @@
       </form>
     </dialog>
     <dialog class="confirm-dialog user-access-confirm-dialog" id="userAccessConfirmDialog" aria-labelledby="userAccessConfirmTitle"><div class="confirm-icon" aria-hidden="true">!</div><h2 id="userAccessConfirmTitle">确认操作</h2><p id="userAccessConfirmText"></p><div class="confirm-actions"><button class="btn quiet" id="cancelUserAccessConfirm" type="button">取消</button><button class="btn danger" id="confirmUserAccessAction" type="button">确认</button></div></dialog>
-    <dialog class="vehicle-dialog admin-form-dialog photo-requirement-dialog" id="photoRequirementDialog" aria-labelledby="photoRequirementFormTitle">
-      <form id="photoRequirementForm">
-        <header class="vehicle-dialog-header"><div><strong id="photoRequirementFormTitle">新增拍照要求</strong><span id="photoRequirementFormTaskType">提空装货</span></div><button class="icon-btn" id="closePhotoRequirementBtn" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
-        <div class="driver-form-body"><section class="driver-form-section"><h3>拍照规则</h3><div class="form-grid">
-          <label class="field required-field"><span class="field-label">拍照要求</span><input name="name" maxlength="60" required placeholder="例如：箱体侧面照片" /></label>
-          <label class="field required-field"><span class="field-label">数量（张）</span><input name="quantity" type="number" min="1" max="99" step="1" value="1" required /></label>
-          <label class="field required-field field-span-2"><span class="field-label">照片规则描述</span><textarea name="description" maxlength="240" rows="3" required placeholder="说明拍摄对象、角度或画面要求"></textarea></label>
-        </div></section></div>
-        <div class="form-actions"><button class="btn quiet" id="cancelPhotoRequirementBtn" type="button">取消</button><button class="btn primary" type="submit">保存要求</button></div>
-      </form>
-    </dialog>
-    <dialog class="confirm-dialog" id="deletePhotoRequirementDialog"><div class="confirm-icon" aria-hidden="true">!</div><h2>删除拍照要求</h2><p id="deletePhotoRequirementText">删除后，新派运单将不再包含此要求。</p><div class="confirm-actions"><button class="btn quiet" id="cancelDeletePhotoRequirementBtn" type="button">取消</button><button class="btn danger" id="confirmDeletePhotoRequirementBtn" type="button">确认删除</button></div></dialog>
     <dialog class="vehicle-dialog admin-form-dialog platform-admin-dialog" id="platformAdminDialog" aria-labelledby="platformAdminDialogTitle">
       <form id="platformAdminForm" method="dialog">
         <header class="vehicle-dialog-header"><div><strong id="platformAdminDialogTitle">更换超级管理员</strong><span>更换后，原管理员保留普通系统管理员角色</span></div><button class="icon-btn" id="closePlatformAdminDialog" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
@@ -2146,6 +2130,16 @@
     <dialog class="confirm-dialog app-notice-dialog" id="appNoticeDialog" aria-labelledby="appNoticeTitle" aria-describedby="appNoticeText"><div class="confirm-icon" aria-hidden="true">i</div><h2 id="appNoticeTitle">操作提示</h2><p id="appNoticeText" role="alert"></p><div class="confirm-actions"><button class="btn primary" id="closeAppNoticeBtn" type="button">知道了</button></div></dialog>
     <dialog class="confirm-dialog" id="appConfirmDialog" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmText"><div class="confirm-icon" aria-hidden="true">?</div><h2 id="appConfirmTitle">确认操作</h2><p id="appConfirmText"></p><div class="confirm-actions"><button class="btn quiet" id="cancelAppConfirmBtn" type="button">取消</button><button class="btn primary" id="acceptAppConfirmBtn" type="button">确认</button></div></dialog>
 
+    <dialog class="vehicle-dialog admin-form-dialog transport-task-editor" id="transportTaskEditorDialog" aria-labelledby="transportTaskEditorTitle">
+      <form id="transportTaskEditorForm">
+        <header class="vehicle-dialog-header"><div><strong id="transportTaskEditorTitle">新增任务类型</strong><span>节点、照片与提醒规则将在任务创建时保存为快照</span></div><button class="icon-btn" id="closeTransportTaskEditorBtn" type="button" aria-label="关闭"><i data-lucide="x" aria-hidden="true"></i></button></header>
+        <div class="admin-form-body transport-task-editor-body">
+          <div class="form-grid transport-task-meta-grid"><label class="field required-field"><span class="field-label">任务类型名称</span><input name="name" required maxlength="60" placeholder="例如：提空装货" /></label><label class="field transport-task-enabled"><input name="enabled" type="checkbox" checked /><span>启用，允许新任务使用</span></label></div>
+          <section class="transport-node-editor-section" id="transportNodeEditorSection"><div class="transport-node-editor-heading"><div><strong>运输节点</strong><span>节点名称手动输入并可调整顺序；每个节点可独立设置拍照要求和开始、完成时的提醒模板。</span></div><button class="btn quiet" id="addTransportNodeBtn" type="button"><i data-lucide="plus" aria-hidden="true"></i>添加节点</button></div><div id="transportNodeEditorList" class="transport-node-editor-list"></div></section>
+        </div>
+        <footer class="form-actions"><span class="form-tip">旧任务保留创建时的节点与规则快照</span><div><button class="btn quiet" id="cancelTransportTaskEditorBtn" type="button">取消</button><button class="btn primary" type="submit">保存配置</button></div></footer>
+      </form>
+    </dialog>
     <datalist id="thirdPartyCustomerOptions"></datalist>
     <script src="vendor/lucide.min.js"></script>
     <script src="capacity-ownership.js"></script>
@@ -2160,6 +2154,7 @@
     <script src="dispatch-operation-log.js"></script>
     <script src="plan-task-archive.js"></script>
     <script src="app.js"></script>
+    <script src="transport-task-config-ui.js"></script>
     <script src="settlement-management.js"></script>
     <script src="dispatch-management.js"></script>
     <script src="auto-dispatch.js"></script>

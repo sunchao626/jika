@@ -46,7 +46,7 @@ const moduleCatalog = {
   },
   vehicle: {
     title: "车辆档案管理", eyebrow: "车辆管理", icon: "truck", primary: "新增车辆",
-    filters: ["全部", "自营", "三方", "自营+三方", "在用", "维修中", "停用"], listFieldLimit: 6,
+    filters: ["全部", "自营", "三方", "在用", "维修中", "停用"], listFieldLimit: 6,
     items: [
       { id: "浙B·K7812", title: "集装箱牵引车", subtitle: "宁波港区集卡车队", status: "在用", statusClass: "success", fields: [["司机", "王海"], ["当前状态", "运输中"], ["审验到期", "2026-10-18"], ["保险到期", "2026-10-05"]], note: "港区短驳主力车辆" },
       { id: "沪D·A9021", title: "重型半挂牵引车", subtitle: "临港集卡车队", status: "在用", statusClass: "success", fields: [["司机", "赵亮"], ["当前状态", "已派单"], ["审验到期", "2026-09-28"], ["保险到期", "2026-11-12"]], note: "临港主力运力" },
@@ -56,7 +56,7 @@ const moduleCatalog = {
   },
   driver: {
     title: "司机档案", eyebrow: "司机管理", icon: "user-round", primary: "新增司机",
-    filters: ["全部", "自营", "三方", "自营+三方", "空闲", "运输中", "停用"], listFieldLimit: 6,
+    filters: ["全部", "自营", "三方", "空闲", "运输中", "停用"], listFieldLimit: 6,
     items: [
       { id: "SJ-1001", title: "王海", subtitle: "宁波一队 · 138****8881", status: "运输中", statusClass: "", fields: [["准驾车型", "A2"], ["车辆", "浙B·K7812"], ["认证", "已认证"], ["证件到期", "2027-05-18"]], note: "自有司机" },
       { id: "SJ-1002", title: "赵亮", subtitle: "临港车队 · 139****6662", status: "运输中", statusClass: "", fields: [["准驾车型", "A2"], ["车辆", "沪D·A9021"], ["认证", "已认证"], ["证件到期", "2026-09-28"]], note: "自有司机" },
@@ -73,6 +73,7 @@ const moduleCatalog = {
       { id: "KH-1022", title: "上海嘉航国际物流有限公司", subtitle: "简称：上海嘉航", status: "启用", statusClass: "success", businessRole: "客户", fields: [["单位角色", "客户"], ["客户类型", "国际货运代理（货代）"], ["联系人", "陈主管"], ["手机", "13900001022"], ["结算周期", "月结15天"]], note: "默认装货地址：上海洋山港" },
       { id: "KH-1035", title: "杭州联贸进出口有限公司", subtitle: "简称：杭州联贸", status: "启用", statusClass: "success", businessRole: "客户", fields: [["单位角色", "客户"], ["客户类型", "跨境电商物流商"], ["联系人", "周女士"], ["手机", "13600001035"], ["结算周期", "月结30天"]], note: "默认装货地址：杭州萧山仓" },
       { id: "KH-1120", title: "上海港联贸易有限公司", subtitle: "简称：上海港联", status: "停用", statusClass: "muted", businessRole: "客户", fields: [["单位角色", "客户"], ["客户类型", "跨境电商物流商"], ["联系人", "何经理"], ["手机", "13100001120"], ["结算周期", "月结60天"]], note: "默认装货地址：上海外高桥" },
+      { id: "KH-1201", title: "宁波安达汽车维修有限公司", subtitle: "简称：宁波安达维修", status: "启用", statusClass: "success", businessRole: "客户", fields: [["单位角色", "客户"], ["客户类型", "维修厂"], ["联系人", "周师傅"], ["手机", "13800001201"], ["结算周期", "月结30天"]], note: "集卡车辆维修与保养" },
     ],
   },
   reminder: {
@@ -89,11 +90,11 @@ const moduleCatalog = {
   },
   capacity: {
     title: "运力管理", eyebrow: "计划与派单", icon: "gauge", primary: "查看运力",
-    filters: ["全部", "自营", "三方", "自营+三方", "闲置", "运输中", "维修中", "停用"], listFieldLimit: 6, items: [],
+    filters: ["全部", "自营", "三方", "闲置", "运输中", "维修中", "停用"], listFieldLimit: 6, items: [],
   },
   trailer: {
     title: "挂车档案", eyebrow: "车辆管理", icon: "container", primary: "新增挂车",
-    filters: ["全部", "自营", "三方", "自营+三方", "在用", "停用", "维修中"], listFieldLimit: 6, items: [],
+    filters: ["全部", "自营", "三方", "在用", "停用", "维修中"], listFieldLimit: 6, items: [],
   },
 };
 
@@ -214,7 +215,7 @@ const mobileFormDefinitions = {
         { name: "customerName", label: "单位全称", required: true, full: true, placeholder: "营业执照上的企业全称" },
         { name: "shortName", label: "简称" },
         { name: "businessRole", label: "单位角色", type: "select", required: true, options: ["客户", "三方供应商", "客户+三方供应商"] },
-        { name: "customerType", label: "客户类型", type: "select", required: true, options: [["", "请选择"], "直客", "货代", "贸易企业", "国际货运代理（货代）", "船公司 / 船代", "第三方物流 / 供应链公司", "跨境电商物流商"] },
+        { name: "customerType", label: "客户类型", type: "select", required: true, options: [["", "请选择"], "直客", "货代", "贸易企业", "国际货运代理（货代）", "船公司 / 船代", "第三方物流 / 供应链公司", "跨境电商物流商", "维修厂"] },
         { name: "creditCode", label: "统一社会信用代码", required: true, full: true, pattern: "[0-9A-Z]{18}", maxlength: "18", hint: "18 位数字或大写字母" },
         { name: "customerStatus", label: "客户状态", type: "select", required: true, options: ["启用", "停用"] },
       ] },
@@ -252,8 +253,9 @@ const mobileFormDefinitions = {
   },
   plan: {
     intro: "创建计划任务后生成子运单，统一进入待派发池。",
-    sections: [{ title: "计划任务", hint: "执行时间、客户项目和任务清单", fields: [
-      { name: "executionTime", label: "执行时间", type: "datetime-local", required: true },
+    sections: [{ title: "计划任务", hint: "计划执行日期、子任务靠台时间和客户项目", fields: [
+      { name: "planExecutionDate", label: "计划执行日期", type: "date", required: true },
+      { name: "plannedBerthingTime", label: "子任务计划靠台时间", type: "datetime-local", required: true },
       { name: "customerName", label: "客户名称", required: true }, { name: "projectName", label: "项目名称", required: true },
       { name: "routeId", label: "固定线路", type: "select", required: true, options: [] },
       { name: "boxType", label: "柜型", type: "select", required: true, options: ["40HQ", "40GP", "20GP", "45HQ"] },
@@ -267,6 +269,8 @@ const mobileFormDefinitions = {
 const state = { currentView: "workbench", currentModule: "", moduleFilter: "全部", messageFilter: "all", search: "", detailItem: null, entryModule: "", entryEditId: "", entryOriginalId: "", entryOriginalRaw: null, profilePage: "", feedbackTab: "submit" };
 const MANAGER_PROFILE_STORAGE_KEY = "container-logistics-manager-profile-v1";
 const MANAGER_NOTIFICATION_STORAGE_KEY = "container-logistics-manager-notifications-v1";
+const NODE_NOTIFICATION_STORAGE_KEY = "container-logistics-transport-node-notifications-v1";
+const NODE_NOTIFICATION_READ_STORAGE_KEY = "container-logistics-transport-node-notifications-read-v1";
 const defaultManagerProfile = { name: "张调度", phone: "13866686688", department: "运营中心", role: "调度管理员", account: "ZD-1008", avatar: "" };
 const defaultManagerNotifications = { task: true, warning: true, system: false };
 const reportPlanRecords = [
@@ -313,6 +317,20 @@ function readManagerNotifications() {
 
 let managerProfile = readManagerProfile();
 let managerNotifications = readManagerNotifications();
+
+function readNodeNotifications() {
+  if (!managerNotifications.task) return [];
+  try {
+    const records = JSON.parse(localStorage.getItem(NODE_NOTIFICATION_STORAGE_KEY) || "[]");
+    const readIds = new Set(JSON.parse(localStorage.getItem(NODE_NOTIFICATION_READ_STORAGE_KEY) || "[]"));
+    return (Array.isArray(records) ? records : []).filter((record) =>
+      (record.channels || ["站内消息"]).includes("站内消息")
+      && ((record.recipients || []).includes(managerProfile.role) || (record.recipients || []).includes(managerProfile.name)))
+      .map((record) => ({ ...record, id: `node-${record.id}`, type: "task", title: record.title, desc: `${record.content || `${record.waybillNo} · ${record.taskType} / ${record.nodeName}`} · 通知：${(record.recipients || []).join("、")}`, time: record.createdAt ? new Date(record.createdAt).toLocaleString("zh-CN", { hour12: false }) : "", icon: "map-pinned", style: "success", module: "dispatch", unread: !readIds.has(record.id), nodeNotificationId: record.id }));
+  } catch (_error) { return []; }
+}
+
+function allMessages() { return [...readNodeNotifications(), ...messages]; }
 
 function localDate() {
   const date = new Date();
@@ -417,7 +435,7 @@ function loadSharedCatalog() {
     return { id: waybill.waybillNo, title: waybill.customerName || "未指定客户", subtitle: route?.routeName || waybill.routeName || "未指定线路", status: waybill.status === "草稿" ? "草拟" : waybill.status || "草拟", statusClass: sharedStatusClass(waybill.status), fields: [["接单日期", waybill.orderDate || "-"], ["计划任务", waybill.planTaskNo || waybill.planTaskId || "-"], ["箱型", boxLabel], ["装卸地址", waybill.loadAddress || "-"], ["应收金额", `¥${waybill.receivable || 0}`], ["应付金额", `¥${waybill.payable || 0}`]], note: waybill.remark || "", raw: waybill };
   });
   if (dispatches.length) moduleCatalog.dispatch.items = dispatches.map((dispatch) => ({
-    id: dispatch.id, title: dispatch.routeName || "未指定线路", subtitle: dispatch.waybillNo || "-", status: dispatch.status || "待派单", statusClass: sharedStatusClass(dispatch.status), fields: [["司机", dispatch.driverName || "待分配"], ["车辆", dispatch.vehicleId || "待分配"], ["挂车", dispatch.trailerId || "未绑定"], ["当前节点", dispatch.currentNode || "待派单"], ["派单方式", dispatch.dispatchMode === "auto" ? "自动派单" : dispatch.dispatchMode === "manual" ? "手动派单" : "待分配"], ["派单时间", dispatch.dispatchTime || "-"]], note: dispatch.note || "", raw: dispatch }));
+    id: dispatch.id, title: dispatch.routeName || "未指定线路", subtitle: dispatch.waybillNo || "-", status: dispatch.status || "待派单", statusClass: sharedStatusClass(dispatch.status), fields: [["计划靠台时间", dispatch.plannedBerthingTime || dispatch.executionTime || "-"], ["运力归属", dispatch.capacityOwnershipSnapshot || "待确定"], ["司机", dispatch.driverName || "待分配"], ["司机所属单位", dispatch.driverOrganizationSnapshot || "待确定"], ["车辆", dispatch.vehicleId || "待分配"], ["车辆所属单位", dispatch.vehicleOrganizationSnapshot || "待确定"], ["挂车", dispatch.trailerId || "未绑定"], ["挂车所属单位", dispatch.trailerOrganizationSnapshot || "未绑定"], ["当前节点", dispatch.currentNode || "待派单"], ["派单方式", dispatch.dispatchMode === "auto" ? "自动派单" : dispatch.dispatchMode === "manual" ? "手动派单" : "待分配"], ["派单时间", dispatch.dispatchTime || "-"]], note: dispatch.note || "", raw: dispatch }));
   vehicles.forEach((item) => window.CapacityOwnership.normalizeResource(item, "vehicle"));
   trailers.forEach((item) => window.CapacityOwnership.normalizeResource(item, "trailer"));
   drivers.forEach((item) => window.CapacityOwnership.normalizeResource(item, "driver"));
@@ -439,7 +457,7 @@ function loadSharedCatalog() {
       id: group.id, title: group.no,
       subtitle: `${group.first.customerName || "-"} · ${group.first.projectName || "未分配项目"}`,
       status, statusClass: sharedStatusClass(status),
-      fields: [["客户 / 项目", `${group.first.customerName || "-"} / ${group.first.projectName || "未分配项目"}`], ["线路", routeNames], ["任务类型", group.first.taskType || "提空装货"], ["执行时间", String(group.first.executionTime || group.first.orderDate || "-").replace("T", " ")], ["完成进度", `${done}/${group.rows.length} · 待派发 ${pending} · 进行中 ${active}`]],
+      fields: [["客户 / 项目", `${group.first.customerName || "-"} / ${group.first.projectName || "未分配项目"}`], ["线路", routeNames], ["任务类型", group.first.taskType || "提空装货"], ["计划执行日期", group.first.planExecutionDate || String(group.first.executionTime || group.first.orderDate || "-").slice(0, 10)], ["子任务执行情况", `待派单 ${pending} · 进行中 ${active} · 已完成 ${done}`]],
       note: `${group.rows.length} 条子任务`, raw: { ...group, linkedDispatches, routeIds },
     };
   });
@@ -477,7 +495,7 @@ function ensurePendingDispatchSamples() {
     const routeRaw = route?.raw || {};
     const waybillRaw = {
       waybillNo: sample.waybillNo, planTaskId: sample.planTaskNo, planTaskNo: sample.planTaskNo, orderDate: sample.orderDate,
-      executionTime: sample.executionTime, customerName: sample.customerName, projectName: sample.projectName, taskType: sample.taskType,
+      executionTime: sample.plannedBerthingTime || sample.executionTime, planExecutionDate: sample.planExecutionDate || sample.orderDate, plannedBerthingTime: sample.plannedBerthingTime || sample.executionTime, customerName: sample.customerName, projectName: sample.projectName, taskType: sample.taskType,
       routeId: sample.routeId, routeName: route?.title || "待确认线路", boxType: sample.boxType, loadAddress: [routeRaw.loadingPoint || routeRaw.origin, routeRaw.unloadingPoint || routeRaw.destination].filter(Boolean).join(" / "), remark: sample.note,
     };
     moduleCatalog.waybill.items.push({ id: sample.waybillNo, title: sample.customerName, subtitle: route?.title || "待确认线路", status: "已审核", statusClass: "success", fields: [["接单日期", sample.orderDate], ["计划任务", sample.planTaskNo], ["箱型", sample.boxType], ["任务类型", sample.taskType], ["装卸地址", waybillRaw.loadAddress || "待维护"]], note: sample.note, raw: waybillRaw });
@@ -493,7 +511,7 @@ function ensurePendingDispatchSamples() {
     const dispatch = dispatchRawForItem(item);
     if (!dispatch.waybillNo || moduleCatalog.waybill.items.some((entry) => entry.id === dispatch.waybillNo)) return;
     const route = moduleCatalog.route.items.find((entry) => entry.id === dispatch.routeId) || moduleCatalog.route.items.find((entry) => entry.title === dispatch.routeName);
-    const raw = { waybillNo: dispatch.waybillNo, planTaskNo: dispatch.planTaskNo || `JH-PENDING-${String(index + 1).padStart(3, "0")}`, orderDate: dispatch.orderDate || localDate(), executionTime: dispatch.executionTime || dispatch.orderDate || localDate(), customerName: dispatch.customerName || "待补充客户", projectName: dispatch.projectName || "待分配项目", taskType: dispatch.taskType || "提空装货", routeId: dispatch.routeId || route?.id || "", boxType: dispatch.boxType || dispatch.boxes || "待补录", loadAddress: dispatch.loadAddress || "", remark: dispatch.note || "" };
+    const raw = { waybillNo: dispatch.waybillNo, planTaskNo: dispatch.planTaskNo || `JH-PENDING-${String(index + 1).padStart(3, "0")}`, orderDate: dispatch.orderDate || localDate(), planExecutionDate: dispatch.planExecutionDate || dispatch.orderDate || localDate(), plannedBerthingTime: dispatch.plannedBerthingTime || dispatch.executionTime || dispatch.orderDate || localDate(), executionTime: dispatch.plannedBerthingTime || dispatch.executionTime || dispatch.orderDate || localDate(), customerName: dispatch.customerName || "待补充客户", projectName: dispatch.projectName || "待分配项目", taskType: dispatch.taskType || "提空装货", routeId: dispatch.routeId || route?.id || "", boxType: dispatch.boxType || dispatch.boxes || "待补录", loadAddress: dispatch.loadAddress || "", remark: dispatch.note || "" };
     moduleCatalog.waybill.items.push({ id: raw.waybillNo, title: raw.customerName, subtitle: route?.title || dispatch.routeName || "待确认线路", status: "已审核", statusClass: "success", fields: [["接单日期", raw.orderDate], ["计划任务", raw.planTaskNo], ["箱型", raw.boxType], ["任务类型", raw.taskType], ["装卸地址", raw.loadAddress || "待维护"]], note: raw.remark, raw });
   });
 }
@@ -513,7 +531,7 @@ function rebuildDispatchManagementCatalog() {
         status, statusClass: status === "已匹配" ? "success" : status === "异常" ? "danger" : "warning",
         fields: [
           ["计划任务", task.planTaskNo || task.planTaskId || dispatch.planTaskNo || "-"], ["任务类型", task.taskType || dispatch.taskType || "-"],
-          ["执行时间", String(task.executionTime || task.orderDate || dispatch.orderDate || "-").replace("T", " ")], ["固定线路", dispatch.routeName || waybill?.subtitle || "-"],
+          ["计划靠台时间", String(task.plannedBerthingTime || dispatch.plannedBerthingTime || task.executionTime || task.orderDate || dispatch.orderDate || "-").replace("T", " ").slice(0, 16)], ["固定线路", dispatch.routeName || waybill?.subtitle || "-"],
           ["柜型 / 箱信息", dispatch.boxes || task.boxType || "待补录"], ["已选运力", matched ? `${dispatch.driverName || dispatch.driverId} / ${dispatch.vehicleId}` : "待分配"],
         ],
         note: dispatch.note || task.remark || "等待匹配司机和车辆", raw: { dispatch, waybill: task },
@@ -531,7 +549,7 @@ function rebuildCapacityCatalog(dispatches = []) {
       const status = vehicle.vehicleState === "维修中" ? "维修中" : vehicle.vehicleState === "停用" ? "停用" : active ? "运输中" : "闲置";
       const driver = moduleCatalog.driver.items.find((entry) => entry.id === active?.driverId)?.raw;
       const trailer = moduleCatalog.trailer.items.find((entry) => entry.id === vehicle.trailerId)?.raw;
-      const ownership = window.CapacityOwnership.groupSnapshot([driver && { ...driver, role: "司机", name: driver.name }, { ...vehicle, role: "车辆", name: vehicle.plateNo }, trailer && { ...trailer, role: "挂车", name: trailer.plateNo }], { missingRequired: !driver });
+      const ownership = window.CapacityOwnership.groupSnapshot([driver && { ...driver, role: "司机", name: driver.name }, { ...vehicle, role: "车辆", name: vehicle.plateNo }, trailer && { ...trailer, role: "挂车", name: trailer.plateNo }], { missingRequired: !driver || Boolean(vehicle.trailerId && !trailer) });
       return { id: `vehicle-${vehicle.plateNo}`, title: vehicle.plateNo, subtitle: vehicle.vehicleType || "车辆", status, statusClass: sharedStatusClass(status), fields: [["运力归属", ownership.type], ["运力类型", "车辆"], ["司机", active?.driverName || vehicle.driver || "未绑定"], ["挂车", vehicle.trailerId || "未绑定"], ["当前任务", active?.waybillNo || "无"], ["所属单位", window.CapacityOwnership.organizationName(vehicle)]], note: active?.routeName || ownership.tooltip || "当前无执行任务", raw: { ...vehicle, capacityOwnershipSnapshot: ownership.type } };
     }),
     ...drivers.map((item) => {
@@ -1050,7 +1068,7 @@ function switchView(view) {
 function renderWorkbench() {
   const pendingCount = moduleCatalog.dispatch.items.filter((item) => item.status === "待派单").length;
   const expiredCount = moduleCatalog.reminder.items.filter((item) => item.status === "已过期").length;
-  const alertCount = expiredCount + messages.filter((item) => item.unread && item.type === "warning").length;
+  const alertCount = expiredCount + allMessages().filter((item) => item.unread && item.type === "warning").length;
   $("#focusList").innerHTML = `
     <button class="focus-row" data-open-module="dispatch-management" type="button"><span class="focus-symbol"><i data-lucide="circle-alert"></i></span><span><strong>${pendingCount} 条任务等待派单</strong><small>优先完成司机和车辆匹配</small></span><em>开始派单</em></button>
     <button class="focus-row" data-open-module="reminder" type="button"><span class="focus-symbol blue"><i data-lucide="shield-alert"></i></span><span><strong>${alertCount} 项车辆证件预警</strong><small>包含 ${expiredCount} 项已过期记录</small></span><em>查看</em></button>`;
@@ -1059,9 +1077,9 @@ function renderWorkbench() {
 
 function moduleStatusMatches(item, filter) {
   if (filter === "全部") return true;
-  if (["自营", "三方", "自营+三方"].includes(filter)) {
+  if (["自营", "三方"].includes(filter)) {
     const ownership = window.CapacityOwnership.normalizeType(item.raw?.capacityOwnershipSnapshot || item.raw?.capacityOwnership || item.raw?.ownership || item.raw?.driverType);
-    return filter === "自营+三方" && !item.raw?.capacityOwnershipSnapshot ? ["自营", "三方"].includes(ownership) : ownership === filter;
+    return ownership === filter;
   }
   if (filter === "空闲") return item.fields.some(([, value]) => value === "已完工") || item.status === "空闲";
   if (filter === "保险即将到期" || filter === "审验即将到期" || filter === "已过期") return item.status === filter;
@@ -1441,7 +1459,7 @@ function openDetail(item) {
 
 const planWaybillFieldLabels = {
   waybillNo: "运单号", planTaskId: "计划任务ID", planTaskNo: "计划任务编号", planQuantity: "计划数量", childSequence: "子任务序号",
-  orderDate: "接单日期", executionTime: "执行时间", taskType: "任务类型", projectId: "项目ID", projectName: "项目名称",
+  orderDate: "接单日期", planExecutionDate: "计划执行日期", plannedBerthingTime: "计划靠台时间", executionTime: "计划靠台时间（兼容字段）", taskType: "任务类型", projectId: "项目ID", projectName: "项目名称",
   autoDispatch: "自动派发", dispatchAdvanceMinutes: "派发提前量（分钟）", routeId: "线路ID", customerId: "客户编号", customerName: "客户名称",
   billNo: "提单号", loadAddress: "还箱地", dispatchNo: "派车号", dispatchDate: "派车日期", boxType: "柜型", boxQuantity: "箱量",
   auditState: "审核状态", needReceipt: "需要回单", receivedReceipt: "已收回单", receiptDate: "回单日期", remark: "备注",
@@ -1471,7 +1489,7 @@ function renderPlanDetail(item) {
   const dispatchByWaybill = new Map((group.linkedDispatches || []).map((dispatch) => [dispatch.waybillNo, dispatch]));
   const planFields = [
     ["计划任务编号", item.title], ["计划任务ID", group.id], ["客户名称", first.customerName], ["项目名称", first.projectName],
-    ["执行时间", String(first.executionTime || first.orderDate || "-").replace("T", " ")], ["任务类型", first.taskType || "提空装货"],
+    ["计划执行日期", first.planExecutionDate || String(first.executionTime || first.orderDate || "-").slice(0, 10)], ["任务类型", first.taskType || "提空装货"],
     ["计划子任务数", rows.length], ["完成进度", item.fields.find(([label]) => label === "完成进度")?.[1]],
     ["计划状态", item.status], ["备注", first.remark],
   ];
@@ -1513,7 +1531,7 @@ const dispatchFieldLabels = {
   routeName: "线路名称", origin: "提箱地", destination: "装卸地", loadAddress: "还箱地", consignee: "收货人", arrivalTime: "到达时间", arrivalLocation: "到达地点", dispatchTime: "派单时间", driverId: "司机编号",
   driverName: "司机姓名", phone: "联系电话", vehicleId: "车牌号", vehicleType: "车辆类型", trailerId: "挂车编号", status: "派单状态",
   currentNode: "当前节点", boxes: "箱信息", estimatedRevenue: "预估收入", commission: "司机提成", routeMileageSnapshot: "线路里程快照", pushed: "已推送",
-  note: "备注", timeline: "运输节点", photoAttachments: "节点附件", photos: "现场图片",
+  planExecutionDate: "计划执行日期", plannedBerthingTime: "计划靠台时间", note: "备注", timeline: "运输节点", photoAttachments: "节点附件", photos: "现场图片",
 };
 
 function dispatchDetailRows(raw, excluded = []) {
@@ -1538,8 +1556,8 @@ function renderDispatchDetail(item) {
     ["派单方式", dispatchModeLabel(dispatch.dispatchMode)], ["派单状态", dispatch.status || item.status], ["当前节点", dispatch.currentNode], ["派单时间", dispatch.dispatchTime], ["消息推送", dispatch.pushed ? "已推送司机端" : "待推送"],
   ];
   const capacityFields = [
-    ["司机", dispatch.driverName || "待分配"], ["司机编号", dispatch.driverId], ["联系电话", dispatch.phone], ["车辆", dispatch.vehicleId || "待分配"],
-    ["车辆类型", dispatch.vehicleType], ["挂车", dispatch.trailerId || "未绑定"], ["预估收入", dispatch.estimatedRevenue == null ? "-" : `¥${dispatch.estimatedRevenue}`],
+    ["运力归属", dispatch.capacityOwnershipSnapshot || "待确定"], ["司机", dispatch.driverName || "待分配"], ["司机所属单位", dispatch.driverOrganizationSnapshot || "待确定"], ["司机编号", dispatch.driverId], ["联系电话", dispatch.phone], ["车辆", dispatch.vehicleId || "待分配"],
+    ["车辆所属单位", dispatch.vehicleOrganizationSnapshot || "待确定"], ["车辆类型", dispatch.vehicleType], ["挂车", dispatch.trailerId || "未绑定"], ["挂车所属单位", dispatch.trailerOrganizationSnapshot || "未绑定"], ["预估收入", dispatch.estimatedRevenue == null ? "-" : `¥${dispatch.estimatedRevenue}`],
     ["司机提成", dispatch.commission == null ? "-" : `¥${dispatch.commission}`], ["线路里程快照", dispatch.routeMileageSnapshot == null ? "-" : `${dispatch.routeMileageSnapshot} KM`],
   ];
   const routeFields = [["线路编号", dispatch.routeId || task.routeId], ["线路名称", dispatch.routeName || waybill?.subtitle], ["提箱地", dispatch.origin], ["装卸地", dispatch.destination], ["还箱地", dispatch.loadAddress || task.returnPoint], ["收货人", dispatch.consignee], ["到达时间", dispatch.arrivalTime], ["到达地点", dispatch.arrivalLocation], ["箱信息", dispatch.boxes || task.boxType], ["备注", dispatch.note]];
@@ -1703,7 +1721,7 @@ function updateWorkbenchCounts() {
   const pendingDispatchCount = moduleCatalog.dispatch.items.filter((item) => item.status === "待派单").length;
   const transitCount = moduleCatalog.dispatch.items.filter((item) => item.status === "运输中").length;
   const idleVehicleCount = moduleCatalog.capacity.items.filter((item) => item.status === "闲置").length;
-  const alertCount = moduleCatalog.reminder.items.filter((item) => item.status === "已过期").length + messages.filter((item) => item.unread && item.type === "warning").length;
+  const alertCount = moduleCatalog.reminder.items.filter((item) => item.status === "已过期").length + allMessages().filter((item) => item.unread && item.type === "warning").length;
   const labels = {
     waybill: `${moduleCatalog.waybill.items.length} 条记录`, plan: `${moduleCatalog.plan.items.length} 个任务`, route: `${moduleCatalog.route.items.length} 条线路`, "dispatch-management": `${moduleCatalog["dispatch-management"].items.filter((item) => item.status === "待匹配").length} 条待匹配`,
     dispatch: `${pendingDispatchCount} 条待派单`,
@@ -1800,14 +1818,14 @@ function createMobileRecord(moduleName, values) {
     const route = moduleCatalog.route.items.find((item) => item.id === values.routeId);
     const quantity = Math.max(1, Math.min(100, Number(values.quantity) || 1));
     const planId = `PT-${Date.now()}`;
-    const planNo = `JH-${String(values.executionTime || localDate()).slice(0, 10).replaceAll("-", "")}-${String(moduleCatalog.plan.items.length + 1).padStart(3, "0")}`;
+    const planNo = `JH-${String(values.planExecutionDate || localDate()).slice(0, 10).replaceAll("-", "")}-${String(moduleCatalog.plan.items.length + 1).padStart(3, "0")}`;
     const generated = Array.from({ length: quantity }, (_, index) => {
       const waybillNo = nextBusinessId("WB", moduleCatalog.waybill.items.length + index);
-      const raw = { waybillNo, planTaskId: planId, planTaskNo: planNo, orderDate: String(values.executionTime || localDate()).slice(0, 10), executionTime: values.executionTime, routeId: values.routeId, customerName: values.customerName, projectName: values.projectName, boxType: values.boxType, taskType: values.taskType, autoDispatch: false, dispatchAdvanceMinutes: 0 };
+      const raw = { waybillNo, planTaskId: planId, planTaskNo: planNo, orderDate: String(values.planExecutionDate || localDate()).slice(0, 10), planExecutionDate: values.planExecutionDate, plannedBerthingTime: values.plannedBerthingTime, executionTime: values.plannedBerthingTime, routeId: values.routeId, customerName: values.customerName, projectName: values.projectName, boxType: values.boxType, taskType: values.taskType, autoDispatch: false, dispatchAdvanceMinutes: 0 };
       const item = { id: waybillNo, title: values.customerName, subtitle: route?.title || "未指定线路", status: "草拟", statusClass: "warning", fields: [["接单日期", raw.orderDate], ["计划任务", planNo], ["箱型", values.boxType], ["任务类型", values.taskType], ["装卸地址", route?.raw?.loadingPoint || route?.raw?.origin || "-"]], note: values.remark || "移动端创建计划任务", raw };
       moduleCatalog.waybill.items.unshift(item);
       const dispatchId = `PD-${Date.now()}-${index}`;
-      const dispatchRaw = { id: dispatchId, waybillNo, planTaskId: planId, planTaskNo: planNo, taskType: values.taskType, customerName: values.customerName, projectName: values.projectName, orderDate: raw.orderDate, routeId: values.routeId, routeName: route?.title || "未指定线路", origin: route?.raw?.origin || "", destination: route?.raw?.destination || "", dispatchMode: "pending", dispatchTime: "", driverId: "", driverName: "待分配", phone: "-", vehicleId: "", trailerId: "", status: "待派单", currentNode: "待派单", boxes: values.boxType, note: "计划任务已进入待派发池", pushed: false, timeline: [] };
+      const dispatchRaw = { id: dispatchId, waybillNo, planTaskId: planId, planTaskNo: planNo, planExecutionDate: values.planExecutionDate, plannedBerthingTime: values.plannedBerthingTime, executionTime: values.plannedBerthingTime, taskType: values.taskType, customerName: values.customerName, projectName: values.projectName, orderDate: raw.orderDate, routeId: values.routeId, routeName: route?.title || "未指定线路", origin: route?.raw?.origin || "", destination: route?.raw?.destination || "", dispatchMode: "pending", dispatchTime: "", driverId: "", driverName: "待分配", phone: "-", vehicleId: "", trailerId: "", status: "待派单", currentNode: "待派单", boxes: values.boxType, note: "计划任务已进入待派发池", pushed: false, timeline: [] };
       const dispatchItem = { id: dispatchId, title: dispatchRaw.routeName, subtitle: waybillNo, status: "待派单", statusClass: "warning", fields: [["司机", "待分配"], ["车辆", "待分配"], ["挂车", "未绑定"], ["当前节点", "待派单"], ["派单方式", "待分配"], ["派单时间", "-"]], note: dispatchRaw.note, raw: dispatchRaw };
       moduleCatalog.dispatch.items.unshift(dispatchItem);
       persistCreatedRecord("waybill", item);
@@ -1816,7 +1834,7 @@ function createMobileRecord(moduleName, values) {
       publishMobileRecord("dispatch", dispatchItem);
       return item;
     });
-    return { id: planId, title: planNo, subtitle: `${values.customerName} · ${values.projectName}`, status: "待派发", statusClass: "warning", fields: [["任务数量", `${generated.length} 条`], ["线路", route?.title || "-"], ["任务类型", values.taskType]], note: values.remark || "计划已生成子运单", raw: { ...values, planId, planNo, waybills: generated.map((item) => item.id) } };
+    return { id: planId, title: planNo, subtitle: `${values.customerName} · ${values.projectName}`, status: "待派单", statusClass: "warning", fields: [["计划执行日期", values.planExecutionDate], ["任务数量", `${generated.length} 条`], ["线路", route?.title || "-"], ["任务类型", values.taskType]], note: values.remark || "计划已生成子运单", raw: { ...values, planId, planNo, waybills: generated.map((item) => item.id) } };
   }
   if (moduleName === "waybill") {
     const route = moduleCatalog.route.items.find((item) => item.id === values.routeId);
@@ -1915,6 +1933,16 @@ function saveEntry(event) {
       values.supplierName = "";
     }
   }
+  if (state.entryModule === "dispatch") {
+    const driver = moduleCatalog.driver.items.find((item) => item.id === values.driverId)?.raw;
+    const vehicle = moduleCatalog.vehicle.items.find((item) => item.id === values.vehicleId)?.raw;
+    const trailerId = values.trailerId || vehicle?.trailerId;
+    const trailer = moduleCatalog.trailer.items.find((item) => item.id === trailerId)?.raw;
+    if (!driver || !vehicle || Boolean(trailerId && !trailer) || !window.CapacityOwnership.isCompatible([driver, vehicle, trailer].filter(Boolean), { missingRequired: Boolean(trailerId && !trailer) })) {
+      showToast("司机、车辆和挂车必须属于同一运力归属");
+      return;
+    }
+  }
   if (state.entryModule === "auto") {
     const settings = { ...values, enabled: form.elements.enabled.checked, retry: form.elements.retry.checked };
     localStorage.setItem(AUTO_SETTINGS_KEY, JSON.stringify(settings));
@@ -1960,7 +1988,7 @@ function saveEntry(event) {
 }
 
 function renderMessages() {
-  const list = messages.filter((item) => state.messageFilter === "all" || item.type === state.messageFilter);
+  const list = allMessages().filter((item) => state.messageFilter === "all" || item.type === state.messageFilter);
   $("#messageList").innerHTML = list.map((item) => `<button class="message-item ${item.unread ? "unread" : ""}" data-message-id="${item.id}" type="button"><span class="message-icon ${item.style}"><i data-lucide="${item.icon}"></i></span><span class="message-copy"><strong>${h(item.title)}</strong><p>${h(item.desc)}</p><time>${h(item.time)}</time></span></button>`).join("");
   refreshIcons();
 }
@@ -2057,6 +2085,12 @@ document.addEventListener("keydown", (event) => {
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
 window.addEventListener("storage", (event) => {
+  if (event.key === NODE_NOTIFICATION_STORAGE_KEY) {
+    renderMessages();
+    renderWorkbench();
+    updateWorkbenchCounts();
+    return;
+  }
   if (event.key === window.FeedbackManager.STORAGE_KEY) {
     if (state.profilePage === "help" && $("#managerProfileSubpage").classList.contains("open")) {
       $("#profileSubpageContent").innerHTML = helpPageMarkup();
@@ -2289,13 +2323,25 @@ $("#messageTabs").addEventListener("click", (event) => {
 $("#messageList").addEventListener("click", (event) => {
   const button = event.target.closest("[data-message-id]");
   if (!button) return;
-  const message = messages.find((item) => item.id === button.dataset.messageId);
+  const message = allMessages().find((item) => item.id === button.dataset.messageId);
   if (!message) return;
   message.unread = false;
+  if (message.nodeNotificationId) {
+    let readIds = [];
+    try { readIds = JSON.parse(localStorage.getItem(NODE_NOTIFICATION_READ_STORAGE_KEY) || "[]"); } catch (_error) { readIds = []; }
+    if (!readIds.includes(message.nodeNotificationId)) readIds.push(message.nodeNotificationId);
+    localStorage.setItem(NODE_NOTIFICATION_READ_STORAGE_KEY, JSON.stringify(readIds));
+  }
   if (message.module === "auto") openAutoControl(); else openModule(message.module);
   renderMessages();
 });
-$("#readAllButton").addEventListener("click", () => { messages.forEach((item) => { item.unread = false; }); renderMessages(); renderWorkbench(); updateWorkbenchCounts(); showToast("消息已全部标记为已读"); });
+$("#readAllButton").addEventListener("click", () => {
+  messages.forEach((item) => { item.unread = false; });
+  let readIds = [];
+  try { readIds = JSON.parse(localStorage.getItem(NODE_NOTIFICATION_READ_STORAGE_KEY) || "[]"); } catch (_error) { readIds = []; }
+  localStorage.setItem(NODE_NOTIFICATION_READ_STORAGE_KEY, JSON.stringify([...new Set([...readIds, ...readNodeNotifications().map((item) => item.nodeNotificationId)])]));
+  renderMessages(); renderWorkbench(); updateWorkbenchCounts(); showToast("消息已全部标记为已读");
+});
 
 loadSharedCatalog();
 loadCreatedRecords();

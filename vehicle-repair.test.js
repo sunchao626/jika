@@ -1,6 +1,29 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const VehicleRepair = require("./vehicle-repair.js");
+const html = require("node:fs").readFileSync("index.html", "utf8");
+const app = require("node:fs").readFileSync("app.js", "utf8");
+
+test("vehicle repair actions are delegated from the stable vehicle page", () => {
+  assert.match(app, /document\.querySelector\("#vehiclePage"\)\?\.addEventListener\("click"/);
+  assert.doesNotMatch(app, /document\.querySelector\("#vehicleBody"\)\.addEventListener\("click"/);
+  assert.match(app, /if \(repairButton\) \{\s*try \{\s*openVehicleRepairDialog\(repairButton\.dataset\.repairPlate\);\s*\} catch \(error\) \{[\s\S]*?showApplicationAlert\("维修登记窗口暂时无法打开/);
+});
+
+test("vehicle management opens the same new-repair form with its vehicle selected", () => {
+  assert.match(app, /#addVehicleRepairBtn"\)\?\.addEventListener\("click", \(\) => openVehicleRepairDialog\(\)\)/);
+  assert.match(app, /const selectedPlate = record\?\.plateNo \|\| plateNo;\s*fillVehicleRepairVehicleOptions\(selectedPlate\);\s*if \(selectedPlate\) vehicleRepairForm\.elements\.plateNo\.value = selectedPlate;/);
+});
+
+test("repair dialog is outside page views so it remains visible from vehicle management", () => {
+  const repairPageStart = html.indexOf('<section class="page-view" id="vehicleRepairPage">');
+  const dialogStart = html.indexOf('<dialog class="add-dialog vehicle-dialog admin-form-dialog vehicle-repair-dialog" id="vehicleRepairDialog">');
+  assert.ok(repairPageStart >= 0 && dialogStart > repairPageStart);
+  const pageMarkupBeforeDialog = html.slice(repairPageStart, dialogStart);
+  const sectionDepth = [...pageMarkupBeforeDialog.matchAll(/<\/?section\b[^>]*>/g)]
+    .reduce((depth, [tag]) => depth + (tag.startsWith("</") ? -1 : 1), 0);
+  assert.equal(sectionDepth, 0, "维修弹窗不应嵌套在车辆维修管理页面中");
+});
 
 test("repair submission creates a driver-sourced record and preserves submitter", () => {
   const result = VehicleRepair.createRecord([], {
@@ -45,4 +68,20 @@ test("uploaded evidence references survive repair record persistence", () => {
   const file = { id: "repair-file-1", name: "故障照片.jpg", type: "image/jpeg", uploadedAt: "2026-10-14 08:00" };
   VehicleRepair.save([{ id: "WX-1", plateNo: "沪D·A9021", evidence: [file] }], adapter);
   assert.deepEqual(VehicleRepair.load(adapter)[0].evidence, [file]);
+});
+
+test("repair records retain their selected repair-shop directory reference", () => {
+  const record = VehicleRepair.normalizeRecord({ id: "WX-2", plateNo: "苏E·T5568", repairVendor: "宁波安达汽车维修有限公司", repairVendorCustomerNo: "KH-1201" });
+  assert.equal(record.repairVendor, "宁波安达汽车维修有限公司");
+  assert.equal(record.repairVendorCustomerNo, "KH-1201");
+});
+
+test("default repair showcase includes a linked repair shop", () => {
+  const demo = VehicleRepair.load({ getItem: () => null });
+  assert.equal(demo[0].repairVendor, "宁波安达汽车维修有限公司");
+});
+
+test("repair shop is selected from the customer directory", () => {
+  assert.match(html, /name="repairVendorCustomerNo" required/);
+  assert.doesNotMatch(html, /name="repairVendor"/);
 });

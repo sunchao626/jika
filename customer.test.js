@@ -16,7 +16,7 @@ for (const name of ["customerName", "businessRole", "customerType", "creditCode"
 }
 assert.match(customerMarkup, /name="customerNo" readonly/);
 assert.doesNotMatch(customerMarkup, /name="customerNo"[^>]*required/);
-for (const type of ["国际货运代理（货代）", "船公司 \/ 船代", "第三方物流 \/ 供应链公司", "跨境电商物流商"]) assert.ok(customerMarkup.includes(type), `缺少客户类型 ${type}`);
+for (const type of ["国际货运代理（货代）", "船公司 \/ 船代", "第三方物流 \/ 供应链公司", "跨境电商物流商", "维修厂"]) assert.ok(customerMarkup.includes(type), `缺少客户类型 ${type}`);
 
 function element() {
   return {
@@ -67,6 +67,9 @@ assert.match(find("#customerBody").innerHTML, /第三方物流 \/ 供应链公�
 assert.doesNotMatch(find("#customerBody").innerHTML, /KH-1120/);
 assert.match(find("#customerOptions").innerHTML, /宁波远海供应链有限公司/);
 assert.doesNotMatch(find("#customerOptions").innerHTML, /上海港联贸易有限公司/);
+assert.doesNotMatch(find("#customerOptions").innerHTML, /宁波安达汽车维修有限公司/);
+assert.equal(context.window.CustomerManager.getRepairShops()[0].customerNo, "KH-1201");
+assert.equal(context.window.CustomerManager.getRepairShops()[0].customerType, "维修厂");
 find("#customerNextPage").listeners.click();
 assert.match(find("#customerBody").innerHTML, /KH-1120/);
 query.values.customerName = "海盛";
@@ -88,7 +91,7 @@ assert.equal(find("#customerFormView").hidden, true);
 assert.equal(find("#customerListView").hidden, false);
 
 find("#addCustomerBtn").listeners.click();
-assert.equal(form.elements.customerNo.value, "KH-1121");
+assert.equal(form.elements.customerNo.value, "KH-1202");
 form.listeners.submit({ preventDefault() {} });
 assert.equal(find('[data-error-for="customerName"]').textContent, "请输入单位全称");
 assert.equal(form.elements.customerName.focused, true);
@@ -96,7 +99,7 @@ form.elements.customerNo.value = "KH-1008";
 form.elements.customerName.value = "重复客户";
 form.listeners.submit({ preventDefault() {} });
 assert.equal(find('[data-error-for="customerNo"]').textContent, "客户编号已存在，请更换后重试");
-form.elements.customerNo.value = "KH-1121";
+form.elements.customerNo.value = "KH-1202";
 form.elements.customerName.value = "新增客户有限公司";
 form.elements.customerType.value = "第三方物流 / 供应链公司";
 form.elements.creditCode.value = "91330206MA28T2001K";
@@ -107,7 +110,7 @@ form.elements.loadAddress.value = "宁波港区";
 form.elements.unloadAddress.value = "宁波物流园";
 form.elements.settlementCycle.value = "月结30天";
 form.listeners.submit({ preventDefault() {} });
-assert.match(find("#customerBody").innerHTML, /KH-1121/);
+assert.match(find("#customerBody").innerHTML, /KH-1202/);
 assert.match(find("#customerOptions").innerHTML, /新增客户有限公司/);
 
 find("#customerBody").listeners.click({ target: { closest: (selector) => selector === "[data-customer-delete]" ? { dataset: { customerDelete: "KH-1008" } } : null } });
@@ -116,7 +119,7 @@ find("#confirmDeleteCustomerBtn").listeners.click();
 assert.match(storage.get("container-logistics-customers-v1"), /宁波远海供应链有限公司/);
 find("#cancelDeleteCustomerBtn").listeners.click();
 
-find("#customerBody").listeners.click({ target: { closest: (selector) => selector === "[data-customer-delete]" ? { dataset: { customerDelete: "KH-1121" } } : null } });
+find("#customerBody").listeners.click({ target: { closest: (selector) => selector === "[data-customer-delete]" ? { dataset: { customerDelete: "KH-1202" } } : null } });
 assert.equal(find("#confirmDeleteCustomerBtn").disabled, false);
 find("#confirmDeleteCustomerBtn").listeners.click();
 assert.doesNotMatch(find("#customerOptions").innerHTML, /新增客户有限公司/);

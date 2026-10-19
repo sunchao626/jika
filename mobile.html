@@ -14,27 +14,17 @@
       <header class="mobile-header" id="mobileHeader">
         <div class="header-copy">
           <span class="eyebrow" id="headerEyebrow">集卡司机端</span>
-          <h1 id="mobileTitle">接单</h1>
+          <h1 id="mobileTitle">运单</h1>
         </div>
       </header>
 
       <main class="mobile-main">
-        <section class="mobile-view active" id="tasksView" data-title="接单">
+        <section class="mobile-view active" id="tasksView" data-title="运单">
+          <div class="work-stage-tabs" id="workStageTabs" role="tablist" aria-label="运单状态">
+            <button class="active" data-work-stage="active" type="button" role="tab" aria-selected="true"><span>进行中</span><strong id="activeOrderCount">0</strong></button>
+            <button data-work-stage="pending" type="button" role="tab" aria-selected="false"><span>待接单</span><strong id="pendingOrderCount">0</strong></button>
+          </div>
           <div class="task-list" id="taskList"></div>
-        </section>
-
-        <section class="mobile-view" id="ordersView" data-title="我的运单">
-          <div class="search-box">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-            <input id="orderSearch" type="search" placeholder="搜索运单号、线路或箱号" />
-          </div>
-          <div class="order-status-tabs" id="orderStatusTabs" role="group" aria-label="运单状态筛选">
-            <button class="filter-chip active" data-status="all" aria-pressed="true" type="button">全部</button>
-            <button class="filter-chip" data-status="active" aria-pressed="false" type="button">进行中</button>
-            <button class="filter-chip" data-status="completed" aria-pressed="false" type="button">已完成</button>
-            <button class="filter-chip" data-status="cancelled" aria-pressed="false" type="button">已取消</button>
-          </div>
-          <div class="order-list" id="orderList"></div>
         </section>
 
         <section class="mobile-view messages-view" id="messagesView" data-title="消息">
@@ -114,9 +104,6 @@
 
       <nav class="bottom-nav" id="bottomNav" aria-label="主导航">
         <button class="active" data-view="tasks" type="button">
-          <span class="nav-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM8 7V5h8v2M8 12h8"/></svg></span><span>接单</span>
-        </button>
-        <button data-view="orders" type="button">
           <span class="nav-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/></svg></span><span>运单</span>
         </button>
         <button data-view="messages" type="button">

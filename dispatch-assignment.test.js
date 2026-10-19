@@ -10,15 +10,16 @@ const route = { id: "XL-001", routeName: "港区线路", origin: "港区", desti
 const waybill = { waybillNo: "WB-NEW", orderDate: "2026-09-21", loadAddress: "港区 / 仓库", boxNo1: "TCLU123", boxNo2: "-", boxType: "40HQ" };
 const pending = { id: "PD-EXISTING", waybillNo: waybill.waybillNo, status: "待派单", dispatchMode: "pending", pushed: false, timeline: [] };
 const dispatches = [pending];
-const driver = { id: "SJ-1", name: "王师傅", phone: "13800000000", driverState: "空闲" };
+const driver = { id: "SJ-1", name: "王师傅", phone: "13800000000", driverState: "空闲", capacityOwnership: "自营" };
 let savedDispatches = 0;
 let savedWaybills = 0;
 const form = { elements: { waybillId: { value: waybill.waybillNo }, driverId: { value: "SJ-1" }, vehicleId: { value: "浙B-001" }, note: { value: " 按时送达 " } }, addEventListener(name, handler) { this[name] = handler; } };
 const context = vm.createContext({
+  CapacityOwnership: require("./capacity-ownership.js"),
   dispatchForm: form, dispatches, waybills: [waybill],
   drivers: [driver],
   availableOwnDrivers: () => [driver],
-  vehicles: [{ plateNo: "浙B-001" }],
+  vehicles: [{ plateNo: "浙B-001", capacityOwnership: "自营" }],
   getRouteForWaybill: () => route,
   formatWaybillBoxes: () => "TCLU123 / 40HQ",
   calculateRouteCommission: () => 420,
