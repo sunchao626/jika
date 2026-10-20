@@ -4422,26 +4422,30 @@ dialog.dispatch-dialog[data-presentation="drawer"]::backdrop {
 .plan-dispatch-mode-card:has(input:checked) strong { color:#2670df; }
 .plan-advance-field small { display:block; margin-top:5px; color:#a0aaba; font-size:11px; }
 @media (max-width: 760px) { .plan-dispatch-controls { grid-template-columns:1fr; } }
-.plan-task-table { width: 100%; min-width: 1740px; table-layout: fixed; --fixed-action-width: 218px; }
+.plan-task-table { width: 100%; min-width: 1600px; table-layout: fixed; --fixed-action-width: 180px; }
 .plan-task-table .danger-link { color: #b4535e; background: #fff2f3; }
 .plan-task-table .danger-link:hover { background: #ffe6e8; }
-.plan-task-table .plan-col-customer { width: 126px; }
-.plan-task-table .plan-col-project { width: 130px; }
-.plan-task-table .plan-col-route { width: 220px; }
-.plan-task-table .plan-col-nodes { width: 360px; }
-.plan-task-table .plan-col-type { width: 118px; }
-.plan-task-table .plan-col-date { width: 156px; }
-.plan-task-table .plan-col-execution { width: 240px; }
-.plan-task-table .plan-col-amount { width: 172px; }
-.plan-task-table .plan-col-actions { width: 218px; }
+.plan-task-table .plan-col-customer { width: 150px; }
+.plan-task-table .plan-col-project { width: 180px; }
+.plan-task-table .plan-col-type { width: 150px; }
+.plan-task-table .plan-col-nodes { width: 320px; }
+.plan-task-table .plan-col-execution { width: 190px; }
+.plan-task-table .plan-col-dispatch { width: 180px; }
+.plan-task-table .plan-col-status { width: 120px; }
+.plan-task-table .plan-col-creator { width: 110px; }
+.plan-task-table .plan-col-actions { width: 180px; }
 .plan-task-table tbody td { height: 76px; padding-top: 9px; padding-bottom: 9px; vertical-align: middle; }
-.plan-task-table th:nth-child(8), .plan-task-table td:nth-child(8) { padding-right: 16px; text-align: right; }
-.plan-task-table td:nth-child(8) { font-variant-numeric: tabular-nums; }
+.plan-task-table th:nth-child(8), .plan-task-table td:nth-child(8) { padding-right: 12px; text-align: left; }
+.plan-task-creator strong { color: #34445b; font-size: 12px; font-weight: 600; }
 .task-customer strong,
 .task-route strong { display: block; color: #2b3c56; font-size: 13px; }
 .task-route small { display: block; margin-top: 6px; color: #8c98aa; font-size: 11px; }
 .plan-task-status { display: block; color: #34445b; font-size: 12px; font-weight: 600; line-height: 1.3; }
 .plan-task-execution-counts { display: flex; align-items: center; gap: 12px; margin-top: 6px; color: #69778b; font-size: 11px; line-height: 1.3; white-space: nowrap; }
+.plan-task-table td > small, .plan-task-table td small { display: block; margin-top: 4px; color: #7c8a9d; font-size: 11px; line-height: 1.35; }
+.plan-task-table .plan-task-overdue { color: #c65b48; font-weight: 650; }
+#dispatchPage .fixed-action-table td > small, #dispatchPage .fixed-action-table td small { display: block; margin-top: 3px; color: #7c8a9d; font-size: 11px; line-height: 1.3; }
+#dispatchPage .fixed-action-table td .dispatch-status + small { color: #667891; }
 .plan-task-quick-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
 .plan-task-quick-stats .plan-task-quick-stat { min-height: 72px; padding: 10px 12px; }
 .plan-task-quick-stats .plan-task-quick-stat > div { overflow: hidden; }

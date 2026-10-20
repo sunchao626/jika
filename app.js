@@ -167,13 +167,19 @@ try {
 }
 
 // Legacy records are treated as one-record parent tasks so the task list can stay aggregated.
+let initializedWaybillOperator = false;
 waybills.forEach((item) => {
   if (!item.planTaskId) item.planTaskId = `PT-LEGACY-${item.waybillNo}`;
   if (!item.planTaskNo) item.planTaskNo = item.planTaskId;
+  if (!item.orderOperatorName) {
+    item.orderOperatorName = "张调度";
+    initializedWaybillOperator = true;
+  }
   if (!item.projectName) item.projectName = "未分配项目";
   if (!item.planExecutionDate) item.planExecutionDate = String(item.executionTime || item.orderDate || "").slice(0, 10);
   if (!item.plannedBerthingTime) item.plannedBerthingTime = item.executionTime || `${item.planExecutionDate || item.orderDate}T08:00`;
 });
+if (initializedWaybillOperator) saveWaybills();
 
 function saveWaybills() {
   try {
@@ -389,6 +395,8 @@ const pageViews = {
   userAccess: document.querySelector("#userAccessPage"),
   operationLogs: document.querySelector("#operationLogPage"),
   platformConfig: document.querySelector("#platformConfigPage"),
+  operationsOverview: document.querySelector("#operationsOverviewPage"),
+  waybillProfit: document.querySelector("#waybillProfitPage"),
   finance: document.querySelector("#financePage"),
   driverExpenses: document.querySelector("#driverExpensePage"),
   settlement: document.querySelector("#settlementPage"),
@@ -417,6 +425,8 @@ const pageMeta = {
   "user-access": { title: "用户与权限", kicker: "系统配置 / 用户与权限", view: "userAccess" },
   "operation-logs": { title: "操作日志", kicker: "系统配置 / 操作日志", view: "operationLogs" },
   "platform-config": { title: "平台配置", kicker: "系统配置 / 平台配置", view: "platformConfig" },
+  "operations-overview": { title: "运营经营概览", kicker: "数据看板 / 运营经营概览", view: "operationsOverview" },
+  "waybill-profit": { title: "基础运单利润", kicker: "数据看板 / 基础运单利润", view: "waybillProfit" },
   "finance-reports": { title: "运输成本台账", kicker: "数据看板 / 运输成本台账", view: "finance" },
   "driver-expenses": { title: "司机费用上报", kicker: "结算管理 / 司机费用上报", view: "driverExpenses" },
   "settlement-management": { title: "结算中心", kicker: "结算管理 / 结算中心", view: "settlement" },
@@ -1451,6 +1461,10 @@ function getPlanTaskGroups(rows = waybills) {
   });
 }
 
+function getRecordOwner(record = {}) {
+  return record.createdByName || record.creatorName || record.ownerName || record.createdBy || record.orderOperatorName || record.operatorName || record.owner || "未记录";
+}
+
 function getPlanTaskQuickStatValues(groups, today = getPlanTaskToday()) {
   const isOpenPlan = (group) => !["已完成", "已取消"].includes(group.status);
   const planDate = (group) => getPlanTaskDate(group.first.planExecutionDate || group.first.executionTime || group.first.orderDate);
@@ -1510,16 +1524,18 @@ function renderRows(rows) {
   tableBody.innerHTML = visibleGroups.map((group) => {
     const first = group.first;
     const route = fixedRoutes.find((item) => item.id === (first.routeId || waybillRouteMap[first.waybillNo]));
-    const amount = group.waybills.reduce((sum, item) => sum + Number(item.receivable || route?.estimatedRevenue || 0), 0);
+    const planDate = first.planExecutionDate || String(first.executionTime || first.orderDate || "-").slice(0, 10);
+    const planDateValue = getPlanTaskDate(planDate);
+    const isOverdue = planDateValue && planDateValue < getPlanTaskToday() && !["已完成", "已取消"].includes(group.status);
     return `<tr>
-      <td class="task-customer"><strong>${first.customerName || route?.customerName || "-"}</strong></td>
-      <td class="task-project"><span>${first.projectName || route?.projectName || "未分配项目"}</span></td>
-      <td class="task-route"><strong>${route?.routeName || first.routeId || "-"}</strong><small>${route?.routeCode || "未绑定线路编号"}</small></td>
+      <td class="task-customer"><strong>${dashboardEscape(first.customerName || route?.customerName || "-")}</strong></td>
+      <td class="task-project"><strong>${dashboardEscape(first.projectName || route?.projectName || "未分配项目")}</strong><small>${dashboardEscape(route?.routeName || first.routeId || "未指定线路")}</small></td>
+      <td><strong>${dashboardEscape(first.taskTypeNameSnapshot || first.taskType || "提空装货")}</strong><small>${dashboardEscape(String(planDate).replace("T", " ").slice(0, 16))}</small></td>
       <td class="task-route-nodes">${route ? renderRouteStops(route) : '<span class="route-node-empty">线路节点待维护</span>'}</td>
-      <td>${first.taskTypeNameSnapshot || first.taskType || "提空装货"}</td>
-      <td>${first.planExecutionDate || String(first.executionTime || first.orderDate || "-").slice(0, 10)}</td>
-      <td class="plan-task-execution-cell"><span class="plan-task-status">${group.status}</span><div class="plan-task-execution-counts" aria-label="有效子任务共 ${group.completed + group.uncompleted} 项，已完成 ${group.completed} 项，未完成 ${group.uncompleted} 项"><span>已完成 ${group.completed}</span><span>未完成 ${group.uncompleted}</span></div></td>
-      <td class="money">${formatMoney(amount)}</td>
+      <td class="plan-task-execution-cell"><div class="plan-task-execution-counts" aria-label="有效子任务共 ${group.completed + group.uncompleted} 项，已完成 ${group.completed} 项，未完成 ${group.uncompleted} 项"><span>完成 ${group.completed} / ${group.completed + group.uncompleted}</span><span>未完成 ${group.uncompleted}</span></div></td>
+      <td class="plan-task-execution-cell"><div class="plan-task-execution-counts" aria-label="已派单 ${group.assigned + group.moving + group.completed} 项，待派单 ${group.pending} 项"><span>已派 ${group.assigned + group.moving + group.completed}</span><span>待派 ${group.pending}</span></div></td>
+      <td><span class="plan-task-status">${dashboardEscape(group.status)}</span>${isOverdue ? '<small class="plan-task-overdue">已逾期</small>' : ""}</td>
+      <td class="plan-task-creator"><strong>${dashboardEscape(getRecordOwner(first))}</strong></td>
       <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-view-plan-dispatch="${dashboardEscape(group.id)}" type="button">查看详情</button>${group.canEdit ? `<button class="link-btn" data-edit-plan="${dashboardEscape(group.id)}" type="button">编辑计划</button>` : ""}${group.canCancel ? `<button class="link-btn danger-link" data-cancel-plan="${dashboardEscape(group.id)}" type="button">取消计划</button>` : ""}</div></td>
     </tr>`;
   }).join("");
@@ -3065,6 +3081,23 @@ function getDispatchStatusClass(status) {
   return { 待派单: "pending", 已派单: "assigned", 运输中: "moving", 已完成: "completed", 取消: "cancelled" }[status] || "pending";
 }
 
+function getDispatchAcceptanceStatus(dispatch = {}) {
+  if (["取消", "已取消"].includes(dispatch.status)) return "已撤销";
+  if (["已拒绝", "拒单"].includes(dispatch.status) || dispatch.acceptanceStatus === "已拒单") return "已拒单";
+  if (["运输中", "已完成"].includes(dispatch.status) || dispatch.acceptanceStatus === "已接单") return "已接单";
+  if (dispatch.status === "已派单") return "待接单";
+  return "未派单";
+}
+
+function getDispatchTransportStatus(dispatch = {}) {
+  if (dispatch.status === "待派单") return "未开始";
+  if (dispatch.status === "已派单") return "待开始";
+  if (dispatch.status === "运输中") return "运输中";
+  if (dispatch.status === "已完成") return "已完成";
+  if (["取消", "已取消"].includes(dispatch.status)) return "已取消";
+  return dispatch.status || "待确认";
+}
+
 const seedAutoDispatchIds = new Set(["PD-1001", "PD-1003"]);
 
 function getDispatchMode(dispatch) {
@@ -3161,10 +3194,10 @@ function renderDispatchRows(rows) {
   dispatchBody.innerHTML = rows.map((dispatch) => `
     <tr>
       <td><input class="dispatch-row-check" data-dispatch-id="${dispatch.id}" type="checkbox" ${selectedDispatchIds.has(dispatch.id) ? "checked" : ""} /></td>
-      <td>${dashboardEscape(formatPlannedBerthingTime(dispatch))}</td><td>${dispatch.taskType || "-"}</td><td><span class="dispatch-status ${getDispatchStatusClass(dispatch.status)}">${dispatch.status || "-"}</span></td><td><span class="dispatch-node">${dashboardEscape(getDispatchCurrentTransportNode(dispatch))}</span></td>
+      <td>${dashboardEscape(formatPlannedBerthingTime(dispatch))}</td><td><strong>${dashboardEscape(dispatch.taskType || "-")}</strong><small>${dashboardEscape(getRecordOwner(dispatch))}</small></td><td><span class="dispatch-status ${getDispatchStatusClass(dispatch.status)}">${dashboardEscape(dispatch.status || "-")}</span><small>${dashboardEscape(getDispatchAcceptanceStatus(dispatch))}</small></td><td><strong>${dashboardEscape(getDispatchTransportStatus(dispatch))}</strong><small class="dispatch-node">${dashboardEscape(getDispatchCurrentTransportNode(dispatch))}</small></td>
       <td><div class="dispatch-customer-route"><strong>${dashboardEscape([dispatch.customerName, dispatch.projectName].filter(Boolean).join(" / ") || "-")}</strong><span>${dashboardEscape(dispatch.routeName || "-")}</span></div></td>
       <td>${dispatch.origin || "-"}</td><td>${dispatch.destination || "-"}</td><td>${dispatch.dispatchTime || "-"}</td><td>${dashboardEscape(getActualBerthingTime(dispatch) || "-")}</td>
-      <td><div class="dispatch-customer-route"><strong>${dashboardEscape(dispatch.driverName || "待分配")}</strong><span>${dashboardEscape(dispatch.phone || "-")}</span><span>${CapacityOwnership.badgeMarkup(dispatch.capacityOwnershipSnapshot || CapacityOwnership.TYPES.PENDING, dispatch.capacityOwnershipTooltipSnapshot)} ${dashboardEscape(organizationDisplayName(dispatch.driverOrganizationSnapshot, "待确定"))}</span></div></td><td><div class="dispatch-customer-route"><strong>${dashboardEscape(dispatch.vehicleId || "待分配")}</strong><span>${CapacityOwnership.badgeMarkup(dispatch.capacityOwnershipSnapshot || CapacityOwnership.TYPES.PENDING, dispatch.capacityOwnershipTooltipSnapshot)} ${dashboardEscape(organizationDisplayName(dispatch.vehicleOrganizationSnapshot, "待确定"))}</span></div></td>
+      <td><div class="dispatch-customer-route"><strong>${dashboardEscape(dispatch.driverName || "待分配")}</strong><span>${dashboardEscape(getDispatchAcceptanceStatus(dispatch))}</span><span>${dashboardEscape(dispatch.phone || "-")}</span></div></td><td><div class="dispatch-customer-route"><strong>${dashboardEscape(dispatch.vehicleId || "待分配")}</strong><span>${CapacityOwnership.badgeMarkup(dispatch.capacityOwnershipSnapshot || CapacityOwnership.TYPES.PENDING, dispatch.capacityOwnershipTooltipSnapshot)} ${dashboardEscape(organizationDisplayName(dispatch.vehicleOrganizationSnapshot, "待确定"))}</span></div></td>
       <td class="fixed-action-column"><div class="vehicle-action-group"><button class="link-btn" data-view-dispatch="${dispatch.id}" type="button">查看</button><button class="link-btn dispatch-operation-link" data-operation-log-dispatch="${dispatch.id}" type="button">操作记录</button>${["待派单", "已派单", "运输中"].includes(dispatch.status) ? `<button class="link-btn" data-edit-dispatch="${dispatch.id}" type="button">编辑派单</button>` : ""}${["待派单", "已派单"].includes(dispatch.status) ? `<button class="link-btn delete-btn revoke-btn" data-revoke-dispatch="${dispatch.id}" type="button">撤销</button>` : ""}</div></td>
     </tr>`).join("");
   updateDispatchSelection();
@@ -5472,6 +5505,7 @@ function exportDriverArchive() {
 function switchPage(pageName) {
   const meta = pageMeta[pageName] || pageMeta.waybill;
   activePageName = pageName;
+  document.body.classList.toggle("analysis-page-active", meta.view === "operationsOverview" || meta.view === "waybillProfit");
   const activeNavPage = meta.navPage || pageName;
   pageTitle.textContent = meta.title;
   pageKicker.textContent = meta.kicker;
@@ -5508,6 +5542,12 @@ function switchPage(pageName) {
   }
   if (meta.view === "dashboard") {
     renderDashboard();
+  }
+  if (meta.view === "operationsOverview") {
+    window.OperationsAnalysis?.renderOverview?.();
+  }
+  if (meta.view === "waybillProfit") {
+    window.OperationsAnalysis?.renderProfit?.();
   }
   if (meta.view === "driver") {
     closeDriverDetail();

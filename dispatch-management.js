@@ -321,8 +321,8 @@
       const context = getTaskContext(task);
       const selected = selectedTaskIds.has(task.id);
       return `<tr class="${selected ? "selected" : ""}" data-dispatch-management-task="${escapeHtml(task.id)}" tabindex="0" aria-selected="${selected}">
-        <td><input type="checkbox" name="dispatchManagementTask" value="${escapeHtml(task.id)}" ${selected ? "checked" : ""} aria-label="选择任务 ${escapeHtml(task.waybillNo)}" /></td>
-        <td><strong title="${escapeHtml(context.customer)}">${escapeHtml(context.customer)}</strong><small title="${escapeHtml(`${task.waybillNo} · ${context.project}`)}">${escapeHtml(`${task.waybillNo} · ${context.project}`)}</small></td>
+        <td><input type="checkbox" name="dispatchManagementTask" value="${escapeHtml(task.id)}" ${selected ? "checked" : ""} aria-label="选择任务 ${escapeHtml(`${context.customer} ${context.project}`)}" /></td>
+        <td><strong title="${escapeHtml(context.customer)}">${escapeHtml(context.customer)}</strong><small title="${escapeHtml(context.project)}">${escapeHtml(context.project)}</small></td>
         <td><span class="dispatch-task-route" title="${escapeHtml(context.route)}">${escapeHtml(context.route)}</span></td>
         <td><span class="dispatch-task-type" title="${escapeHtml(context.taskType)}">${escapeHtml(context.taskType)}</span></td>
         <td><span class="dispatch-task-date" title="${escapeHtml(context.plannedBerthingTime)}">${escapeHtml(context.plannedBerthingTime)}</span></td>
