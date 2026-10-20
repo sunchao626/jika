@@ -58,9 +58,19 @@
 .analysis-empty { padding: 22px 0; color: var(--muted); text-align: center; font-size: 12px; }
 .analysis-profit-card { margin-top: 16px; }
 .analysis-profit-table-wrap { overflow-x: auto; }
-.analysis-profit-table { min-width: 1180px; }
+.analysis-profit-table { width: 100%; min-width: 1500px; table-layout: fixed; }
+.analysis-profit-table .profit-col-date { width: 8%; }
+.analysis-profit-table .profit-col-waybill { width: 12%; }
+.analysis-profit-table .profit-col-customer { width: 11%; }
+.analysis-profit-table .profit-col-route { width: 12%; }
+.analysis-profit-table .profit-col-ownership { width: 6%; }
+.analysis-profit-table .profit-col-resource { width: 9%; }
+.analysis-profit-table .profit-col-status { width: 7%; }
+.analysis-profit-table .profit-col-money { width: 7%; }
+.analysis-profit-table .profit-col-margin { width: 6%; }
+.analysis-profit-table .profit-col-state { width: 8%; }
 .analysis-profit-table td small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
-.analysis-profit-table td, .analysis-profit-table th { white-space: nowrap; }
+.analysis-profit-table td, .analysis-profit-table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .analysis-sample-tag { display: inline-block !important; width: max-content; padding: 2px 5px; border-radius: 4px; color: #7a5c17 !important; background: #fff5d8; }
 .analysis-status, .analysis-ownership { display: inline-flex; align-items: center; min-height: 23px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; font-size: 10px; white-space: nowrap; }
 .analysis-status.complete { border-color: #ccebd9; color: var(--status-complete-fg); background: var(--status-complete-bg); }
