@@ -256,18 +256,6 @@
     ];
     document.querySelector("#settlementSummary").innerHTML = `${kpis.map(([label, metric, route, tone, note]) => `<button class="finance-summary-card settlement-summary-card ${tone}" data-settlement-dashboard-route="${route}" type="button"><span>${label}</span><i data-lucide="arrow-up-right" aria-hidden="true"></i><strong>${money(metric.amount)}</strong><small>${note}</small></button>`).join("")}<div class="finance-summary-card settlement-summary-card settlement-confirmation-kpi"><span>待财务确认</span><strong>${metrics.awaitingConfirmation.count} 张</strong><small>${money(metrics.awaitingConfirmation.amount)} · 生成即锁定</small></div>`;
 
-    const todos = [
-      ["应收单待财务确认", metrics.receivableConfirmation, "settlement-receivable", "orders", "needs-confirmation", "待确认"],
-      ["三方应付待财务确认", metrics.payableConfirmation, "settlement-payable", "orders", "needs-confirmation", "待确认"],
-      ["客户待开票", metrics.receivableInvoices, "settlement-transactions", "", "receivable-invoice", "登记"],
-      ["三方待收票", metrics.payableInvoices, "settlement-transactions", "", "payable-invoice", "登记"],
-      ["客户待收款", metrics.receivablePayments, "settlement-transactions", "", "receivable-payment", "登记"],
-      ["三方待付款", metrics.payablePayments, "settlement-transactions", "", "payable-payment", "登记"],
-      ["异常费用待结算", metrics.abnormalEntries, "settlement-abnormal", "", "", "处理"],
-      ["能源待月结分摊", metrics.pendingEnergy, "settlement-energy", "", "", "查看"],
-    ];
-    document.querySelector("#settlementDashboardTodos").innerHTML = todos.map(([label, metric, route, tab, filter, action]) => `<button class="settlement-todo-link" data-settlement-dashboard-route="${route}" ${tab ? `data-settlement-dashboard-tab="${tab}"` : ""} ${filter ? `data-settlement-dashboard-filter="${filter}"` : ""} type="button"><span class="settlement-todo-copy"><strong>${label}</strong><small>${money(metric.amount)}</small></span><span class="settlement-todo-count">${metric.count}</span><span class="settlement-todo-action">${action}<i data-lucide="chevron-right" aria-hidden="true"></i></span></button>`).join("");
-
     const modules = [
       ["应收账款管理", "receipt", "settlement-receivable", "查看已完成运单的客户应收费用", metrics.pendingReceivables.count, "待结算"],
       ["三方应付结算", "hand-coins", "settlement-payable", "查看三方运力的应付结算费用", metrics.pendingPayables.count, "待结算"],
@@ -722,7 +710,7 @@
     document.querySelectorAll("[data-settlement-panel]").forEach((panel) => { const active = panel.dataset.settlementPanel === tab; panel.classList.toggle("active", active); panel.hidden = !active; });
   }
   const MODULE_UI = {
-    overview: { title: "结算管理", description: "查看结算进度和待处理事项，并快速进入对应模块。", badge: "结算业务实时汇总", tabs: [] },
+    overview: { title: "结算管理", description: "查看结算进度并快速进入对应模块。", badge: "结算业务实时汇总", tabs: [] },
     receivable: { title: "应收账款管理", description: "选择已完成运单生成客户应收结算单，财务确认后登记销项发票和收款。", badge: "仅归集已完成运单", tabs: ["pending", "orders"], direction: "receivable" },
     payable: { title: "三方应付结算", description: "选择三方运力的已完成运单生成应付结算单，财务确认后登记进项发票和付款。", badge: "仅归集三方完成运单", tabs: ["pending", "orders"], direction: "payable" },
     payroll: { title: "自营结算", description: "按司机和已关闭自然月归集已完成运单，生成并确认司机工资单。", badge: "司机＋自然月核算", tabs: ["payroll"] },

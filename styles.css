@@ -4934,16 +4934,7 @@ dialog.dispatch-dialog[data-presentation="drawer"]::backdrop {
 .settlement-confirmation-kpi { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 5px; cursor: default; }
 .settlement-confirmation-kpi strong { color: #34455e; font-size: 20px; }
 .settlement-confirmation-kpi small { color: #8793a4; font-size: 11px; }
-.settlement-dashboard-todos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #e6ebf2; }
-.settlement-todo-link { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; border: 0; border-bottom: 1px solid #e6ebf2; padding: 12px 10px; color: #526176; background: #fff; text-align: left; cursor: pointer; }
-.settlement-todo-link:hover { background: #f8fafc; }
-.settlement-todo-link:focus-visible, .settlement-module-link:focus-visible { outline: 3px solid rgba(57, 127, 208, .18); outline-offset: 1px; }
-.settlement-todo-copy { display: grid; min-width: 0; gap: 4px; }
-.settlement-todo-copy strong { overflow: hidden; color: #34455e; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.settlement-todo-copy small { color: #8793a4; font-size: 11px; }
-.settlement-todo-count { min-width: 28px; color: #34455e; font-size: 15px; font-variant-numeric: tabular-nums; text-align: right; }
-.settlement-todo-action { display: inline-flex; align-items: center; gap: 4px; color: #3975cf; font-size: 11px; white-space: nowrap; }
-.settlement-todo-action svg { width: 13px; height: 13px; }
+.settlement-module-link:focus-visible { outline: 3px solid rgba(57, 127, 208, .18); outline-offset: 1px; }
 .settlement-quick-links { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
 .settlement-module-link { display: flex; min-width: 0; min-height: 94px; align-items: center; gap: 10px; border: 1px solid #e1e7ef; border-radius: 6px; padding: 11px 12px; color: #6d7a8d; background: #fff; text-align: left; cursor: pointer; }
 .settlement-module-link:hover { border-color: #b9cbea; background: #f8fafc; }
@@ -5107,9 +5098,8 @@ dialog.dispatch-dialog[data-presentation="drawer"]::backdrop {
   .driver-expense-review-dialog { width: calc(100vw - 24px); }
   .driver-expense-review-note { margin: 10px 16px 18px; }
   .settlement-summary-grid { grid-template-columns: minmax(0, 1fr); }
-  .settlement-dashboard-todos, .settlement-quick-links { grid-template-columns: minmax(0, 1fr); }
+  .settlement-quick-links { grid-template-columns: minmax(0, 1fr); }
   .settlement-dashboard-section-heading { align-items: flex-start; flex-direction: column; }
-  .settlement-todo-link { gap: 8px; padding-right: 2px; padding-left: 2px; }
   .settlement-tabs { overflow-x: auto; }
   .settlement-tabs button { min-width: 122px; padding: 0 12px; }
   .settlement-summary-card strong { font-size: 18px; }

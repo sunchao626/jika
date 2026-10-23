@@ -10,7 +10,7 @@ const styles = fs.readFileSync("styles.css", "utf8");
 assert.match(html, /data-page="settlement-management"[^>]*>结算管理/);
 assert.match(html, /id="settlementPage"/);
 assert.match(html, /id="settlementDashboard"/);
-assert.match(html, /id="settlementDashboardTodos"/);
+assert.doesNotMatch(html, /待处理事项|settlementDashboardTodos/);
 assert.match(html, /id="settlementQuickLinks"/);
 assert.match(html, /id="settlementPendingTransactionsBody"/);
 assert.match(html, /data-settlement-order-filter="needs-confirmation"/);
@@ -72,6 +72,7 @@ assert.match(settlement, /order\.documentStatus !== "confirmed"/);
 assert.match(settlement, /data-settlement-pending-transaction/);
 assert.match(settlement, /rules\.dashboardMetrics/);
 assert.match(settlement, /document\.querySelector\("#settlementDashboard"\)\.hidden = activeModule !== "overview"/);
+assert.doesNotMatch(settlement, /settlementDashboardTodos|const todos = \[/);
 for (const description of [
   "查看已完成运单的客户应收费用",
   "查看三方运力的应付结算费用",
