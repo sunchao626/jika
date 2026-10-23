@@ -88,6 +88,20 @@ test("renamed modules keep stable permission identifiers and grants", () => {
   const dispatcher = api.load().roles.find((role) => role.id === "role-dispatch");
   assert.equal(dispatcher.permissions.waybill.view, true);
   assert.equal(dispatcher.permissions.dispatchManagement.special, true);
+  for (const moduleId of ["receivables", "payables", "payroll", "abnormalFees", "settlementTransactions", "energy"]) {
+    assert.ok(api.MODULES.some((module) => module.id === moduleId), `missing settlement permission module ${moduleId}`);
+  }
+  const finance = api.load().roles.find((role) => role.id === "role-finance");
+  assert.equal(finance.permissions.receivables.special, true);
+  assert.equal(finance.permissions.payables.special, true);
+});
+
+test("legacy settlement permission migrates to split settlement modules", () => {
+  const role = api.normalizeConfiguration({ roles: [{ id: "legacy-finance", name: "旧财务", permissions: { settlements: { view: true, create: true, edit: true, export: true, special: true } } }], users: [] }).roles[0];
+  assert.equal(role.permissions.receivables.create, true);
+  assert.equal(role.permissions.payables.special, true);
+  assert.equal(role.permissions.abnormalFees.export, true);
+  assert.equal(role.permissions.settlementTransactions.edit, true);
 });
 
 test("legacy photo requirement permissions migrate to transport task configuration", () => {

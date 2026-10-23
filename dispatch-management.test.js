@@ -47,12 +47,16 @@ const dispatchTaskHead = html.match(/<table class="dispatch-management-task-tabl
 assert.doesNotMatch(dispatchTaskHead, /匹配状态/);
 assert.doesNotMatch(dispatchTaskHead, /操作/);
 assert.doesNotMatch(dispatchTaskHead, /拍照要求/);
-assert.match(dispatchTaskHead, /客户项目<\/th><th>运输线路<\/th><th>任务类型<\/th><th>计划靠台时间<\/th>/);
+assert.ok(dispatchTaskHead.includes("客户项目 / 固定线路"));
+assert.ok(dispatchTaskHead.includes("作业地点"));
+assert.match(dispatchTaskHead, /<th>任务类型<\/th><th>计划靠台时间<\/th>/);
 assert.doesNotMatch(dispatchTaskHead, /任务 \/ 来源|计划日期/);
 assert.match(html, /选择[\s\S]*匹配值[\s\S]*司机 \/ 电话[\s\S]*车辆 \/ 挂车[\s\S]*当前进度/);
 assert.match(html, /<colgroup>[\s\S]*task-select-col[\s\S]*task-date-col[\s\S]*<\/colgroup>/);
 assert.match(styles, /\.dispatch-management-table-wrap \{[^}]*overflow-x: hidden/);
 assert.match(styles, /\.dispatch-management-task-table \{[^}]*min-width: 0;[^}]*table-layout: fixed/);
+assert.match(styles, /\.dispatch-task-route-context \{[^}]*display:grid/);
+assert.match(styles, /\.dispatch-task-job-locations \{[^}]*display:grid/);
 assert.match(styles, /\.dispatch-management-lane\.capacity-lane \.dispatch-capacity-list-head,[\s\S]*?grid-template-columns: 28px 50px[\s\S]*?min-width: 0/);
 assert.match(styles, /\.capacity-lane-column \{[^}]*border-left: 1px solid #dfe5ee;[^}]*padding-left: 16px/);
 assert.match(styles, /\.capacity-lane-column \.dispatch-stat-grid \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
@@ -118,7 +122,7 @@ const trailers = [
 trailers.push({ id: "T-5", plateNo: "挂005", trailerType: "集装箱骨架车", trailerState: "在用" });
 trailers.push({ id: "T-6", plateNo: "挂006", trailerType: "集装箱骨架车", trailerState: "在用", capacityOwnership: "三方", supplierName: "测试车队" });
 const fixedRoutes = [
-  { id: "R-1", routeName: "北仑港至园区", origin: "宁波北仑港", defaultVehicle: "浙B20001", defaultDriver: "王海" },
+  { id: "R-1", routeName: "北仑港至园区", origin: "宁波北仑港", defaultVehicle: "浙B20001", defaultDriver: "王海", jobLocations: [{ name: "提箱地", address: "北仑港空箱区" }, { name: "装货地", address: "滨海仓" }] },
   { id: "R-2", routeName: "港区短驳", origin: "宁波北仑港" },
 ];
 
@@ -173,10 +177,12 @@ assert.equal(windowMock.DispatchManagement.getDemoState().tasks.filter((task) =>
 assert.equal(windowMock.DispatchManagement.getDemoState().tasks.filter((task) => task.orderDate === tomorrowText).length, 5);
 assert.equal(getElement("#dispatchManagementTaskCount").textContent, "15 条待匹配");
 assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /东方港联/);
-assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010031/);
-assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010030/);
-assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /2026-10-18 19:20/);
-assert.ok(getElement("#dispatchManagementTaskBody").innerHTML.indexOf("2026-10-18 19:20") < getElement("#dispatchManagementTaskBody").innerHTML.indexOf("2026-10-18 19:40"), "pending tasks should be ordered by planned berthing time");
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /class="dispatch-task-customer-project"/);
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /作业地点待维护/);
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /data-dispatch-management-task="DM-011"/);
+assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /data-dispatch-management-task="DM-010"/);
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /\d{4}-\d{2}-\d{2} 19:20/);
+assert.ok(getElement("#dispatchManagementTaskBody").innerHTML.indexOf("19:20") < getElement("#dispatchManagementTaskBody").innerHTML.indexOf("19:40"), "pending tasks should be ordered by planned berthing time");
 assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /封号照片|1 项 · 2 张/);
 assert.doesNotMatch(getElement("#dispatchManagementCapacityList").innerHTML, /司机资质|核载 \/ 容积|dispatch-capacity-node-progress/);
 assert.match(getElement("#dispatchManagementCapacityList").innerHTML, /dispatch-capacity-progress-track/);
@@ -201,15 +207,15 @@ getElement("#dispatchManagementTaskStats").listeners.click({
 });
 assert.equal(getElement("#dispatchManagementTaskDateFilter").value, todayText);
 assert.equal(getElement("#dispatchManagementTaskCount").textContent, "5 条待匹配");
-assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010021/);
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /data-dispatch-management-task="DM-001"/);
 assert.equal(navigatedPage, "", "stat filters should stay on the dispatch management page");
 getElement("#dispatchManagementTaskStats").listeners.click({
   target: { closest: () => ({ dataset: { dispatchStatRange: "date", dispatchStatDate: tomorrowText } }) },
 });
 assert.equal(getElement("#dispatchManagementTaskDateFilter").value, tomorrowText);
 assert.equal(getElement("#dispatchManagementTaskCount").textContent, "5 条待匹配");
-assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010026/);
-assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010021/);
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /data-dispatch-management-task="DM-006"/);
+assert.doesNotMatch(getElement("#dispatchManagementTaskBody").innerHTML, /data-dispatch-management-task="DM-001"/);
 assert.equal(navigatedPage, "", "tomorrow stat should stay on the dispatch management page");
 getElement("#dispatchManagementTaskStats").listeners.click({
   target: { closest: () => ({ dataset: { dispatchStatRange: "all" } }) },
@@ -238,7 +244,7 @@ const taskNumberSearch = getElement("#dispatchManagementTaskNumberSearch");
 taskNumberSearch.value = "JH2026101003";
 taskNumberSearch.listeners.input();
 assert.equal(getElement("#dispatchManagementTaskCount").textContent, "1 条待匹配");
-assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /WB20261010023/);
+assert.match(getElement("#dispatchManagementTaskBody").innerHTML, /data-dispatch-management-task="DM-003"/);
 taskNumberSearch.value = "";
 taskNumberSearch.listeners.input();
 const taskTypeFilter = getElement("#dispatchManagementTaskTypeFilter");

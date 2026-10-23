@@ -288,6 +288,12 @@
     updatePageHeading(true);
     window.scrollTo?.({ top: 0, behavior: "smooth" });
   }
+  function openCreateRepairShop() {
+    openForm();
+    form.elements.businessRole.value = ROLE_CUSTOMER;
+    form.elements.customerType.value = "维修厂";
+    syncBusinessRoleRequirements();
+  }
   function detailSection(title, items) {
     return `<section class="customer-detail-section"><h3>${title}</h3><div class="customer-detail-grid">${items.map(([label, value]) => `<div><span>${label}</span><strong>${escapeHtml(value || "-")}</strong></div>`).join("")}</div></section>`;
   }
@@ -388,7 +394,7 @@
     refreshWaybillOptions();
     render();
   });
-  window.CustomerManager = { render, refreshWaybillOptions, getActiveCustomerByName, hasBusinessRole, getSuppliers: () => customers.filter((item) => item.customerStatus === "启用" && hasBusinessRole(item, ROLE_SUPPLIER)), getRepairShops: () => customers.filter((item) => item.customerStatus === "启用" && isRepairShop(item)) };
+  window.CustomerManager = { render, refreshWaybillOptions, getActiveCustomerByName, hasBusinessRole, openCreateRepairShop, getSuppliers: () => customers.filter((item) => item.customerStatus === "启用" && hasBusinessRole(item, ROLE_SUPPLIER)), getRepairShops: () => customers.filter((item) => item.customerStatus === "启用" && isRepairShop(item)) };
   refreshWaybillOptions();
   render();
 })();

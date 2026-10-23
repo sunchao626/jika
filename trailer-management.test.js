@@ -5,7 +5,7 @@ const html = fs.readFileSync("index.html", "utf8");
 const app = fs.readFileSync("app.js", "utf8");
 const styles = fs.readFileSync("styles.css", "utf8");
 
-assert.match(html, /data-page="trailer-archives"[^>]*>挂车档案管理/);
+assert.match(html, /data-page="trailer-archives"[^>]*>车辆档案管理/);
 assert.match(html, /id="trailerPage"/);
 assert.match(html, /id="trailerQueryForm"/);
 assert.match(html, /id="trailerForm"/);

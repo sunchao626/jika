@@ -22,11 +22,13 @@ for (const label of ["上报编号", "司机", "关联运单", "车辆", "费用
 assert.match(html, /id="driverExpenseReviewDialog"/);
 assert.match(html, /id="rejectDriverExpenseBtn"[^>]*>驳回/);
 assert.match(html, /id="approveDriverExpenseBtn"[^>]*>审核通过/);
+for (const id of ["driverExpenseCorrectedWaybill", "driverExpenseCorrectedVehicle", "driverExpenseCorrectedReceipt", "driverExpenseCorrectedOriginalRemark"]) assert.match(html, new RegExp(`id="${id}"`));
 assert.match(app, /"driver-expenses": \{ title: "司机费用上报"/);
 assert.match(app, /DRIVER_EXPENSE_STORAGE_KEY = "container-logistics-driver-expenses-v1"/);
 assert.match(app, /function renderDriverExpensePage/);
 assert.match(app, /function applyDriverExpenseReview/);
 assert.match(app, /function mergeDriverExpenseRecords/);
+assert.match(app, /item\.originalSubmission \|\|= \{ waybillNo:/);
 assert.match(app, /type: "driver-expense-sync-data"/);
 assert.match(app, /data-driver-expense-action="approve"/);
 assert.match(app, /data-driver-expense-action="reject"/);

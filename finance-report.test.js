@@ -4,8 +4,8 @@ const fs = require("fs");
 const html = fs.readFileSync("index.html", "utf8");
 const app = fs.readFileSync("app.js", "utf8");
 
-assert.match(html, /<button class="nav-parent"[^>]*>[\s\S]*?数据看板[\s\S]*?data-page="finance-reports"[^>]*>运输成本台账/);
-assert.match(app, /"finance-reports": \{ title: "运输成本台账", kicker: "数据看板 \/ 运输成本台账", view: "finance" \}/);
+assert.match(html, /结算中心[\s\S]*?data-page="finance-reports"[^>]*>运输管理台账/);
+assert.match(app, /"finance-reports": \{ title: "运输管理台账", kicker: "结算中心 \/ 运输管理台账", view: "finance" \}/);
 assert.match(html, /id="financePage"/);
 assert.match(html, /id="financeReportBody"/);
 assert.match(html, /id="financeExpenseDialog"/);

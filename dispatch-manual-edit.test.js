@@ -11,16 +11,18 @@ assert.match(source, /getDispatchResourceOwnership\(trailer\) === ownerType/);
 assert.match(source, /dispatch\.capacityOwnershipDetailSnapshot\?\.find\(\(item\) => item\.role === "车辆"\)/);
 assert.match(mobileScript, /\["司机所属单位", dispatch\.driverOrganizationSnapshot/);
 assert.match(mobileScript, /\["车辆所属单位", dispatch\.vehicleOrganizationSnapshot/);
-assert.match(desktopHtml, /class="dispatch-container-group"><legend>集装箱 1<\/legend><div class="dispatch-container-fields"><label class="field"><span class="field-label">箱号<\/span><input name="boxNo1"[\s\S]*?<label class="field"><span class="field-label">对应铅封号<\/span><input name="sealNo1"/);
-assert.match(desktopHtml, /class="dispatch-container-group"><legend>集装箱 2<\/legend><div class="dispatch-container-fields"><label class="field"><span class="field-label">箱号<\/span><input name="boxNo2"[\s\S]*?<label class="field"><span class="field-label">对应铅封号<\/span><input name="sealNo2"/);
+for (const [number, id] of [[1, "dispatchTempSealNo1"], [1, "dispatchRailSealNo1"], [1, "dispatchSeaSealNo1"], [2, "dispatchTempSealNo2"], [2, "dispatchRailSealNo2"], [2, "dispatchSeaSealNo2"]]) assert.ok(desktopHtml.includes(`id="${id}"`), `缺少第 ${number} 组封号字段 ${id}`);
 assert.match(desktopCss, /\.dispatch-box-type-field\s*\{[^}]*max-width:\s*210px/);
 assert.match(desktopCss, /\.dispatch-container-fields\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+assert.match(desktopHtml, /id="dispatchJobLocationFields"/);
+assert.match(source, /editingDispatch\.jobLocations = readDispatchJobLocations\(\)/);
+assert.match(source, /label: "作业地点"/);
 const start = source.indexOf('dispatchForm.addEventListener("submit"');
 const end = source.indexOf('dispatchBody.addEventListener("change"', start);
 assert.ok(start >= 0 && end > start);
 
 const route = { id: "XL-001", routeName: "港区线路", origin: "港区", destination: "仓库", estimatedRevenue: 2900 };
-const waybill = { waybillNo: "WB-EDIT", orderDate: "2026-09-27", loadAddress: "港区 / 仓库" };
+const waybill = { waybillNo: "WB-EDIT", orderDate: "2026-09-27", taskType: "提空装货", loadAddress: "港区 / 仓库" };
 const dispatch = {
   id: "PD-EDIT", waybillNo: "WB-EDIT", status: "已派单", dispatchMode: "auto", dispatchTime: "2026-09-27 08:00",
   currentNode: "待提货", driverId: "SJ-OLD", driverName: "原司机", vehicleId: "浙B-001", note: "原备注", pushed: true,
@@ -30,7 +32,7 @@ const nextDriver = { id: "SJ-NEW", name: "新司机", phone: "13800000000", driv
 const form = {
   dispatchMode: "edit",
   editingDispatchId: dispatch.id,
-  elements: { waybillId: { value: waybill.waybillNo }, driverId: { value: nextDriver.id }, vehicleId: { value: "浙B-002" }, boxType: { value: "40HQ" }, boxNo1: { value: "MSKU-EDIT" }, sealNo1: { value: "SEAL-EDIT" }, boxNo2: { value: "-" }, sealNo2: { value: "-" }, consignee: { value: "李收货" }, arrivalTime: { value: "2026-09-27T18:30" }, arrivalLocation: { value: "宁波北仑仓" }, note: { value: " 变更后备注 " } },
+  elements: { waybillId: { value: waybill.waybillNo }, driverId: { value: nextDriver.id }, vehicleId: { value: "浙B-002" }, boxType: { value: "40HQ" }, boxNo1: { value: "MSKU-EDIT" }, tempSealNo1: { value: "SEAL-EDIT" }, railSealNo1: { value: "RAIL-EDIT" }, seaSealNo1: { value: "SEA-EDIT" }, boxNo2: { value: "-" }, tempSealNo2: { value: "-" }, railSealNo2: { value: "-" }, seaSealNo2: { value: "-" }, consignee: { value: "李收货" }, arrivalTime: { value: "2026-09-27T18:30" }, arrivalLocation: { value: "宁波北仑仓" }, note: { value: " 变更后备注 " } },
   addEventListener(name, handler) { this[name] = handler; },
 };
 const context = vm.createContext({
@@ -43,6 +45,11 @@ const context = vm.createContext({
   activePageName: "vehicle-dashboard",
   availableOwnDrivers: () => [nextDriver],
   getRouteForWaybill: () => route,
+  readDispatchJobLocations: () => [
+    { id: "提空装货-LOC-1", name: "提空地", address: "港区空箱区" },
+    { id: "提空装货-LOC-2", name: "装货地", address: "客户仓库" },
+    { id: "提空装货-LOC-3", name: "落重地", address: "铁路场站" },
+  ],
   formatWaybillBoxes: () => "箱 / 40HQ",
   calculateRouteCommission: () => 420,
   window: { DispatchStore: { nowText: () => "2026-09-27 09:30" }, AutoDispatchManager: { refresh() {} } },
@@ -59,6 +66,10 @@ assert.equal(dispatch.vehicleId, "浙B-002");
 assert.equal(dispatch.boxType, "40HQ");
 assert.equal(dispatch.boxNo1, "MSKU-EDIT");
 assert.equal(dispatch.sealNo1, "SEAL-EDIT");
+assert.equal(dispatch.railSealNo1, "RAIL-EDIT");
+assert.equal(dispatch.seaSealNo1, "SEA-EDIT");
+assert.deepEqual(dispatch.jobLocations.map(({ name, address }) => [name, address]), [["提空地", "港区空箱区"], ["装货地", "客户仓库"], ["落重地", "铁路场站"]]);
+assert.equal(JSON.stringify(waybill.jobLocations), JSON.stringify(dispatch.jobLocations));
 assert.equal(dispatch.consignee, "李收货");
 assert.equal(dispatch.arrivalTime, "2026-09-27T18:30");
 assert.equal(dispatch.arrivalLocation, "宁波北仑仓");

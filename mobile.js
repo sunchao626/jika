@@ -65,6 +65,16 @@ function syncVehicleArchive() {
       organizationName: window.CapacityOwnership.organizationName(vehicle),
       permitNo: vehicle.permitNo || vehicles[vehicle.plateNo]?.permitNo || "",
       inspectionDue: vehicle.inspectionDue || vehicle.annualInspectionDue || vehicles[vehicle.plateNo]?.inspectionDue || "",
+      insuranceNo: vehicle.mandatoryInsuranceNo || vehicle.insuranceNo || "",
+      insuranceDue: vehicle.mandatoryInsuranceExpiry || vehicle.insuranceDue || "",
+      mandatoryInsuranceCompany: vehicle.mandatoryInsuranceCompany || "",
+      mandatoryInsuranceNo: vehicle.mandatoryInsuranceNo || vehicle.insuranceNo || "",
+      mandatoryInsuranceExpiry: vehicle.mandatoryInsuranceExpiry || vehicle.insuranceDue || "",
+      commercialInsuranceCompany: vehicle.commercialInsuranceCompany || "",
+      commercialInsuranceNo: vehicle.commercialInsuranceNo || "",
+      commercialInsuranceExpiry: vehicle.commercialInsuranceExpiry || "",
+      cargoInsuranceNo: vehicle.cargoInsuranceNo || "",
+      cargoInsuranceExpiry: vehicle.cargoInsuranceExpiry || "",
     };
   });
   Object.keys(vehicles).forEach((plate) => delete vehicles[plate]);
@@ -661,6 +671,35 @@ function dispatchTaskType(dispatch) {
   return window.DispatchTaskNodes.resolve(taskType);
 }
 
+function dispatchJobLocations(dispatch) {
+  const profileLocations = window.DispatchTaskNodes?.profile?.(dispatchTaskType(dispatch))?.jobLocations || [];
+  const snapshotLocations = Array.isArray(dispatch.taskConfigSnapshot?.jobLocations) ? dispatch.taskConfigSnapshot.jobLocations : [];
+  const configured = profileLocations.length ? profileLocations : snapshotLocations;
+  const supplied = Array.isArray(dispatch.jobLocations) ? dispatch.jobLocations : [];
+  if (supplied.length) return supplied.map((location, index) => ({
+    name: location.name || configured.find((item) => item.id === location.id)?.name || `作业地点${index + 1}`,
+    address: location.address || "",
+  }));
+  return configured.map((location, index) => {
+    const name = location.name || `作业地点${index + 1}`;
+    const normalizedName = name.replace(/\s/g, "");
+    let address = "";
+    if (/提空|提重|提箱/.test(normalizedName)) address = dispatch.pickupPoint || dispatch.origin || "";
+    else if (/装货/.test(normalizedName)) address = dispatch.loadingPoint || dispatch.destination || "";
+    else if (/卸货/.test(normalizedName)) address = dispatch.unloadingPoint || dispatch.destination || "";
+    else if (/落重|还空|还重|还箱|落箱/.test(normalizedName)) address = dispatch.dropoffPoint || dispatch.returnPoint || dispatch.loadAddress || dispatch.destination || "";
+    else if (index === 0) address = dispatch.origin || "";
+    else if (index === configured.length - 1) address = dispatch.loadAddress || dispatch.destination || "";
+    else address = dispatch.destination || "";
+    return { name, address };
+  });
+}
+
+function renderDispatchJobLocations(dispatch, className = "") {
+  const locations = dispatchJobLocations(dispatch);
+  return `<section class="driver-job-locations ${className}" aria-label="作业地点"><div class="driver-job-location-heading"><strong>作业地点</strong><span>${locations.length} 个地点</span></div>${locations.map((location, index) => `<div class="driver-job-location-row"><span><i>${h(String(index + 1).padStart(2, "0"))}</i>${h(location.name)}</span><strong>${h(location.address || "待补充")}</strong></div>`).join("")}</section>`;
+}
+
 function taskNodes(dispatch) {
   const snapshotNodes = dispatch?.taskConfigSnapshot?.nodes;
   return Array.isArray(snapshotNodes) && snapshotNodes.length
@@ -1010,13 +1049,7 @@ function taskCard(dispatch) {
         <span class="status-badge ${category}">${h(statusLabel(dispatch))}</span>
       </div>
       <div class="dispatch-time"><span>派单时间</span><strong>${h(dispatch.dispatchTime || "-")}</strong></div>
-      <div class="route-block">
-        <div class="route-track"><i class="route-dot"></i><i class="route-dot end"></i></div>
-        <div class="route-points">
-          <div class="route-point"><span>提箱地</span><strong>${h(dispatch.origin)}</strong></div>
-          <div class="route-point"><span>装卸地</span><strong>${h(dispatch.destination)}</strong></div>
-        </div>
-      </div>
+      ${renderDispatchJobLocations(dispatch, "task-card-locations")}
       <div class="task-meta">
         <span class="meta-chip">车 ${h(dispatch.vehicleId || "待分配")}</span>
         <span class="meta-chip">箱 ${h(dispatch.boxes)}</span>
@@ -1064,7 +1097,7 @@ function orderCard(dispatch) {
   return `
     <article class="order-card" data-action="detail" data-id="${h(dispatch.id)}">
       <div class="order-card-top"><strong>${h(dispatch.waybillNo)}</strong><span class="status-badge ${category}">${h(statusLabel(dispatch))}</span></div>
-      <div class="order-route">${h(dispatch.origin)}<span>→</span>${h(dispatch.destination)}</div>
+      ${renderDispatchJobLocations(dispatch, "order-card-locations")}
       <div class="order-info"><span>派单时间　<b>${h(String(dispatch.dispatchTime || "-").replace("T", " ").slice(0, 16))}</b></span><span>车辆　<b>${h(dispatch.vehicleId || "-")}</b></span><span>箱信息　<b>${h(dispatch.boxes)}</b></span><span>收货人　<b>${h(dispatch.consignee || "-")}</b></span><span>到达时间　<b>${h(String(dispatch.arrivalTime || "-").replace("T", " ").slice(0, 16))}</b></span><span>到达地点　<b>${h(dispatch.arrivalLocation || "-")}</b></span><span class="order-info-full">还箱地　<b>${h(dispatch.loadAddress || "-")}</b></span></div>
       ${renderTaskNodeOverview(dispatch)}
       <div class="order-card-actions"><button class="order-contact-action" data-action="contact" data-id="${h(dispatch.id)}" type="button">联系调度</button>${acceptAction}${progressAction}</div>
@@ -1081,7 +1114,8 @@ function renderOrders() {
       || (state.orderStage === "pickup" && isTaskAwaitingStart(item))
       || (state.orderStage === "transit" && isTaskInProgress(item))
       || (state.orderStage === "completed" && item.status === "已完成");
-    const searchText = `${item.waybillNo} ${item.routeName} ${item.boxes} ${item.origin} ${item.destination} ${dispatchTaskType(item)}`.toLowerCase();
+    const locationText = typeof dispatchJobLocations === "function" ? dispatchJobLocations(item).map((location) => `${location.name} ${location.address}`).join(" ") : "";
+    const searchText = `${item.waybillNo} ${item.routeName} ${item.boxes} ${item.origin} ${item.destination} ${dispatchTaskType(item)} ${locationText}`.toLowerCase();
     return matchedStatus && matchedStage && searchText.includes(keyword);
   });
   orderList.innerHTML = rows.length ? rows.map(orderCard).join("") : emptyState("没有找到运单", "请调整状态筛选或搜索关键词");
@@ -1502,11 +1536,14 @@ function renderSubpage(page) {
   }
 
   if (page === "insurance") {
+    const mandatory = vehicle?.mandatoryInsuranceNo || vehicle?.insuranceNo || "待补充";
+    const commercial = vehicle?.commercialInsuranceNo || "待补充";
     elements.subpageContent.innerHTML = `
-      <div class="subpage-summary"><span class="subpage-summary-icon">保</span><div><strong>${h(plateNo)} 保险档案</strong><span>当前保单状态正常</span></div></div>
+      <div class="subpage-summary"><span class="subpage-summary-icon">保</span><div><strong>${h(plateNo)} 保险档案</strong><span>保险资料来自管理端车辆档案</span></div></div>
       <section class="info-section"><h2>有效保单</h2>
-        <div class="document-record"><header><strong>机动车交通事故责任强制保险</strong><em class="status-pill">有效</em></header><p>承保公司：中国人民财产保险<br>保单号：PDAA20263101002819<br>有效期至：2027-08-31</p></div>
-        <div class="document-record"><header><strong>商业车辆保险</strong><em class="status-pill">有效</em></header><p>承保公司：中国太平洋财产保险<br>保单号：ASH2026091800366<br>有效期至：2027-09-18</p></div>
+        <div class="document-record"><header><strong>机动车交通事故责任强制保险</strong></header><p>承保公司：${h(vehicle?.mandatoryInsuranceCompany || "待补充")}<br>保单号：${h(mandatory)}<br>有效期至：${h(vehicle?.mandatoryInsuranceExpiry || vehicle?.insuranceDue || "待补充")}</p></div>
+        <div class="document-record"><header><strong>商业车辆保险</strong></header><p>承保公司：${h(vehicle?.commercialInsuranceCompany || "待补充")}<br>保单号：${h(commercial)}<br>有效期至：${h(vehicle?.commercialInsuranceExpiry || "待补充")}</p></div>
+        <div class="document-record"><header><strong>货物运输保险</strong></header><p>保单号：${h(vehicle?.cargoInsuranceNo || "待补充")}<br>有效期至：${h(vehicle?.cargoInsuranceExpiry || "待补充")}</p></div>
       </section>`;
     return;
   }
@@ -1618,7 +1655,7 @@ function renderDetail() {
     <div class="timeline-row"><time>${h(item.time.split(" ")[1] || item.time)}<br>${h(item.time.split(" ")[0] || "")}</time><span class="timeline-axis"><i></i></span><div class="timeline-copy"><strong>${h(item.node)}</strong><p>${h(item.desc)}</p>${item.photos?.length || item.photoAttachments?.length ? `<div class="photo-tags">${renderTimelinePhotoTags(item)}</div>` : ""}</div></div>`).join("");
   elements.detailContent.innerHTML = `
     <section class="detail-status-card"><div class="detail-status-top"><span>${h(dispatch.waybillNo)}</span><strong>${h(statusLabel(dispatch))}</strong></div><h2>${h(statusDescription(dispatch))}</h2><p>派单时间 ${h(String(dispatch.dispatchTime || "-").replace("T", " ").slice(0, 16))}</p></section>
-    <section class="detail-route-card"><div class="detail-route-title"><strong>${h(dispatch.routeName)}</strong><span>${h(dispatch.vehicleId || "待分配")}</span></div><div class="route-block"><div class="route-track"><i class="route-dot"></i><i class="route-dot end"></i></div><div class="route-points"><div class="route-point"><span>提箱地</span><strong>${h(dispatch.origin)}</strong></div><div class="route-point"><span>装卸地</span><strong>${h(dispatch.destination)}</strong></div></div></div><div class="address-action"><button data-detail-action="navigate" type="button">导航至装卸地</button><a href="tel:4008006688">联系调度</a></div></section>
+    <section class="detail-route-card"><div class="detail-route-title"><strong>${h(dispatch.routeName)}</strong><span>${h(dispatch.vehicleId || "待分配")}</span></div>${renderDispatchJobLocations(dispatch, "detail-job-locations")}<div class="address-action"><button data-detail-action="navigate" type="button">复制装卸地</button><a href="tel:4008006688">联系调度</a></div></section>
     <section class="detail-card"><div class="detail-card-heading"><strong class="detail-card-title">任务进度</strong><span>${h(taskProgress.taskType)}</span></div><div class="detail-progress-meta"><span>当前节点 <strong>${h(taskProgress.currentNode)}</strong></span><b>${taskPosition}</b></div><div class="detail-progress-track" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${taskProgress.progress}"><i style="width:${taskProgress.progress}%"></i></div></section>
     <section class="detail-card"><strong class="detail-card-title">节点记录</strong><div class="timeline-list">${timeline || `<div class="empty-state"><p>暂无节点记录</p></div>`}</div></section>
     <section class="detail-card"><strong class="detail-card-title">运单信息</strong><div class="detail-grid"><div class="detail-field"><span>客户名称</span><strong>${h(meta.customer || "待补充")}</strong></div><div class="detail-field"><span>提单号</span><strong>${h(meta.billNo || "-")}</strong></div><div class="detail-field"><span>箱信息</span><strong>${h(dispatch.boxes)}</strong></div><div class="detail-field"><span>封号</span><strong>${h(meta.sealNo || "-")}</strong></div><div class="detail-field"><span>车辆</span><strong>${h(dispatch.vehicleId || "待分配")}</strong></div><div class="detail-field"><span>收货人</span><strong>${h(dispatch.consignee || "-")}</strong></div><div class="detail-field"><span>到达时间</span><strong>${h(String(dispatch.arrivalTime || "-").replace("T", " ").slice(0, 16))}</strong></div><div class="detail-field"><span>到达地点</span><strong>${h(dispatch.arrivalLocation || "-")}</strong></div><div class="detail-field full"><span>还箱地</span><strong>${h(dispatch.loadAddress || "-")}</strong></div><div class="detail-field full"><span>备注</span><strong>${h(dispatch.note || "无")}</strong></div>${dispatch.rejectionReason ? `<div class="detail-field full"><span>拒单原因</span><strong>${h(dispatch.rejectionReason)}</strong></div>` : ""}</div></section>

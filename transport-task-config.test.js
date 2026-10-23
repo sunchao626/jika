@@ -7,8 +7,11 @@ const editorUi = fs.readFileSync("transport-task-config-ui.js", "utf8");
 assert.doesNotMatch(html, /运输类型选项|name="transportType"|<th>运输类型<\/th>/, "transport type controls are removed from task configuration");
 assert.match(html, /<th>任务类型<\/th><th>运输节点流程<\/th><th>拍照要求<\/th>/);
 assert.match(html, /任务类型配置/);
+assert.match(html, /作业地点/);
+assert.match(html, /id="transportLocationEditorList"/);
 assert.doesNotMatch(html, /transportTaskTypesPanel|运输任务名称|新增运输任务类型/);
-assert.match(html, /<select name="taskType" id="planTaskTypeSelect"/);
+assert.match(html, /id="planTaskTypeCards"[^>]*role="radiogroup"/);
+assert.match(html, /id="planTaskTemplateTypeCards"[^>]*role="radiogroup"/);
 assert.match(editorUi, /<span>运输节点名称<\/span><input data-node-name/);
 assert.doesNotMatch(editorUi, /照片类别/);
 assert.match(editorUi, /添加拍照要求/);
@@ -33,6 +36,10 @@ vm.runInContext(fs.readFileSync("dispatch-task-nodes.js", "utf8"), context);
 
 const api = context.window.DispatchTaskNodes;
 assert.equal(api.taskTypes().length, 4, "legacy task types are available initially");
+assert.deepEqual([...api.profile("提空装货").jobLocations.map((location) => location.name)], ["提空地", "装货地", "落重地"]);
+assert.deepEqual([...api.profile("提重送货").jobLocations.map((location) => location.name)], ["提重地", "卸货地", "还空地"]);
+assert.deepEqual([...api.profile("排空箱（A→B）").jobLocations.map((location) => location.name)], ["提空地", "还空地"]);
+assert.deepEqual([...api.profile("排重箱（A→B）").jobLocations.map((location) => location.name)], ["提重地", "还重地"]);
 assert.equal(api.transportTaskTypes, undefined, "transport task type layer is removed");
 assert.deepEqual([...api.get("提空装货")], ["已提空", "空箱在途", "到达仓库", "完成装货", "重箱在途", "重箱进站", "完成落重"]);
 assert.equal(api.profile("提空装货").nodes[0].photoRequirements.length, 5, "legacy photo rules migrate to their related node");
@@ -73,8 +80,10 @@ assert.deepEqual([...templateNotification.channels], ["站内消息"]);
 assert.deepEqual([...api.profile("冷链回空").nodes[1].photoRequirements], [], "a node may have no photo requirements");
 assert.equal(Object.hasOwn(api.profile("冷链回空"), "transportType"), false, "saved profiles do not expose a transport type");
 assert.equal(api.snapshot("冷链回空").name, "冷链回空", "the managed task type itself is selected for new plan tasks");
+assert.deepEqual([...api.profile("冷链回空").jobLocations.map((location) => location.name)], ["作业地点"], "custom legacy task types receive an editable location placeholder");
 
 assert.throws(() => api.save([{ ...profile, nodes: [] }]), /配置至少一个运输节点/);
+assert.throws(() => api.save([{ ...api.profile("提空装货"), jobLocations: [] }]), /配置至少一个作业地点/);
 console.log("Transport task type configuration test passed");
 
 const migratedStorage = new Map([

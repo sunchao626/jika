@@ -10,12 +10,16 @@ for (const id of [
   "planTaskTemplatesBtn", "planTaskTemplateManagerDialog", "planTaskTemplateEditorDialog",
   "planTaskTemplateSearch", "planTaskTemplateTypeFilter", "planTaskTemplateBody",
   "planTaskTemplateForm", "planTaskTemplateItems", "planTaskTemplateRoute",
+  "planTaskTemplateTypeCards",
 ]) assert.ok(html.includes(`id="${id}"`), `缺少计划任务模板控件 ${id}`);
 assert.match(html, /计划任务模板/);
 assert.match(app, /使用该模板开始创建/);
 assert.match(html, /class="btn primary" type="button" id="planTaskTemplatesBtn"/);
 assert.match(html, /class="vehicle-dialog plan-template-manager-dialog"/);
 assert.match(html, /class="vehicle-dialog plan-template-editor-dialog"/);
+assert.match(html, /id="planTaskTemplateTypeCards"[^>]*role="radiogroup"/);
+assert.doesNotMatch(html, /id="planTaskTemplateTaskType"/);
+assert.match(app, /getSelectedPlanTaskType\("#planTaskTemplateTypeCards"\)/);
 const templateRouteSelect = html.slice(html.indexOf('<select name="routeId" id="planTaskTemplateRoute"'), html.indexOf("</select>", html.indexOf('<select name="routeId" id="planTaskTemplateRoute"')));
 assert.match(templateRouteSelect, /不指定固定线路/);
 assert.doesNotMatch(templateRouteSelect, /required/);

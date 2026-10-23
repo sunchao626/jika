@@ -8,6 +8,15 @@
     "排空箱（A→B）": ["已提空", "空箱在途", "完成落空"],
     "排重箱（A→B）": ["已提重", "重箱在途", "箱进站", "完成落重"],
   };
+  const legacyJobLocations = {
+    "提空装货": ["提空地", "装货地", "落重地"],
+    "提重送货": ["提重地", "卸货地", "还空地"],
+    "提重卸货": ["提重地", "卸货地", "还空地"],
+    "排空箱（A→B）": ["提空地", "还空地"],
+    "排空箱": ["提空地", "还空地"],
+    "排重箱（A→B）": ["提重地", "还重地"],
+    "提重装货": ["提重地", "还重地"],
+  };
   const legacyPhotoRules = {
     "提空装货": [
       ["左侧箱体", "拍摄空箱左侧整体，画面需包含箱体外观。", 1], ["右侧箱体", "拍摄空箱右侧整体，画面需包含箱体外观。", 1],
@@ -52,6 +61,7 @@
       id: `TT-${String(typeIndex + 1).padStart(3, "0")}`,
       name: taskType,
       enabled: true,
+      jobLocations: (legacyJobLocations[taskType] || ["作业地点"]).map((name, locationIndex) => ({ id: `${taskType}-LOC-${locationIndex + 1}`, name })),
       nodes: names.map((name, nodeIndex) => ({
         id: `${taskType}-${nodeIndex + 1}`,
         name,
@@ -88,10 +98,15 @@
 
   function normalizeTaskType(item = {}, index = 0) {
     const name = String(item.name || "").trim();
+    const locations = Array.isArray(item.jobLocations) ? item.jobLocations : (legacyJobLocations[name] || ["作业地点"]);
     return {
       id: String(item.id || `TT-${Date.now()}-${index}`),
       name,
       enabled: item.enabled !== false,
+      jobLocations: locations.map((location, locationIndex) => ({
+        id: String(location?.id || `${name}-LOC-${locationIndex + 1}`),
+        name: String(typeof location === "string" ? location : location?.name || "").trim(),
+      })).filter((location) => location.name),
       nodes: (Array.isArray(item.nodes) ? item.nodes : []).map((node, nodeIndex) => normalizeNode(node, nodeIndex, name)).filter((node) => node.name),
     };
   }
@@ -127,6 +142,8 @@
     normalized.forEach((item) => {
       if (!item.nodes.length) throw new Error(`请为“${item.name}”配置至少一个运输节点`);
       if (new Set(item.nodes.map((node) => node.name)).size !== item.nodes.length) throw new Error(`“${item.name}”中节点名称不能重复`);
+      if (!item.jobLocations.length) throw new Error(`请为“${item.name}”配置至少一个作业地点`);
+      if (new Set(item.jobLocations.map((location) => location.name)).size !== item.jobLocations.length) throw new Error(`“${item.name}”中作业地点名称不能重复`);
     });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     configuration = normalized;
@@ -216,7 +233,7 @@
   }
 
   const api = {
-    STORAGE_KEY, NOTIFICATION_STORAGE_KEY, roleOptions, legacySequences,
+    STORAGE_KEY, NOTIFICATION_STORAGE_KEY, roleOptions, legacySequences, legacyJobLocations,
     get defaultType() { return configuration.find((item) => item.enabled)?.name || ""; },
     get sequences() { return Object.fromEntries(configuration.map((item) => [item.name, item.nodes.map((node) => node.name)])); },
     load: () => clone(configuration), save, taskTypes, resolve, get, profile, snapshot, requirementsFor, notify,

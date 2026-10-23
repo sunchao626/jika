@@ -165,8 +165,8 @@ const mobileFormDefinitions = {
         { name: "attachments", label: "附件资料", placeholder: "例如：行驶证、营运证、保单", full: true },
       ] },
       { title: "保险与备注", hint: "保单及到期日期", fields: [
-        { name: "commercialInsuranceNo", label: "商业险单号" }, { name: "commercialInsuranceExpiry", label: "商业险有效期", type: "date" },
-        { name: "mandatoryInsuranceNo", label: "强制险单号" }, { name: "mandatoryInsuranceExpiry", label: "强制险有效期", type: "date" },
+        { name: "commercialInsuranceCompany", label: "商业险保险公司" }, { name: "commercialInsuranceNo", label: "商业险单号" }, { name: "commercialInsuranceExpiry", label: "商业险有效期", type: "date" },
+        { name: "mandatoryInsuranceCompany", label: "强制险保险公司" }, { name: "mandatoryInsuranceNo", label: "强制险单号" }, { name: "mandatoryInsuranceExpiry", label: "强制险有效期", type: "date" },
         { name: "cargoInsuranceNo", label: "货物险单号" }, { name: "cargoInsuranceExpiry", label: "货物险有效期", type: "date" },
         { name: "insuranceDue", label: "保险到期日期", type: "date", required: true },
         { name: "remark", label: "备注", type: "textarea", full: true },
@@ -247,7 +247,9 @@ const mobileFormDefinitions = {
       { name: "trailerState", label: "挂车状态", type: "select", required: true, options: ["在用", "停用", "维修中"] },
       { name: "registrationCertNo", label: "车辆登记证号" }, { name: "permitNo", label: "营运证号", required: true },
       { name: "operatingPermitExpiry", label: "营运证有效期", type: "date" }, { name: "inspectionDue", label: "审验到期", type: "date" },
-      { name: "insuranceNo", label: "保险单号" }, { name: "insuranceDue", label: "保险到期", type: "date" },
+      { name: "engineNo", label: "发动机号" },
+      { name: "mandatoryInsuranceCompany", label: "强制险保险公司" }, { name: "mandatoryInsuranceNo", label: "强制险单号" }, { name: "mandatoryInsuranceExpiry", label: "强制险有效期", type: "date" },
+      { name: "commercialInsuranceCompany", label: "商业险保险公司" }, { name: "commercialInsuranceNo", label: "商业险单号" }, { name: "commercialInsuranceExpiry", label: "商业险有效期", type: "date" },
       { name: "attachments", label: "附件" }, { name: "remark", label: "备注", type: "textarea", full: true },
     ] }],
   },
@@ -617,6 +619,7 @@ function dispatchEntryMarkup() {
   return `${formIntro("send", "先选择已有运单，再维护箱封号、运力及到达信息；保存后同步司机移动端。")}
     <section class="mobile-form-section"><header class="mobile-form-section-heading"><span>01</span><div><strong>选择任务</strong><small>运单、项目和固定线路</small></div></header><div class="mobile-form-grid">${fieldMarkup({ name: "waybillId", label: "运单号", type: "select", required: true, full: true, options: waybillOptions })}${fieldMarkup({ name: "projectId", label: "项目", type: "select", options: projectOptions })}${fieldMarkup({ name: "routeId", label: "固定线路", type: "select", required: true, options: routeOptions })}</div>
       <div class="readonly-summary" id="mobileDispatchSummary"><div><span>固定线路</span><strong data-summary="route"></strong></div><div><span>提箱地</span><strong data-summary="origin"></strong></div><div><span>装卸地</span><strong data-summary="destination"></strong></div><div><span>还箱地</span><strong data-summary="address"></strong></div><div><span>箱信息</span><strong data-summary="boxes"></strong></div><div><span>预估收入</span><strong data-summary="revenue"></strong></div><div><span>司机提成</span><strong data-summary="commission"></strong></div></div>
+      <section class="mobile-form-section" id="mobileDispatchJobLocations"><header class="mobile-form-section-heading"><span>作业</span><div><strong>作业地点</strong><small>按任务类型配置的顺序维护每个作业地址</small></div></header><div class="mobile-form-grid" data-job-location-fields></div></section>
     </section>
     <section class="mobile-form-section"><header class="mobile-form-section-heading"><span>02</span><div><strong>箱信息</strong><small>每个集装箱对应填写自己的铅封号</small></div></header><div class="mobile-form-grid mobile-dispatch-box-grid">
       ${fieldMarkup({ name: "boxType", label: "箱型", type: "select", required: true, options: ["40HQ", "40GP", "20GP", "45HQ"] })}
@@ -1154,6 +1157,17 @@ function updateDispatchSummary() {
   if (waybill && !form.elements.routeId.value) form.elements.routeId.value = waybill.raw?.routeId || "";
   const route = waybill ? moduleCatalog.route.items.find((item) => item.id === form.elements.routeId.value) || moduleCatalog.route.items.find((item) => item.title === waybill.subtitle) : null;
   const routeRaw = route ? routeInfo(route) : {};
+  const taskType = waybill?.raw?.taskType || state.entryOriginalRaw?.taskType || "提空装货";
+  const templates = window.DispatchTaskNodes?.profile?.(taskType)?.jobLocations || [];
+  const fields = document.querySelector("[data-job-location-fields]");
+  if (fields) {
+    const prior = state.entryOriginalRaw?.jobLocations || waybill?.raw?.jobLocations || [];
+    fields.innerHTML = templates.map((location, index) => {
+      const stored = prior.find((item) => item.id === location.id) || prior[index] || {};
+      const addresses = [routeRaw.pickupPoint || routeRaw.origin, routeRaw.loadingPoint || routeRaw.destination, routeRaw.unloadingPoint || routeRaw.dropoffPoint || routeRaw.destination];
+      return fieldMarkup({ name: `jobLocation_${location.id}`, label: location.name, required: true, value: stored.address || addresses[index] || "", placeholder: `请输入${location.name}地址`, full: true });
+    }).join("");
+  }
   if (waybill && !form.elements.projectId.value) form.elements.projectId.value = waybill.raw?.projectId || routeRaw.projectId || "";
   const field = (label) => waybill?.fields.find(([name]) => name === label)?.[1] || "";
   const values = {
@@ -1545,6 +1559,19 @@ function renderDispatchTimeline(raw) {
   return `<section class="detail-section"><h3>运输节点记录</h3>${planDetailRows(rows.length ? rows : [["执行记录", "暂无运输节点"]])}</section>`;
 }
 
+function dispatchJobLocationRows(dispatch = {}, task = {}) {
+  const route = moduleCatalog.route.items.find((entry) => entry.id === (dispatch.routeId || task.routeId))?.raw || {};
+  const taskType = dispatch.taskType || task.taskType || route.taskType || "";
+  const configured = window.DispatchTaskNodes?.profile?.(taskType)?.jobLocations || [];
+  const saved = dispatch.jobLocations?.length ? dispatch.jobLocations : task.jobLocations?.length ? task.jobLocations : route.jobLocations || [];
+  const defaults = [dispatch.origin || route.pickupPoint || route.origin, dispatch.destination || route.loadingPoint || route.unloadingPoint || route.destination, dispatch.loadAddress || task.returnPoint || route.dropoffPoint || route.destination];
+  const locations = configured.length ? configured.map((location, index) => {
+    const current = saved.find((item) => item.id === location.id || item.name === location.name);
+    return { name: location.name, address: current?.address || defaults[index] || "待维护" };
+  }) : saved;
+  return locations.map((location, index) => [`${String(index + 1).padStart(2, "0")} · ${location.name || `作业地点${index + 1}`}`, location.address || "待维护"]);
+}
+
 function renderDispatchDetail(item) {
   const dispatch = dispatchRawForItem(item);
   const waybill = moduleCatalog.waybill.items.find((entry) => entry.id === (dispatch.waybillNo || item.subtitle));
@@ -1560,12 +1587,13 @@ function renderDispatchDetail(item) {
     ["车辆所属单位", dispatch.vehicleOrganizationSnapshot || "待确定"], ["车辆类型", dispatch.vehicleType], ["挂车", dispatch.trailerId || "未绑定"], ["挂车所属单位", dispatch.trailerOrganizationSnapshot || "未绑定"], ["预估收入", dispatch.estimatedRevenue == null ? "-" : `¥${dispatch.estimatedRevenue}`],
     ["司机提成", dispatch.commission == null ? "-" : `¥${dispatch.commission}`], ["线路里程快照", dispatch.routeMileageSnapshot == null ? "-" : `${dispatch.routeMileageSnapshot} KM`],
   ];
-  const routeFields = [["线路编号", dispatch.routeId || task.routeId], ["线路名称", dispatch.routeName || waybill?.subtitle], ["提箱地", dispatch.origin], ["装卸地", dispatch.destination], ["还箱地", dispatch.loadAddress || task.returnPoint], ["收货人", dispatch.consignee], ["到达时间", dispatch.arrivalTime], ["到达地点", dispatch.arrivalLocation], ["箱信息", dispatch.boxes || task.boxType], ["备注", dispatch.note]];
-  const coreKeys = ["id", "waybillNo", "planTaskNo", "planTaskId", "customerName", "projectName", "taskType", "dispatchMode", "status", "currentNode", "dispatchTime", "pushed", "driverName", "driverId", "phone", "vehicleId", "vehicleType", "trailerId", "estimatedRevenue", "commission", "routeMileageSnapshot", "routeId", "routeName", "origin", "destination", "loadAddress", "boxes", "note", "timeline"];
+  const routeFields = [["线路编号", dispatch.routeId || task.routeId], ["线路名称", dispatch.routeName || waybill?.subtitle], ["收货人", dispatch.consignee], ["到达时间", dispatch.arrivalTime], ["到达地点", dispatch.arrivalLocation], ["箱信息", dispatch.boxes || task.boxType], ["备注", dispatch.note]];
+  const jobLocationRows = dispatchJobLocationRows(dispatch, task);
+  const coreKeys = ["id", "waybillNo", "planTaskNo", "planTaskId", "customerName", "projectName", "taskType", "dispatchMode", "status", "currentNode", "dispatchTime", "pushed", "driverName", "driverId", "phone", "vehicleId", "vehicleType", "trailerId", "estimatedRevenue", "commission", "routeMileageSnapshot", "routeId", "routeName", "origin", "destination", "loadAddress", "jobLocations", "boxes", "note", "timeline"];
   const extras = dispatchDetailRows(dispatch, coreKeys);
   if (editable) setDetailEditAction("dispatch", dispatch.id || item.id, dispatch.status === "待派单" ? "分配司机和车辆" : "编辑派单");
   else $("#detailActionButton").hidden = true;
-  $("#managerDetailContent").innerHTML = `<section class="detail-hero"><span>派单详情 · ${h(dispatch.status || item.status || "-")}</span><h2>${h(dispatch.waybillNo || item.subtitle || item.id)}</h2><p>${h(dispatch.routeName || item.title || "未指定线路")}</p></section><section class="detail-section"><h3>任务与派单信息</h3>${planDetailRows(coreFields)}</section><section class="detail-section"><h3>司机与车辆</h3>${planDetailRows(capacityFields)}</section><section class="detail-section"><h3>线路与箱信息</h3>${planDetailRows(routeFields)}</section>${renderDispatchTimeline(dispatch)}${extras.length ? `<section class="detail-section"><h3>其他后台字段</h3>${planDetailRows(extras)}</section>` : ""}${editable ? `<div class="detail-action-bar"><div><strong>${dispatch.status === "待派单" ? "任务等待分配运力" : "需要调整本次派单？"}</strong><small>保存后同步更新后台派单台账和关联运单</small></div><button class="detail-edit-button" data-edit-module="dispatch" data-edit-id="${h(dispatch.id || item.id)}" type="button"><i data-lucide="${dispatch.status === "待派单" ? "user-check" : "pencil"}"></i><span>${dispatch.status === "待派单" ? "分配司机与车辆" : "编辑派单"}</span></button></div>` : ""}`;
+  $("#managerDetailContent").innerHTML = `<section class="detail-hero"><span>派单详情 · ${h(dispatch.status || item.status || "-")}</span><h2>${h(dispatch.waybillNo || item.subtitle || item.id)}</h2><p>${h(dispatch.routeName || item.title || "未指定线路")}</p></section><section class="detail-section"><h3>任务与派单信息</h3>${planDetailRows(coreFields)}</section><section class="detail-section"><h3>司机与车辆</h3>${planDetailRows(capacityFields)}</section><section class="detail-section"><h3>作业地点 · ${h(jobLocationRows.length)} 个</h3>${planDetailRows(jobLocationRows.length ? jobLocationRows : [["作业地点", "待维护"]])}</section><section class="detail-section"><h3>线路与箱信息</h3>${planDetailRows(routeFields)}</section>${renderDispatchTimeline(dispatch)}${extras.length ? `<section class="detail-section"><h3>其他后台字段</h3>${planDetailRows(extras)}</section>` : ""}${editable ? `<div class="detail-action-bar"><div><strong>${dispatch.status === "待派单" ? "任务等待分配运力" : "需要调整本次派单？"}</strong><small>保存后同步更新后台派单台账和关联运单</small></div><button class="detail-edit-button" data-edit-module="dispatch" data-edit-id="${h(dispatch.id || item.id)}" type="button"><i data-lucide="${dispatch.status === "待派单" ? "user-check" : "pencil"}"></i><span>${dispatch.status === "待派单" ? "分配司机与车辆" : "编辑派单"}</span></button></div>` : ""}`;
 }
 
 function renderDispatchManagementDetail(item) {
@@ -1767,9 +1795,10 @@ function buildDispatchRecord(values) {
   timeline.push(wasPending
     ? { node: "已派单", time: dispatchTime, desc: "管理端手动分配司机和车辆，派单已同步至司机端", photos: [] }
     : { node: "派单调整", time: dispatchTime, desc: `管理端将运力调整为 ${driver?.title || values.driverId} / ${vehicle?.id || values.vehicleId}，变更已同步司机端`, photos: [] });
+  const taskType = task.taskType || oldRaw.taskType || "提空装货";
   const raw = {
     ...oldRaw, id, dispatchMode: "manual", waybillNo: waybill?.id || values.waybillId, planTaskId: task.planTaskId || oldRaw.planTaskId,
-    planTaskNo: task.planTaskNo || task.planTaskId || oldRaw.planTaskNo, taskType: task.taskType || oldRaw.taskType || "提空装货",
+    planTaskNo: task.planTaskNo || task.planTaskId || oldRaw.planTaskNo, taskType,
     customerId: task.customerId || oldRaw.customerId, customerName: task.customerName || waybill?.title || oldRaw.customerName,
     projectId: values.projectId || task.projectId || routeRaw.projectId || oldRaw.projectId, projectName: project?.projectName || task.projectName || routeRaw.projectName || oldRaw.projectName,
     orderDate: task.orderDate || oldRaw.orderDate || localDate(), routeId: route?.id || oldRaw.routeId, routeName: route?.title || oldRaw.routeName || waybill?.subtitle,
@@ -1780,6 +1809,7 @@ function buildDispatchRecord(values) {
     currentNode: wasPending ? "待提货" : oldRaw.currentNode || "待提货", boxes, estimatedRevenue: Number(routeRaw.estimatedRevenue ?? oldRaw.estimatedRevenue ?? 0),
     commission, routeMileageSnapshot: routeRaw.mileage === "" || routeRaw.mileage == null ? oldRaw.routeMileageSnapshot ?? null : Number(routeRaw.mileage),
     boxType, boxNo1, sealNo1, boxNo2, sealNo2,
+    jobLocations: (window.DispatchTaskNodes?.profile?.(taskType)?.jobLocations || []).map((location) => ({ id: location.id, name: location.name, address: String(document.querySelector(`#managerEntryForm [name="jobLocation_${CSS.escape(location.id)}"]`)?.value || "").trim() })),
     consignee: values.consignee || "", arrivalTime: values.arrivalTime || "", arrivalLocation: values.arrivalLocation || "", note: values.note || "", pushed: true, timeline,
   };
   const trailerRaw = moduleCatalog.trailer.items.find((item) => item.id === raw.trailerId)?.raw;

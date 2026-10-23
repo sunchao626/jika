@@ -188,6 +188,20 @@ button { cursor: pointer; }
 .route-point span { display: block; color: #9aa5b5; font-size: 10px; }
 .route-point strong { display: block; margin-top: 3px; overflow-wrap: anywhere; color: var(--ink); font-size: 14px; line-height: 1.45; }
 
+.driver-job-locations { overflow: hidden; margin: 14px 0; border: 1px solid #e5eaf2; border-radius: 12px; background: #fbfcff; }
+.driver-job-location-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #edf0f5; }
+.driver-job-location-heading strong { color: #4a5870; font-size: 11px; }
+.driver-job-location-heading span { color: #8d98aa; font-size: 9px; }
+.driver-job-location-row { position: relative; display: grid; min-height: 54px; grid-template-columns: 86px minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 12px; }
+.driver-job-location-row + .driver-job-location-row { border-top: 1px dashed #e6eaf1; }
+.driver-job-location-row > span { display: flex; align-items: center; gap: 7px; color: #768297; font-size: 10px; }
+.driver-job-location-row > span i { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #eaf0ff; color: var(--primary); font-size: 8px; font-style: normal; font-weight: 700; }
+.driver-job-location-row:not(:last-child)::after { position: absolute; bottom: -8px; left: 23px; z-index: 1; height: 15px; border-left: 1px dashed #aebdde; content: ""; }
+.driver-job-location-row > strong { min-width: 0; overflow-wrap: anywhere; color: #3f4e65; font-size: 11px; line-height: 1.5; }
+.task-card-locations { margin: 14px 0 0; }
+.order-card-locations { margin: 12px 0; }
+.detail-job-locations { margin: 0; }
+
 .task-meta { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 13px; border-top: 1px dashed #e9edf4; }
 .meta-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 5px 7px; background: #f5f7fa; color: #69758a; font-size: 10px; }
 .task-node-overview { margin-top: 12px; border: 1px solid #e8eaf2; border-radius: 12px; padding: 11px; background: #fafaff; }

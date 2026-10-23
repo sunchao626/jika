@@ -12,9 +12,15 @@
     { group: "车辆管理", id: "trailers", name: "挂车档案管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "车辆管理", id: "repairs", name: "车辆维修管理", actions: ["view", "create", "edit", "special"], special: "维修审核" },
     { group: "司机管理", id: "drivers", name: "司机档案管理", actions: ["view", "create", "edit", "delete", "export"] },
-    { group: "数据看板", id: "finance", name: "运输成本台账", actions: ["view", "edit", "export", "special"], special: "费用审核" },
-    { group: "结算管理", id: "driverExpenses", name: "司机费用上报", actions: ["view", "special", "export"], special: "费用审核" },
-    { group: "结算管理", id: "settlements", name: "结算中心", actions: ["view", "create", "edit", "export", "special"], special: "结算确认" },
+    { group: "结算中心", id: "finance", name: "运输管理台账", actions: ["view", "edit", "export", "special"], special: "费用审核" },
+    { group: "结算中心", id: "settlements", name: "结算管理", actions: ["view", "export"] },
+    { group: "结算中心", id: "receivables", name: "应收账款管理", actions: ["view", "create", "edit", "export", "special"], special: "财务确认" },
+    { group: "结算中心", id: "payables", name: "三方应付结算", actions: ["view", "create", "edit", "export", "special"], special: "财务确认" },
+    { group: "结算中心", id: "payroll", name: "自营结算", actions: ["view", "create", "export", "special"], special: "工资确认" },
+    { group: "结算中心", id: "abnormalFees", name: "异常费用管理", actions: ["view", "create", "export"] },
+    { group: "结算中心", id: "settlementTransactions", name: "发票与收付款", actions: ["view", "edit", "export"] },
+    { group: "结算中心", id: "driverExpenses", name: "司机费用上报", actions: ["view", "special", "export"], special: "费用审核" },
+    { group: "结算中心", id: "energy", name: "预充值管理", actions: ["view", "create", "export"] },
     { group: "系统配置", id: "platformConfig", name: "平台配置", actions: ["view", "edit", "special"], special: "发布配置" },
     { group: "系统配置", id: "customers", name: "客户管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "系统配置", id: "reminders", name: "消息提醒模板", actions: ["view", "create", "edit", "delete"] },
@@ -31,7 +37,7 @@
     roles: [
       { id: "role-admin", name: "系统管理员", description: "管理全部业务模块和系统配置", status: "active", isSystem: true, permissions: ALL_PERMISSIONS(), scope: { type: "all", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-01" },
       { id: "role-dispatch", name: "调度员", description: "维护计划并执行日常派单", status: "active", permissions: { ...EMPTY_PERMISSIONS(), waybill: { view: true, create: true, edit: true, delete: false, export: true }, dispatchManagement: { view: true, special: true }, dispatchList: { view: true, edit: true, export: true, special: true }, capacity: { view: true }, routes: { view: true }, vehicles: { view: true }, trailers: { view: true }, drivers: { view: true }, customers: { view: true } }, scope: { type: "all", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-08" },
-      { id: "role-finance", name: "财务专员", description: "管理运输费用、结算、发票与收付款", status: "active", permissions: { ...EMPTY_PERMISSIONS(), finance: { view: true, edit: true, export: true, special: true }, driverExpenses: { view: true, export: true, special: true }, settlements: { view: true, create: true, edit: true, export: true, special: true }, customers: { view: true } }, scope: { type: "custom", customers: ["customer-hm", "customer-lg"], projects: [], routes: [] }, updatedAt: "2026-10-15" },
+      { id: "role-finance", name: "财务专员", description: "管理运输费用、结算、发票与收付款", status: "active", permissions: { ...EMPTY_PERMISSIONS(), finance: { view: true, edit: true, export: true, special: true }, driverExpenses: { view: true, export: true, special: true }, settlements: { view: true, export: true }, receivables: { view: true, create: true, edit: true, export: true, special: true }, payables: { view: true, create: true, edit: true, export: true, special: true }, payroll: { view: true, create: true, export: true, special: true }, abnormalFees: { view: true, create: true, export: true }, settlementTransactions: { view: true, edit: true, export: true }, energy: { view: true, create: true, export: true }, customers: { view: true } }, scope: { type: "custom", customers: ["customer-hm", "customer-lg"], projects: [], routes: [] }, updatedAt: "2026-10-15" },
       { id: "role-fleet", name: "车队管理员", description: "维护车辆、挂车、司机及维修记录", status: "active", permissions: { ...EMPTY_PERMISSIONS(), vehicles: { view: true, create: true, edit: true, delete: true, export: true }, trailers: { view: true, create: true, edit: true, delete: true, export: true }, repairs: { view: true, create: true, edit: true, special: true }, drivers: { view: true, create: true, edit: true, export: true }, capacity: { view: true } }, scope: { type: "self", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-12" },
     ],
     users: [
@@ -54,7 +60,10 @@
     const source = role?.permissions || {};
     const permissions = EMPTY_PERMISSIONS();
     MODULES.forEach((module) => {
-      const legacyPermissions = module.id === "transportTaskConfig" && source[module.id] === undefined ? source.photoRequirements : null;
+      const settlementPermissionIds = new Set(["receivables", "payables", "abnormalFees", "settlementTransactions"]);
+      const legacyPermissions = module.id === "transportTaskConfig" && source[module.id] === undefined
+        ? source.photoRequirements
+        : settlementPermissionIds.has(module.id) && source[module.id] === undefined ? source.settlements : null;
       const sourcePermissions = source[module.id] || legacyPermissions || {};
       module.actions.forEach((action) => {
         permissions[module.id][action] = Boolean(sourcePermissions[action]);

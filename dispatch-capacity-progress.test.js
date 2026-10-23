@@ -39,18 +39,19 @@ const cancelled = context.renderDispatchCapacityProgress({ status: "取消", pro
 assert.match(cancelled, /已取消/);
 assert.match(cancelled, /不计入进度/);
 
-assert.match(html, /<th>计划靠台时间<\/th><th>任务类型<\/th><th>运单状态<\/th><th>运输节点<\/th><th>客户项目 \/ 线路名称<\/th>/);
+assert.match(html, /<th>计划靠台时间<\/th><th>任务类型 \/ 创建人<\/th><th>派单 \/ 接单状态<\/th><th>运输状态 \/ 当前节点<\/th><th>客户项目 \/ 固定线路<\/th><th>作业地点<\/th>/);
 assert.match(html, /<th>派单时间<\/th><th>实际靠台时间<\/th>/);
 const dispatchRowsStart = app.indexOf("function renderDispatchRows(");
 const dispatchRowsEnd = app.indexOf("function getActualBerthingTime(", dispatchRowsStart);
 const dispatchRowsRenderer = app.slice(dispatchRowsStart, dispatchRowsEnd);
-assert.match(dispatchRowsRenderer, /dispatch\.customerName, dispatch\.projectName/);
+assert.match(dispatchRowsRenderer, /const customer = dispatch\.customerName/);
+assert.match(dispatchRowsRenderer, /const project = dispatch\.projectName/);
 assert.match(dispatchRowsRenderer, /getActualBerthingTime\(dispatch\)/);
 assert.match(dispatchRowsRenderer, /getDispatchCurrentTransportNode\(dispatch\)/);
 assert.doesNotMatch(dispatchRowsRenderer, /<td><span class="dispatch-node">\$\{dispatch\.currentNode\}<\/span><\/td>/);
-assert.doesNotMatch(dispatchRowsRenderer, /dispatch\.waybillNo|dispatch\.planTaskNo|dispatch\.dispatchMode|dispatch\.vehicleType/);
+assert.doesNotMatch(dispatchRowsRenderer, /dispatch\.planTaskNo|dispatch\.dispatchMode|dispatch\.vehicleType/);
 assert.match(dispatchRowsRenderer, /capacityOwnershipSnapshot/);
-assert.match(app, /colspan="13"/);
+assert.match(app, /colspan="12"/);
 
 const actualBerthingStart = app.indexOf("function getActualBerthingTime(");
 const actualBerthingEnd = app.indexOf("function renderDispatchPagination(", actualBerthingStart);

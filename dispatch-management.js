@@ -291,9 +291,22 @@
       customer: task.customerName || waybill.customerName || "未关联客户",
       project: task.projectName || waybill.projectName || "未分配项目",
       taskType: task.taskType || waybill.taskType || "提空装货",
-      route: task.routeName || fixedRoutes.find((route) => route.id === task.routeId)?.routeName || "未指定线路",
+      routeRecord: fixedRoutes.find((route) => route.id === (task.routeId || waybill.routeId)) || null,
+      route: task.routeName || fixedRoutes.find((route) => route.id === (task.routeId || waybill.routeId))?.routeName || "未指定线路",
+      jobLocations: task.jobLocations || waybill.jobLocations || fixedRoutes.find((route) => route.id === (task.routeId || waybill.routeId))?.jobLocations || [],
       plannedBerthingTime: String(task.plannedBerthingTime || waybill.plannedBerthingTime || task.executionTime || waybill.executionTime || "-").replace("T", " ").slice(0, 16),
     };
+  }
+
+  function renderTaskRouteContext(context) {
+    return '<div class="dispatch-task-route-context"><div class="dispatch-task-customer-project"><strong title="' + escapeHtml(context.customer) + '">' + escapeHtml(context.customer) + '</strong><small title="' + escapeHtml(context.project) + '">' + escapeHtml(context.project) + '</small></div><strong class="dispatch-task-route-name" title="' + escapeHtml(context.route) + '">' + escapeHtml(context.route) + '</strong></div>';
+  }
+
+  function renderTaskJobLocations(context) {
+    const locations = Array.isArray(context.jobLocations) ? context.jobLocations.filter((location) => location?.name) : [];
+    return locations.length
+      ? '<div class="dispatch-task-job-locations">' + locations.map((location) => '<div><span>' + escapeHtml(location.name) + '：<\/span><strong title="' + escapeHtml(location.address || '待维护') + '">' + escapeHtml(location.address || '待维护') + '</strong></div>').join('') + '</div>'
+      : '<div class="dispatch-task-job-locations empty">作业地点待维护</div>';
   }
 
   function renderTasks(tasks) {
@@ -322,12 +335,12 @@
       const selected = selectedTaskIds.has(task.id);
       return `<tr class="${selected ? "selected" : ""}" data-dispatch-management-task="${escapeHtml(task.id)}" tabindex="0" aria-selected="${selected}">
         <td><input type="checkbox" name="dispatchManagementTask" value="${escapeHtml(task.id)}" ${selected ? "checked" : ""} aria-label="选择任务 ${escapeHtml(`${context.customer} ${context.project}`)}" /></td>
-        <td><strong title="${escapeHtml(context.customer)}">${escapeHtml(context.customer)}</strong><small title="${escapeHtml(context.project)}">${escapeHtml(context.project)}</small></td>
-        <td><span class="dispatch-task-route" title="${escapeHtml(context.route)}">${escapeHtml(context.route)}</span></td>
+        <td>${renderTaskRouteContext(context)}</td>
+        <td>${renderTaskJobLocations(context)}</td>
         <td><span class="dispatch-task-type" title="${escapeHtml(context.taskType)}">${escapeHtml(context.taskType)}</span></td>
         <td><span class="dispatch-task-date" title="${escapeHtml(context.plannedBerthingTime)}">${escapeHtml(context.plannedBerthingTime)}</span></td>
       </tr>`;
-    }).join("") : `<tr><td colspan="5"><div class="dispatch-management-empty"><i data-lucide="${tasks.length ? "search-x" : "circle-check-big"}" aria-hidden="true"></i><strong>${tasks.length ? "没有符合条件的任务" : "暂无待派单任务"}</strong></div></td></tr>`;
+      }).join("") : `<tr><td colspan="5"><div class="dispatch-management-empty"><i data-lucide="${tasks.length ? "search-x" : "circle-check-big"}" aria-hidden="true"></i><strong>${tasks.length ? "没有符合条件的任务" : "暂无待派单任务"}</strong></div></td></tr>`;
     elements.taskCount.textContent = `${filteredTasks.length} 条待匹配`;
     elements.taskPageText.textContent = `第 ${taskPage} / ${totalPages} 页 · 共 ${filteredTasks.length} 条`;
     elements.taskPrev.disabled = taskPage <= 1;

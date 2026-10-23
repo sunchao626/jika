@@ -71,9 +71,10 @@ test("uploaded evidence references survive repair record persistence", () => {
 });
 
 test("repair records retain their selected repair-shop directory reference", () => {
-  const record = VehicleRepair.normalizeRecord({ id: "WX-2", plateNo: "苏E·T5568", repairVendor: "宁波安达汽车维修有限公司", repairVendorCustomerNo: "KH-1201" });
+  const record = VehicleRepair.normalizeRecord({ id: "WX-2", plateNo: "苏E·T5568", repairVendor: "宁波安达汽车维修有限公司", repairVendorCustomerNo: "KH-1201", vendorPhone: "13800001201" });
   assert.equal(record.repairVendor, "宁波安达汽车维修有限公司");
   assert.equal(record.repairVendorCustomerNo, "KH-1201");
+  assert.equal(record.vendorPhone, "13800001201");
 });
 
 test("default repair showcase includes a linked repair shop", () => {
@@ -83,5 +84,60 @@ test("default repair showcase includes a linked repair shop", () => {
 
 test("repair shop is selected from the customer directory", () => {
   assert.match(html, /name="repairVendorCustomerNo" required/);
+  assert.match(html, /id="repairVendorSearch"[^>]*role="combobox"/);
+  assert.match(html, /输入维修厂、联系人或电话检索/);
   assert.doesNotMatch(html, /name="repairVendor"/);
+});
+
+test("repair-shop search only returns enabled repair shops and matches name, contact or phone", () => {
+  const records = [
+    { customerNo: "KH-1", customerName: "安达维修", customerType: "维修厂", customerStatus: "启用", contactName: "周师傅", mobile: "13800000001" },
+    { customerNo: "KH-2", customerName: "海盛维修", customerType: "维修厂", customerStatus: "停用", contactName: "陈师傅", mobile: "13800000002" },
+    { customerNo: "KH-3", customerName: "普通客户", customerType: "直客", customerStatus: "启用", contactName: "王经理", mobile: "13800000003" },
+  ];
+  assert.deepEqual(VehicleRepair.searchRepairShops(records, "安达").map((item) => item.customerNo), ["KH-1"]);
+  assert.deepEqual(VehicleRepair.searchRepairShops(records, "周师傅").map((item) => item.customerNo), ["KH-1"]);
+  assert.deepEqual(VehicleRepair.searchRepairShops(records, "000001").map((item) => item.customerNo), ["KH-1"]);
+  assert.deepEqual(VehicleRepair.searchRepairShops(records, "陈师傅"), []);
+});
+
+test("creation time and actual repair time remain separate", () => {
+  const record = VehicleRepair.createRecord([], {
+    plateNo: "浙B·K7812",
+    description: "常规保养",
+    createdAt: "2026-10-20T09:15",
+    repairedAt: "2026-10-21T14:30",
+  }, { id: "WX-2", now: "2026-10-20T09:15" }).record;
+  assert.equal(record.createdAt, "2026-10-20T09:15");
+  assert.equal(record.repairedAt, "2026-10-21T14:30");
+});
+
+test("work order total is calculated from maintenance items", () => {
+  const record = VehicleRepair.normalizeRecord({
+    id: "WX-3",
+    plateNo: "苏E·T5568",
+    actualCost: 9999,
+    items: [
+      { feeName: "常规保养", partsCost: 360, laborCost: 120, otherCost: 0 },
+      { feeName: "北斗服务费", partsCost: 0, laborCost: 0, otherCost: 600 },
+    ],
+  });
+  assert.equal(record.items[0].subtotal, 480);
+  assert.equal(record.actualCost, 1080);
+});
+
+test("non-dispatch maintenance fees may coexist with an active repair", () => {
+  const insurance = VehicleRepair.createRecord([], {
+    plateNo: "沪D·A9021",
+    description: "续保",
+    items: [{ feeName: "交强险", otherCost: 7900, affectsDispatch: false }],
+  }, { id: "WX-INS" }).record;
+  const secondInsurance = VehicleRepair.createRecord([insurance], {
+    plateNo: "沪D·A9021",
+    description: "商业险续保",
+    items: [{ feeName: "商业险", otherCost: 12000, affectsDispatch: false }],
+  }, { id: "WX-INS-2" });
+  assert.equal(secondInsurance.error, undefined);
+  const started = VehicleRepair.transition([insurance], insurance.id, "维修中");
+  assert.notEqual(started.vehicleState, "维修中");
 });

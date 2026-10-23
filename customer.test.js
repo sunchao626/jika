@@ -70,6 +70,10 @@ assert.doesNotMatch(find("#customerOptions").innerHTML, /上海港联贸易有�
 assert.doesNotMatch(find("#customerOptions").innerHTML, /宁波安达汽车维修有限公司/);
 assert.equal(context.window.CustomerManager.getRepairShops()[0].customerNo, "KH-1201");
 assert.equal(context.window.CustomerManager.getRepairShops()[0].customerType, "维修厂");
+context.window.CustomerManager.openCreateRepairShop();
+assert.equal(form.elements.customerType.value, "维修厂");
+assert.equal(form.elements.businessRole.value, "客户");
+find("#cancelCustomerFormBtn").listeners.click();
 find("#customerNextPage").listeners.click();
 assert.match(find("#customerBody").innerHTML, /KH-1120/);
 query.values.customerName = "海盛";

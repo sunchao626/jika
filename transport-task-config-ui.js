@@ -3,15 +3,27 @@
   const dialog = document.querySelector("#transportTaskEditorDialog");
   const form = document.querySelector("#transportTaskEditorForm");
   const list = document.querySelector("#transportNodeEditorList");
+  const locationList = document.querySelector("#transportLocationEditorList");
   const body = document.querySelector("#transportTaskConfigBody");
-  if (!page || !dialog || !form || !list || !body) return;
+  if (!page || !dialog || !form || !list || !locationList || !body) return;
 
   const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const reminderTemplates = () => window.ReminderTemplateManager?.list?.({ enabledOnly: true }) || [];
   let profiles = window.DispatchTaskNodes.load();
   let editingId = "";
   let draftNodes = [];
+  let draftLocations = [];
   let nodeCounter = 0;
+  let locationCounter = 0;
+
+  function renderLocations() {
+    locationList.innerHTML = draftLocations.map((location, index) => `<div class="transport-location-editor" data-location-index="${index}">
+      <span class="transport-location-order">${String(index + 1).padStart(2, "0")}</span>
+      <label class="field required-field"><span class="field-label">作业地点名称</span><input data-location-name maxlength="40" required value="${escape(location.name)}" placeholder="例如：提空地" /></label>
+      <div class="transport-location-actions"><button class="icon-btn" data-location-up type="button" aria-label="地点上移" title="上移" ${index === 0 ? "disabled" : ""}><i data-lucide="chevron-up" aria-hidden="true"></i></button><button class="icon-btn" data-location-down type="button" aria-label="地点下移" title="下移" ${index === draftLocations.length - 1 ? "disabled" : ""}><i data-lucide="chevron-down" aria-hidden="true"></i></button><button class="icon-btn" data-location-remove type="button" aria-label="删除作业地点" title="删除地点"><i data-lucide="trash-2" aria-hidden="true"></i></button></div>
+    </div>`).join("") || '<p class="transport-node-empty">请至少配置一个作业地点</p>';
+    window.lucide?.createIcons();
+  }
 
   function ruleEditor(rule = {}) {
     return `<div class="transport-photo-rule" data-photo-rule>
@@ -71,8 +83,12 @@
     body.innerHTML = profiles.map((profile) => {
       const photoCount = profile.nodes.reduce((sum, node) => sum + node.photoRequirements.length, 0);
       const nodeNames = profile.nodes.map((node) => escape(node.name)).join(" → ") || "暂无节点";
-      return `<tr><td><strong>${escape(profile.name)}</strong></td><td class="transport-config-nodes"><button class="transport-config-jump link-btn" data-jump-nodes="${escape(profile.id)}" type="button">${nodeNames}</button></td><td><button class="transport-config-jump link-btn" data-jump-photos="${escape(profile.id)}" type="button">${photoCount} 项</button></td><td><span class="transport-config-state ${profile.enabled ? "enabled" : "disabled"}">${profile.enabled ? "启用" : "停用"}</span></td><td class="fixed-action-column"><div class="transport-config-actions"><button class="link-btn" data-edit-profile="${escape(profile.id)}" type="button">编辑</button><button class="link-btn" data-toggle-profile="${escape(profile.id)}" type="button">${profile.enabled ? "停用" : "启用"}</button></div></td></tr>`;
-    }).join("") || '<tr><td colspan="5" class="no-data-cell">暂无任务类型</td></tr>';
+      return `<tr><td><strong>${escape(profile.name)}</strong></td><td class="transport-config-nodes"><button class="transport-config-jump link-btn" data-jump-nodes="${escape(profile.id)}" type="button">${nodeNames}</button></td><td><button class="transport-config-jump link-btn" data-jump-photos="${escape(profile.id)}" type="button">${photoCount} 项</button></td><td class="transport-config-nodes" data-task-job-locations="${escape(profile.id)}"></td><td><span class="transport-config-state ${profile.enabled ? "enabled" : "disabled"}">${profile.enabled ? "启用" : "停用"}</span></td><td class="fixed-action-column"><div class="transport-config-actions"><button class="link-btn" data-edit-profile="${escape(profile.id)}" type="button">编辑</button><button class="link-btn" data-toggle-profile="${escape(profile.id)}" type="button">${profile.enabled ? "停用" : "启用"}</button></div></td></tr>`;
+    }).join("") || '<tr><td colspan="6" class="no-data-cell">暂无任务类型</td></tr>';
+    body.querySelectorAll("[data-task-job-locations]").forEach((cell) => {
+      const profile = profiles.find((item) => item.id === cell.dataset.taskJobLocations);
+      cell.textContent = profile?.jobLocations.map((location) => location.name).join(" → ") || "暂无地点";
+    });
     refreshTaskTypeChoices();
     window.lucide?.createIcons();
   }
@@ -101,9 +117,12 @@
     form.elements.name.value = profile?.name || "";
     form.elements.enabled.checked = profile?.enabled !== false;
     draftNodes = profile ? JSON.parse(JSON.stringify(profile.nodes)) : [];
+    draftLocations = profile ? JSON.parse(JSON.stringify(profile.jobLocations || [])) : [{ id: `LOC-${Date.now()}`, name: "作业地点1" }];
     nodeCounter = draftNodes.length;
+    locationCounter = draftLocations.length;
     document.querySelector("#transportTaskEditorTitle").textContent = profile ? "编辑任务类型" : "新增任务类型";
     renderNodes();
+    renderLocations();
     dialog.showModal();
     requestAnimationFrame(() => {
       const targetElement = target === "photos"
@@ -134,6 +153,31 @@
       return { id: draftNodes[Number(element.dataset.nodeIndex)]?.id || `${form.elements.name.value.trim()}-${element.dataset.nodeIndex}`, name, photoRequirements, reminders };
     });
   }
+
+  function collectLocations() {
+    return [...locationList.querySelectorAll("[data-location-index]")].map((element, index) => ({
+      id: draftLocations[Number(element.dataset.locationIndex)]?.id || `LOC-${index + 1}`,
+      name: element.querySelector("[data-location-name]").value.trim(),
+    })).filter((location) => location.name);
+  }
+
+  document.querySelector("#addTransportLocationBtn").addEventListener("click", () => {
+    draftLocations = collectLocations();
+    draftLocations.push({ id: `LOC-${Date.now()}-${locationCounter++}`, name: "" });
+    renderLocations();
+    locationList.querySelector("[data-location-index]:last-child [data-location-name]")?.focus();
+  });
+  locationList.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-location-index]");
+    if (!row) return;
+    draftLocations = collectLocations();
+    const index = Number(row.dataset.locationIndex);
+    if (event.target.closest("[data-location-up]") && index > 0) [draftLocations[index - 1], draftLocations[index]] = [draftLocations[index], draftLocations[index - 1]];
+    else if (event.target.closest("[data-location-down]") && index < draftLocations.length - 1) [draftLocations[index + 1], draftLocations[index]] = [draftLocations[index], draftLocations[index + 1]];
+    else if (event.target.closest("[data-location-remove]")) draftLocations.splice(index, 1);
+    else return;
+    renderLocations();
+  });
 
   document.querySelector("#addTransportTaskTypeBtn").addEventListener("click", () => openEditor());
   document.querySelector("#closeTransportTaskEditorBtn").addEventListener("click", () => dialog.close());
@@ -179,7 +223,7 @@
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const name = form.elements.name.value.trim();
-    const nextProfile = { id: editingId || `TT-${Date.now()}`, name, enabled: form.elements.enabled.checked, nodes: collectNodes() };
+    const nextProfile = { id: editingId || `TT-${Date.now()}`, name, enabled: form.elements.enabled.checked, jobLocations: collectLocations(), nodes: collectNodes() };
     const next = profiles.slice();
     const index = next.findIndex((item) => item.id === editingId);
     const before = index >= 0 ? JSON.parse(JSON.stringify(next[index])) : null;

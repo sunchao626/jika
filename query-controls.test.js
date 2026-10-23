@@ -15,7 +15,7 @@ for (const id of ids) {
   assert.match(form, /query-extra/);
 }
 const waybill = html.slice(html.indexOf('id="queryForm"'), html.indexOf("</form>", html.indexOf('id="queryForm"')));
-assert.match(waybill, /name="orderDate"\s*\/>/);
+assert.match(waybill, /name="planExecutionDate"\s*\/>/);
 assert.doesNotMatch(waybill, /回单状态|receiptStatus/);
 assert.match(html, /name="warningDays" min="1" value="30"/);
 

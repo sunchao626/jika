@@ -83,6 +83,31 @@
 .analysis-missing { color: var(--warning); font-size: 11px; }
 .analysis-negative { color: var(--danger) !important; }
 
+.analysis-scope-note { display: grid; gap: 5px; margin: 0 0 16px; padding: 12px 14px; border-left: 3px solid var(--info); color: var(--muted); background: var(--surface-soft); font-size: 12px; line-height: 1.55; }
+.analysis-scope-note strong { color: var(--text); font-size: 13px; }
+.analysis-report-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin: 16px 0; }
+.analysis-chart-list { display: grid; gap: 12px; padding: 14px 16px 16px; }
+.analysis-chart-row { display: grid; gap: 7px; min-width: 0; }
+.analysis-chart-row > div { display: flex; justify-content: space-between; gap: 12px; min-width: 0; font-size: 11px; }
+.analysis-chart-row > div strong { overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+.analysis-chart-row > div span { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.analysis-chart-row > i { display: block; height: 7px; overflow: hidden; border-radius: 4px; background: #edf1f5; }
+.analysis-chart-row > i b { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.analysis-report-table-wrap { max-height: 620px; overflow: auto; }
+.analysis-report-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
+.analysis-report-table th, .analysis-report-table td { padding: 8px 10px; border-bottom: 1px solid #eef1f5; text-align: right; white-space: nowrap; }
+.analysis-report-table th:first-child, .analysis-report-table td:first-child { text-align: left; }
+.analysis-report-table thead { position: sticky; z-index: 2; top: 0; background: var(--surface); }
+.analysis-report-table th { color: var(--muted); font-size: 11px; font-weight: 600; background: var(--surface-soft); }
+.analysis-report-table th button { padding: 0; border: 0; color: inherit; font: inherit; background: transparent; cursor: pointer; }
+.analysis-report-table th button:hover { color: var(--primary); }
+.analysis-report-table td { color: var(--text); font-variant-numeric: tabular-nums; }
+.analysis-report-table td:first-child { font-weight: 600; }
+.analysis-report-table .analysis-column-filters th { top: 32px; padding: 5px; }
+.analysis-column-filters input { width: 100%; min-width: 72px; height: 28px; padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--text); background: var(--surface); font-size: 10px; }
+.analysis-report-table tbody tr:hover td { background: #f7fafc; }
+body.analysis-page-active .workspace { max-width: none; }
+
 @media (max-width: 1180px) {
   .analysis-query-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .analysis-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -92,6 +117,7 @@
   .analysis-heading { flex-direction: column; }
   .analysis-grid-two { grid-template-columns: 1fr; }
   .analysis-query-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analysis-report-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 600px) {
@@ -101,6 +127,8 @@
   .analysis-trend-row > strong { justify-self: end; }
   .analysis-panel .dashboard-panel-heading { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
   .analysis-table th, .analysis-table td { padding: 10px; }
+  .analysis-scope-note { padding: 10px; }
+  .analysis-report-table-wrap { max-height: 65vh; }
 }
 
 /* The legacy shell keeps a desktop-wide body minimum. Release it only while

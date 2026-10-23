@@ -71,8 +71,8 @@
     if (ownership === "三方") {
       const supplierFees = feeRows(waybill, "供应商");
       const payableFees = supplierFees.length ? supplierFees : feeRows(waybill);
-      payableCost = number(dispatch?.thirdPartySettlementPriceSnapshot) || payableFees.reduce((sum, item) => sum + number(item.amount), 0) || number(waybill?.payable) || number(route?.thirdPartySettlementPrice) || number(route?.baseFreight);
-      serviceCost = payableFees.filter((item) => /服务费/.test(String(item.kind || item.type || ""))).reduce((sum, item) => sum + number(item.amount), 0);
+      payableCost = number(finance?.payableAmount) || number(dispatch?.thirdPartySettlementPriceSnapshot) || payableFees.reduce((sum, item) => sum + number(item.amount), 0) || number(waybill?.payable) || number(route?.thirdPartySettlementPrice) || number(route?.baseFreight);
+      serviceCost = number(finance?.vehicleTotal) + number(finance?.laborTotal);
       const hasPayableSource = payableFees.length > 0 || number(dispatch?.thirdPartySettlementPriceSnapshot) > 0 || number(route?.thirdPartySettlementPrice) > 0 || hasValue(waybill?.payable);
       costState = hasPayableSource && payableCost > 0 ? "complete" : "pending";
       costSource = hasPayableSource ? "应付费用 / 三方结算价" : "待补录";
@@ -83,7 +83,7 @@
       costState = hasExpenseSource ? "complete" : "pending";
       costSource = hasExpenseSource ? "费用补录" : "待补录";
     }
-    const revenue = hasValue(waybill?.receivable) && number(waybill.receivable) !== 0 ? number(waybill.receivable) : number(dispatch?.estimatedRevenue) || number(route?.estimatedRevenue);
+    const revenue = number(finance?.receivableAmount) || (hasValue(waybill?.receivable) && number(waybill.receivable) !== 0 ? number(waybill.receivable) : number(dispatch?.estimatedRevenue) || number(route?.estimatedRevenue));
     const cost = ownership === "三方" ? payableCost + serviceCost : vehicleCost + laborCost;
     const status = String(dispatch?.status || "待派单");
     return {
@@ -109,6 +109,7 @@
       serviceCost,
       costState,
       costSource,
+      taxBasisConfirmed: waybill?.taxBasisConfirmed === true,
       source: "actual",
       waybill,
       dispatch,
@@ -302,6 +303,186 @@
     window.lucide?.createIcons();
   }
 
+  const REPORT_DIMENSIONS = {
+    customer: { id: "customerId", name: "customerName", label: "客户" },
+    project: { id: "projectId", name: "projectName", label: "项目" },
+    route: { id: "routeId", name: "routeName", label: "线路" },
+  };
+  const VEHICLE_COST_FIELDS = [
+    ["fuel", "油费"], ["electricity", "电费"], ["gas", "汽费"], ["toll", "通行费"],
+    ["parking", "停车费"], ["vehicleOther", "其他车辆费用"], ["taskShare", "任务分摊"],
+    ["subsidy", "补贴"], ["insurance", "保险分摊"], ["labor", "工资"], ["service", "服务费"],
+  ];
+  const reportState = { operationsSort: { key: "profit", direction: "desc" }, operationsFilters: {}, vehicleSort: { key: "total", direction: "desc" }, vehicleFilters: {} };
+
+  function reportFilteredRows(id, rows, filters) {
+    const form = document.querySelector(`#${id}`);
+    const values = form ? Object.fromEntries(new FormData(form).entries()) : {};
+    return rows.filter((row) => {
+      if (id === "operationsReportQuery" && values.startDate && (!row.date || row.date < values.startDate)) return false;
+      if (id === "operationsReportQuery" && values.endDate && (!row.date || row.date > values.endDate)) return false;
+      if (values.dataSource && row.source !== values.dataSource) return false;
+      if (values.vehicleKeyword && !String(row.vehicleNo).toLowerCase().includes(values.vehicleKeyword.trim().toLowerCase())) return false;
+      if (values.costState === "recorded" && !row.hasCost) return false;
+      if (values.costState === "missing" && row.hasCost) return false;
+      return Object.entries(filters).every(([key, term]) => !term || String(row[key] ?? "").toLowerCase().includes(term.toLowerCase()));
+    });
+  }
+
+  function aggregateOperations(rows, dimension) {
+    const config = REPORT_DIMENSIONS[dimension] || REPORT_DIMENSIONS.customer;
+    const groups = new Map();
+    rows.forEach((row) => {
+      const key = row[config.id] || row[config.name] || `unknown-${row.waybillNo}`;
+      const item = groups.get(key) || { key, name: row[config.name] || `未指定${config.label}`, count: 0, revenue: 0, knownRevenue: 0, cost: 0, profit: 0, known: 0, profitKnown: 0, taxPending: 0, missing: 0, source: row.source };
+      item.count += 1;
+      item.revenue += number(row.revenue);
+      if (row.cost === null || row.cost === undefined) item.missing += 1;
+      else {
+        item.cost += number(row.cost);
+        item.known += 1;
+        if (row.taxBasisConfirmed) { item.profit += number(row.revenue) - number(row.cost); item.knownRevenue += number(row.revenue); item.profitKnown += 1; }
+        else item.taxPending += 1;
+      }
+      groups.set(key, item);
+    });
+    return [...groups.values()];
+  }
+
+  function buildVehicleRows() {
+    const records = typeof financeExpenseRecords !== "undefined" ? financeExpenseRecords : {};
+    const rows = new Map();
+    const dateForm = document.querySelector("#vehicleAnalysisQuery");
+    const startDate = dateForm?.elements.startDate.value || "";
+    const endDate = dateForm?.elements.endDate.value || "";
+    const inPeriod = (date) => (!startDate || (date && date >= startDate)) && (!endDate || (date && date <= endDate));
+    const assets = typeof vehicles !== "undefined" && Array.isArray(vehicles) ? vehicles : [];
+    const selfVehiclePlates = new Set(assets.filter((vehicle) => ownershipFor({}, vehicle) === "自营" && vehicle.plateNo).map((vehicle) => vehicle.plateNo));
+    assets.filter((vehicle) => selfVehiclePlates.has(vehicle.plateNo)).forEach((vehicle) => {
+      rows.set(vehicle.plateNo, { vehicleNo: vehicle.plateNo, date: "", drivers: new Set(), waybillCount: 0, hasCost: false, total: 0, repair: 0, ...Object.fromEntries(VEHICLE_COST_FIELDS.map(([field]) => [field, 0])) });
+    });
+    const actualRows = enrich(allRows().filter((row) => row.source === "actual"));
+    actualRows.forEach((waybill) => {
+      if (waybill.ownership !== "自营") return;
+      const date = waybill.completionDate || waybill.operationDate || "";
+      if (!inPeriod(date)) return;
+      const expenses = records[waybill.waybillNo] || {};
+      const values = Object.fromEntries(VEHICLE_COST_FIELDS.map(([field]) => [field, number(expenses[field])]));
+      const hasCost = Object.values(values).some((value) => value !== 0);
+      const current = rows.get(waybill.vehicleNo) || { vehicleNo: waybill.vehicleNo || "待分配", date, drivers: new Set(), waybillCount: 0, hasCost: false, total: 0, repair: 0, ...Object.fromEntries(VEHICLE_COST_FIELDS.map(([field]) => [field, 0])) };
+      if (waybill.driverName && waybill.driverName !== "待分配") current.drivers.add(waybill.driverName);
+      current.waybillCount += 1;
+      VEHICLE_COST_FIELDS.forEach(([field]) => { current[field] += values[field]; current.total += values[field]; });
+      current.hasCost ||= hasCost;
+      current.date = !current.date || date > current.date ? date : current.date;
+      rows.set(current.vehicleNo, current);
+    });
+    const repairs = typeof vehicleRepairRecords !== "undefined" && Array.isArray(vehicleRepairRecords) ? vehicleRepairRecords : [];
+    repairs.filter((record) => record.status === "已完成" && record.plateNo && selfVehiclePlates.has(record.plateNo)).forEach((record) => {
+      const date = dateOnly(record.repairedAt || record.completedAt);
+      if (!inPeriod(date)) return;
+      const value = number(record.actualCost || (record.items || []).reduce((sum, item) => sum + number(item.subtotal), 0));
+      const current = rows.get(record.plateNo) || { vehicleNo: record.plateNo, date, drivers: new Set(), waybillCount: 0, hasCost: false, total: 0, repair: 0, ...Object.fromEntries(VEHICLE_COST_FIELDS.map(([field]) => [field, 0])) };
+      if (date && (!current.date || date > current.date)) current.date = date;
+      current.repair += value;
+      current.total += value;
+      current.hasCost ||= value > 0;
+      rows.set(current.vehicleNo, current);
+    });
+    return [...rows.values()].map((row) => ({ ...row, drivers: [...row.drivers].sort().join("、"), driverCount: row.drivers.size, vehicleNo: row.vehicleNo || "待分配" }));
+  }
+
+  function renderReportTable(headId, bodyId, columns, rows, sort, onSort, filters) {
+    const head = document.querySelector(`#${headId}`);
+    const body = document.querySelector(`#${bodyId}`);
+    if (!head || !body) return;
+    head.innerHTML = `<tr>${columns.map(([key, label]) => `<th><button type="button" data-sort="${key}">${escapeHtml(label)} ${sort.key === key ? (sort.direction === "asc" ? "↑" : "↓") : "↕"}</button></th>`).join("")}</tr><tr class="analysis-column-filters">${columns.map(([key, label]) => `<th><input type="search" data-column-filter="${key}" value="${escapeHtml(filters[key] || "")}" aria-label="筛选${escapeHtml(label)}" placeholder="筛选" /></th>`).join("")}</tr>`;
+    const ordered = [...rows].sort((a, b) => {
+      const left = a[sort.key] ?? "";
+      const right = b[sort.key] ?? "";
+      const result = typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), "zh-CN", { numeric: true });
+      return result * (sort.direction === "asc" ? 1 : -1);
+    });
+    body.innerHTML = ordered.length ? ordered.map((row) => `<tr>${columns.map(([key, , format]) => `<td>${format ? format(row[key], row) : escapeHtml(row[key] ?? "—")}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}" class="no-data-cell">暂无符合条件的数据</td></tr>`;
+    head.querySelectorAll("[data-sort]").forEach((button) => button.addEventListener("click", () => onSort(button.dataset.sort)));
+    head.querySelectorAll("[data-column-filter]").forEach((input) => input.addEventListener("input", () => {
+      const key = input.dataset.columnFilter;
+      const caret = input.selectionStart;
+      filters[key] = input.value.trim().toLowerCase();
+      onSort(sort.key, true);
+      requestAnimationFrame(() => {
+        const next = head.querySelector(`[data-column-filter="${key}"]`);
+        next?.focus();
+        next?.setSelectionRange(caret, caret);
+      });
+    }));
+  }
+
+  function renderBars(targetId, values, labelKey, amountKey, formatter = money) {
+    const target = document.querySelector(`#${targetId}`);
+    if (!target) return;
+    const entries = [...values].sort((a, b) => number(b[amountKey]) - number(a[amountKey])).slice(0, 8);
+    const max = Math.max(...entries.map((entry) => number(entry[amountKey])), 1);
+    target.innerHTML = entries.length ? entries.map((entry) => `<div class="analysis-chart-row"><div><strong>${escapeHtml(entry[labelKey])}</strong><span>${formatter(entry[amountKey])}</span></div><i><b style="width:${Math.max(2, Math.round(number(entry[amountKey]) / max * 100))}%"></b></i></div>`).join("") : `<div class="analysis-empty">暂无数据</div>`;
+  }
+
+  function renderOperationsReport() {
+    const form = document.querySelector("#operationsReportQuery");
+    const dimension = form?.elements.dimension.value || "customer";
+    const completed = enrich(allRows().filter((row) => row.status === "已完成"));
+    const dataSource = form?.elements.dataSource.value || "";
+    const base = completed.filter((row) => !dataSource || row.source === dataSource).map((row) => ({ ...row, date: row.completionDate || "" }));
+    const rows = reportFilteredRows("operationsReportQuery", base, {});
+    const groups = aggregateOperations(rows, dimension).filter((row) => Object.entries(reportState.operationsFilters).every(([key, term]) => !term || String(row[key] ?? "").toLowerCase().includes(term)));
+    const shown = groups;
+    const shownRevenue = shown.reduce((sum, row) => sum + row.revenue, 0);
+    const shownKnownRevenue = shown.reduce((sum, row) => sum + row.knownRevenue, 0);
+    const shownCost = shown.reduce((sum, row) => sum + row.cost, 0);
+    const shownProfit = shown.reduce((sum, row) => sum + row.profit, 0);
+    const shownMissing = shown.reduce((sum, row) => sum + row.missing, 0);
+    const profitKnown = shown.reduce((sum, row) => sum + row.profitKnown, 0);
+    const taxPending = shown.reduce((sum, row) => sum + row.taxPending, 0);
+    renderKpis("operationsReportKpis", [["完成运单", shown.reduce((sum, row) => sum + row.count, 0), "按完成日期归属", "records"], ["收入金额", money(shownRevenue), "已完成运单收入", "total"], ["已确认成本", money(shownCost), `${shown.reduce((sum, row) => sum + row.known, 0)} 条成本完整`, "labor"], ["可确认利润", profitKnown ? money(shownProfit) : "待确认", `${profitKnown} 条税基明确`, shownProfit < 0 ? "pending" : "total"], ["利润率", profitKnown && shownKnownRevenue ? percentage(shownProfit / shownKnownRevenue) : "待确认", "税基明确范围加权", "completed"], ["口径待核", taxPending + shownMissing, `${shownMissing} 条缺成本 · ${taxPending} 条待税基确认`, "pending"]]);
+    const name = REPORT_DIMENSIONS[dimension].name;
+    const chartRows = [{ name: "收入", value: shownRevenue }, { name: "已确认成本", value: shownCost }, ...(profitKnown ? [{ name: "可确认利润", value: shownProfit }] : [])];
+    renderBars("operationsReportChart", chartRows, "name", "value");
+    renderBars("operationsReportRanking", shown.filter((row) => row.profitKnown), "name", "profit");
+    document.querySelector("#operationsReportRankLabel").textContent = `按${REPORT_DIMENSIONS[dimension].label}利润`;
+    document.querySelector("#operationsReportTableTitle").textContent = `${REPORT_DIMENSIONS[dimension].label}利润明细`;
+    document.querySelector("#operationsReportSummary").textContent = `筛选结果 ${shown.reduce((sum, row) => sum + row.count, 0)} 条已完成运单 · ${shown.length} 个${REPORT_DIMENSIONS[dimension].label}`;
+    document.querySelector("#operationsReportMissingBadge").textContent = `待核口径 ${shownMissing + taxPending} 条`;
+    document.querySelector("#operationsReportSourceNote").textContent = `${rows.filter((row) => row.source === "actual").length} 条实际 · ${rows.filter((row) => row.source === "sample").length} 条样例`;
+    const columns = [["name", REPORT_DIMENSIONS[dimension].label], ["count", "完成运单"], ["revenue", "收入", money], ["cost", "已确认成本", money], ["profit", "可确认利润", (value) => value == null ? "待确认" : money(value)], ["margin", "利润率", (value) => value == null ? "待确认" : percentage(value)], ["missing", "成本缺失"], ["taxPending", "税基待确认"]];
+    renderReportTable("operationsReportHead", "operationsReportBody", columns, shown.map((row) => ({ ...row, profit: row.profitKnown ? row.profit : null, margin: row.profitKnown && row.knownRevenue ? row.profit / row.knownRevenue : null })), reportState.operationsSort, (key, unchanged) => { if (!unchanged) reportState.operationsSort = { key, direction: reportState.operationsSort.key === key && reportState.operationsSort.direction === "desc" ? "asc" : "desc" }; renderOperationsReport(); }, reportState.operationsFilters);
+    window.lucide?.createIcons();
+  }
+
+  function renderVehicleAnalysis() {
+    const rows = reportFilteredRows("vehicleAnalysisQuery", buildVehicleRows(), reportState.vehicleFilters);
+    const total = rows.reduce((sum, row) => sum + row.total, 0);
+    const repairs = rows.reduce((sum, row) => sum + row.repair, 0);
+    const pending = rows.filter((row) => !row.hasCost).length;
+    const vehiclesTotal = typeof vehicles !== "undefined" && Array.isArray(vehicles) ? vehicles.filter((vehicle) => ownershipFor({}, vehicle) === "自营").length : rows.length;
+    renderKpis("vehicleAnalysisKpis", [["统计车辆", rows.length, `自营车辆档案 ${vehiclesTotal} 辆`, "records"], ["期间总成本", money(total), "运单归集 + 已完成维修", "total"], ["单车均值", money(rows.length ? total / rows.length : 0), "按筛选车辆计算", "completed"], ["维修保养", money(repairs), "不分摊至运营利润", "labor"], ["有费用记录", rows.length - pending, "仅按已录入金额", "records"], ["待补录", pending, "无费用记录车辆", "pending"]]);
+    const costGroups = [...VEHICLE_COST_FIELDS.map(([key, name]) => ({ name, value: rows.reduce((sum, row) => sum + number(row[key]), 0) })), { name: "维修保养", value: repairs }];
+    renderBars("vehicleAnalysisChart", costGroups, "name", "value");
+    renderBars("vehicleAnalysisRanking", rows.map((row) => ({ ...row, name: row.vehicleNo, value: row.total })), "name", "value");
+    document.querySelector("#vehicleAnalysisSummary").textContent = `筛选结果 ${rows.length} 辆 · 期间总成本 ${money(total)}`;
+    document.querySelector("#vehicleAnalysisMissingBadge").textContent = `待补录 ${pending} 辆`;
+    const columns = [["vehicleNo", "车牌号"], ["drivers", "关联司机"], ["waybillCount", "运单数"], ...VEHICLE_COST_FIELDS.map(([key, name]) => [key, name, money]), ["repair", "维修保养", money], ["total", "成本合计", money], ["hasCost", "费用状态", (value) => value ? "已记录" : "待补录"]];
+    renderReportTable("vehicleAnalysisHead", "vehicleAnalysisBody", columns, rows, reportState.vehicleSort, (key, unchanged) => { if (!unchanged) reportState.vehicleSort = { key, direction: reportState.vehicleSort.key === key && reportState.vehicleSort.direction === "desc" ? "asc" : "desc" }; renderVehicleAnalysis(); }, reportState.vehicleFilters);
+    window.lucide?.createIcons();
+  }
+
+  function exportReportTable(rows, columns, name) {
+    const csv = [columns.map(([, label]) => label), ...rows.map((row) => columns.map(([key]) => row[key] ?? ""))].map((line) => line.map(csvValue).join(",")).join("\r\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
+    link.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   function csvValue(value) { return `"${String(value ?? "").replace(/^([=+\-@])/, "'$1").replaceAll('"', '""')}"`; }
   function exportRows(rows, name) {
     const headers = ["运营日期", "完成日期", "运单号", "客户", "项目", "线路", "运力归属", "车号", "司机", "运输状态", "预计收入", "预估成本", "预估利润", "预估利润率", "数据状态", "数据来源"];
@@ -333,6 +514,25 @@
     });
     document.querySelector("#operationsOverviewExport")?.addEventListener("click", () => exportRows(filteredRows("overview").rows, "运营经营概览"));
     document.querySelector("#waybillProfitExport")?.addEventListener("click", () => exportRows(filteredRows("profit").rows, "基础运单利润"));
+    [["operationsReportQuery", renderOperationsReport], ["vehicleAnalysisQuery", renderVehicleAnalysis]].forEach(([id, render]) => {
+      const form = document.querySelector(`#${id}`);
+      if (!form) return;
+      form.addEventListener("submit", (event) => { event.preventDefault(); render(); });
+      form.addEventListener("change", render);
+      form.querySelector(".analysis-reset")?.addEventListener("click", () => { form.reset(); render(); });
+    });
+    document.querySelector("#operationsReportExport")?.addEventListener("click", () => {
+      const dimension = document.querySelector("#operationsReportQuery")?.elements.dimension.value || "customer";
+      const config = REPORT_DIMENSIONS[dimension];
+      const rows = enrich(allRows().filter((row) => row.status === "已完成")).map((row) => ({ ...row, date: row.completionDate || "" }));
+      const grouped = aggregateOperations(reportFilteredRows("operationsReportQuery", rows, {}), dimension).filter((row) => Object.entries(reportState.operationsFilters).every(([key, term]) => !term || String(row[key] ?? "").toLowerCase().includes(term)));
+      exportReportTable(grouped.map((row) => ({ ...row, profit: row.profitKnown ? row.profit : "税基待确认", margin: row.profitKnown && row.knownRevenue ? `${(row.profit / row.knownRevenue * 100).toFixed(1)}%` : "税基待确认", cost: row.missing ? `${row.cost}（${row.missing}条成本缺失）` : row.cost })), [["name", config.label], ["count", "完成运单"], ["revenue", "收入"], ["cost", "已确认成本"], ["profit", "可确认利润"], ["margin", "利润率"], ["missing", "成本缺失"], ["taxPending", "税基待确认"]], "运营分析报表");
+    });
+    document.querySelector("#vehicleAnalysisExport")?.addEventListener("click", () => {
+      const rows = reportFilteredRows("vehicleAnalysisQuery", buildVehicleRows(), reportState.vehicleFilters);
+      const columns = [["vehicleNo", "车牌号"], ["drivers", "关联司机"], ["waybillCount", "完成运单"], ...VEHICLE_COST_FIELDS.map(([key, name]) => [key, name]), ["repair", "维修保养"], ["total", "成本合计"], ["hasCost", "费用状态"]];
+      exportReportTable(rows.map((row) => ({ ...row, hasCost: row.hasCost ? "已记录" : "待补录" })), columns, "自营车辆分析表");
+    });
     document.querySelector("#operationsOverviewPage")?.addEventListener("click", (event) => {
       const customer = event.target.closest("[data-analysis-customer]");
       const openProfit = event.target.closest("[data-analysis-open-profit]");
@@ -349,10 +549,12 @@
       const meta = typeof pageMeta !== "undefined" ? pageMeta[activePageName] : null;
       if (meta?.view === "operationsOverview") renderOverview();
       if (meta?.view === "waybillProfit") renderProfit();
+      if (meta?.view === "operationsReport") renderOperationsReport();
+      if (meta?.view === "selfOwnedVehicleAnalysis") renderVehicleAnalysis();
     }
   }
 
-  const api = { SAMPLE_ROWS, allRows, enrich, filteredRows, renderOverview, renderProfit, exportRows };
+  const api = { SAMPLE_ROWS, allRows, enrich, filteredRows, aggregateOperations, renderOverview, renderProfit, renderOperationsReport, renderVehicleAnalysis, buildVehicleRows, exportRows };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof window !== "undefined") {
     window.OperationsAnalysis = api;

@@ -17,7 +17,7 @@ for (const field of [
 assert.match(html, /id="dispatchRouteName" readonly/);
 assert.match(html, /src="admin-dialogs\.js"/);
 assert.ok((html.match(/<option>维修中<\/option>/g) || []).length >= 2);
-assert.doesNotMatch(html, /<option>报废<\/option>/);
+assert.match(html, /<option>报废<\/option>/);
 
 const listeners = {};
 const buttons = Array.from({ length: 4 }, () => ({
