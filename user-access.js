@@ -3,6 +3,7 @@
   const ACTIONS = ["view", "create", "edit", "delete", "export", "special"];
   const ACTION_LABELS = { view: "查看", create: "新增", edit: "编辑", delete: "删除", export: "导出" };
   const MODULES = [
+    { group: "数据看板", id: "dashboard", name: "首页看板", actions: ["view"] },
     { group: "计划与派单", id: "waybill", name: "计划与任务", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "计划与派单", id: "dispatchManagement", name: "任务派单", actions: ["view", "special"], special: "派单" },
     { group: "计划与派单", id: "dispatchList", name: "派单列表", actions: ["view", "edit", "export", "special"], special: "调整运力" },
@@ -21,7 +22,12 @@
     { group: "结算中心", id: "settlementTransactions", name: "发票与收付款", actions: ["view", "edit", "export"] },
     { group: "结算中心", id: "driverExpenses", name: "司机费用上报", actions: ["view", "special", "export"], special: "费用审核" },
     { group: "结算中心", id: "energy", name: "预充值管理", actions: ["view", "create", "export"] },
+    { group: "数据看板", id: "operationsOverview", name: "运营经营概览", actions: ["view", "export"] },
+    { group: "数据看板", id: "waybillProfit", name: "基础运单利润", actions: ["view", "export"] },
+    { group: "数据看板", id: "operationsReport", name: "运营分析报表", actions: ["view", "export"] },
+    { group: "数据看板", id: "selfOwnedVehicleAnalysis", name: "自营车辆分析表", actions: ["view", "export"] },
     { group: "系统配置", id: "platformConfig", name: "平台配置", actions: ["view", "edit", "special"], special: "发布配置" },
+    { group: "系统配置", id: "vehicleMaintenanceFees", name: "车辆维护费用配置", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "customers", name: "客户管理", actions: ["view", "create", "edit", "delete", "export"] },
     { group: "系统配置", id: "reminders", name: "消息提醒模板", actions: ["view", "create", "edit", "delete"] },
     { group: "系统配置", id: "announcements", name: "公告管理", actions: ["view", "create", "edit", "delete"] },
@@ -36,13 +42,13 @@
   const seed = {
     roles: [
       { id: "role-admin", name: "系统管理员", description: "管理全部业务模块和系统配置", status: "active", isSystem: true, permissions: ALL_PERMISSIONS(), scope: { type: "all", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-01" },
-      { id: "role-dispatch", name: "调度员", description: "维护计划并执行日常派单", status: "active", permissions: { ...EMPTY_PERMISSIONS(), waybill: { view: true, create: true, edit: true, delete: false, export: true }, dispatchManagement: { view: true, special: true }, dispatchList: { view: true, edit: true, export: true, special: true }, capacity: { view: true }, routes: { view: true }, vehicles: { view: true }, trailers: { view: true }, drivers: { view: true }, customers: { view: true } }, scope: { type: "all", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-08" },
+      { id: "role-dispatch", name: "调度员", description: "维护计划并执行日常派单", status: "active", permissions: { ...EMPTY_PERMISSIONS(), dashboard: { view: true }, waybill: { view: true, create: true, edit: true, delete: false, export: true }, dispatchManagement: { view: true, special: true }, dispatchList: { view: true, edit: true, export: true, special: true }, capacity: { view: true }, routes: { view: true }, vehicles: { view: true }, trailers: { view: true }, drivers: { view: true }, customers: { view: true } }, scope: { type: "all", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-08" },
       { id: "role-finance", name: "财务专员", description: "管理运输费用、结算、发票与收付款", status: "active", permissions: { ...EMPTY_PERMISSIONS(), finance: { view: true, edit: true, export: true, special: true }, driverExpenses: { view: true, export: true, special: true }, settlements: { view: true, export: true }, receivables: { view: true, create: true, edit: true, export: true, special: true }, payables: { view: true, create: true, edit: true, export: true, special: true }, payroll: { view: true, create: true, export: true, special: true }, abnormalFees: { view: true, create: true, export: true }, settlementTransactions: { view: true, edit: true, export: true }, energy: { view: true, create: true, export: true }, customers: { view: true } }, scope: { type: "custom", customers: ["customer-hm", "customer-lg"], projects: [], routes: [] }, updatedAt: "2026-10-15" },
       { id: "role-fleet", name: "车队管理员", description: "维护车辆、挂车、司机及维修记录", status: "active", permissions: { ...EMPTY_PERMISSIONS(), vehicles: { view: true, create: true, edit: true, delete: true, export: true }, trailers: { view: true, create: true, edit: true, delete: true, export: true }, repairs: { view: true, create: true, edit: true, special: true }, drivers: { view: true, create: true, edit: true, export: true }, capacity: { view: true } }, scope: { type: "self", customers: [], projects: [], routes: [] }, updatedAt: "2026-10-12" },
     ],
     users: [
-      { id: "user-current", account: "zhangdd", name: "张调度", roleId: "role-dispatch", status: "active", lastLogin: "2026-10-14 09:18", isCurrentUser: true },
-      { id: "user-admin", account: "admin", name: "系统管理员", roleId: "role-admin", status: "active", lastLogin: "2026-10-14 08:42" },
+      { id: "user-current", account: "zhangdd", name: "张调度", roleId: "role-dispatch", status: "active", lastLogin: "2026-10-14 09:18" },
+      { id: "user-admin", account: "admin", name: "系统管理员", roleId: "role-admin", status: "active", lastLogin: "2026-10-14 08:42", isCurrentUser: true },
       { id: "user-finance", account: "wangcw", name: "王财务", roleId: "role-finance", status: "active", lastLogin: "2026-10-13 17:26" },
       { id: "user-fleet", account: "lijiang", name: "李建", roleId: "role-fleet", status: "active", lastLogin: "2026-10-12 18:04" },
     ],
@@ -100,7 +106,15 @@
   function load(storage = localStorage) {
     try {
       const stored = JSON.parse(storage.getItem(STORAGE_KEY) || "null");
-      return stored ? normalizeConfiguration(stored) : clone(seed);
+      const configuration = stored ? normalizeConfiguration(stored) : clone(seed);
+      const admin = configuration.users.find((user) => user.id === "user-admin" || user.account === "admin");
+      if (admin && configuration.roles.some((role) => role.id === "role-admin" && role.status === "active")) {
+        configuration.users.forEach((user) => { user.isCurrentUser = user.id === admin.id; });
+        admin.roleId = "role-admin";
+        admin.status = "active";
+        if (stored) storage.setItem(STORAGE_KEY, JSON.stringify(configuration));
+      }
+      return configuration;
     } catch (error) {
       return clone(seed);
     }
@@ -206,7 +220,65 @@
     return count ? `指定范围 · ${count} 项` : "指定范围 · 未选择数据";
   }
 
-  if (typeof window !== "undefined") window.UserAccess = { STORAGE_KEY, ACTIONS, ACTION_LABELS, MODULES, clone, load, save, createUser, updateUser, deleteUser, createRole, updateRole, duplicateRole, deleteRole, setPermission, permissionCount, scopeLabel, normalizeConfiguration };
+  const PAGE_MODULES = {
+    home: "dashboard", "vehicle-dashboard": "dashboard", waybill: "waybill", "plan-task-detail": "waybill", "dispatch-management": "dispatchManagement", "dispatch-detail": "dispatchList", "auto-dispatch": "dispatchManagement",
+    "dispatch-list": "dispatchList", "capacity-management": "capacity", "fixed-routes": "routes",
+    "vehicle-archives": "vehicles", "trailer-archives": "trailers", "vehicle-repairs": "repairs",
+    "driver-archives": "drivers", "settlement-management": "settlements", "finance-reports": "finance",
+    "settlement-receivable": "receivables", "settlement-payable": "payables", "settlement-payroll": "payroll",
+    "settlement-abnormal": "abnormalFees", "settlement-transactions": "settlementTransactions",
+    "driver-expenses": "driverExpenses", "settlement-energy": "energy", "platform-config": "platformConfig",
+    "vehicle-maintenance-fees": "vehicleMaintenanceFees", "customer-archives": "customers",
+    "reminder-templates": "reminders", announcements: "announcements", "feedback-management": "feedbackManagement",
+    "transport-task-config": "transportTaskConfig", "auto-dispatch-config": "autoDispatchConfig",
+    "user-access": "userAccess", "operation-logs": "operationLogs", "operations-overview": "operationsOverview",
+    "waybill-profit": "waybillProfit", "operations-report": "operationsReport",
+    "self-owned-vehicle-analysis": "selfOwnedVehicleAnalysis",
+  };
+  const RECORD_FIELDS = {
+    customers: ["customerId", "customerNo", "customerCode"],
+    projects: ["projectId", "projectNo", "projectCode"],
+    routes: ["routeId", "routeCode"],
+  };
+
+  function currentUser(configuration = load()) {
+    return configuration.users.find((user) => user.isCurrentUser && user.status === "active") || null;
+  }
+  function currentRole(configuration = load()) {
+    const user = currentUser(configuration);
+    const role = configuration.roles.find((item) => item.id === user?.roleId && item.status === "active");
+    return role || null;
+  }
+  function can(moduleId, action = "view", configuration = load()) {
+    const role = currentRole(configuration);
+    if (!role) return false;
+    return Boolean(role.permissions?.[moduleId]?.[action]);
+  }
+  function pageModule(pageId) { return PAGE_MODULES[pageId] || null; }
+  function canPage(pageId, configuration = load()) {
+    const moduleId = pageModule(pageId);
+    return Boolean(moduleId && can(moduleId, "view", configuration));
+  }
+  function filterRecords(records, configuration = load()) {
+    const role = currentRole(configuration);
+    if (!role) return [];
+    const scope = role.scope || { type: "all" };
+    if (scope.type === "all") return Array.isArray(records) ? records.slice() : [];
+    const user = currentUser(configuration);
+    if (scope.type === "self") {
+      const identities = [user?.id, user?.account, user?.name].filter(Boolean).map(String);
+      const ownerFields = ["createdById", "creatorId", "ownerId", "responsibleUserId", "dispatcherId", "operatorId", "orderOperatorId", "createdBy", "createdByName", "ownerAccount", "orderOperatorName"];
+      return (Array.isArray(records) ? records : []).filter((record) => ownerFields.some((field) => identities.includes(String(record?.[field] ?? ""))));
+    }
+    const selected = Object.keys(RECORD_FIELDS).filter((key) => scope[key]?.length);
+    if (!selected.length) return [];
+    return (Array.isArray(records) ? records : []).filter((record) => selected.every((key) => {
+      const ids = new Set(scope[key].map(String));
+      return RECORD_FIELDS[key].some((field) => ids.has(String(record?.[field] ?? "")));
+    }));
+  }
+
+  if (typeof window !== "undefined") window.UserAccess = { STORAGE_KEY, ACTIONS, ACTION_LABELS, MODULES, PAGE_MODULES, clone, load, save, createUser, updateUser, deleteUser, createRole, updateRole, duplicateRole, deleteRole, setPermission, permissionCount, scopeLabel, normalizeConfiguration, currentUser, currentRole, can, pageModule, canPage, filterRecords };
   if (typeof document === "undefined" || !document.querySelector("#userAccessPage")) return;
 
   const page = document.querySelector("#userAccessPage");
@@ -235,6 +307,7 @@
   function persist(message) {
     state = save(state);
     render();
+    window.dispatchEvent(new CustomEvent("user-access-changed"));
     if (message) showFeedback(message);
     if (message && window.OperationLogManager?.record) {
       const currentUser = state.users.find((user) => user.isCurrentUser);
@@ -532,7 +605,8 @@
     document.querySelector(`#userAccess${kind}Prev`).addEventListener("click", () => { if (kind === "User") { userPage -= 1; renderUsers(); } else { rolePage -= 1; renderRoles(); } });
     document.querySelector(`#userAccess${kind}Next`).addEventListener("click", () => { if (kind === "User") { userPage += 1; renderUsers(); } else { rolePage += 1; renderRoles(); } });
   });
-  window.addEventListener("storage", (event) => { if (event.key === STORAGE_KEY) { state = load(); render(); } });
+  window.addEventListener("storage", (event) => { if (event.key === STORAGE_KEY) { state = load(); render(); window.dispatchEvent(new CustomEvent("user-access-changed")); } });
   window.UserAccessManager = { render, loadState: () => clone(state) };
   render();
+  window.dispatchEvent(new CustomEvent("user-access-changed"));
 })();

@@ -1695,7 +1695,8 @@ function renderPlanTaskQuickStats(groups) {
 
 function renderRows(rows) {
   publishAdminDataSnapshot();
-  const groups = getPlanTaskGroups(rows);
+  const scopedRows = window.UserAccess?.filterRecords ? window.UserAccess.filterRecords(rows) : rows;
+  const groups = getPlanTaskGroups(scopedRows);
   renderPlanTaskQuickStats(groups);
   const visibleGroups = filterPlanTaskGroups(groups, planTaskQuickFilter);
   const visibleTaskCount = visibleGroups.reduce((sum, group) => sum + group.waybills.length, 0);
@@ -3049,7 +3050,8 @@ function filterRoutes(formData) {
 }
 
 function getFilteredRoutes() {
-  return filterRoutes(new FormData(routeQueryForm));
+  const rows = filterRoutes(new FormData(routeQueryForm));
+  return window.UserAccess?.filterRecords ? window.UserAccess.filterRecords(rows) : rows;
 }
 
 function getScopedRoutes(rows) {
@@ -3496,7 +3498,14 @@ function filterDispatches(formData) {
 }
 
 function getFilteredDispatches() {
-  return filterDispatches(new FormData(dispatchQueryForm));
+  const rows = filterDispatches(new FormData(dispatchQueryForm));
+  if (!window.UserAccess?.filterRecords) return rows;
+  const scoped = window.UserAccess.filterRecords(rows.map((dispatch) => {
+    const waybill = waybills.find((item) => item.waybillNo === dispatch.waybillNo) || {};
+    return { ...waybill, ...dispatch, customerId: dispatch.customerId || waybill.customerId, projectId: dispatch.projectId || waybill.projectId, routeId: dispatch.routeId || waybill.routeId };
+  }));
+  const allowedIds = new Set(scoped.map((item) => item.id));
+  return rows.filter((item) => allowedIds.has(item.id));
 }
 
 function updateDispatchSelection() {
@@ -6333,8 +6342,68 @@ function exportDriverArchive() {
   downloadCapacityArchive("司机档案", ["司机编号", "姓名", "联系电话", "运力归属", "所属单位", "单位编号", "司机状态", "所属车队", "身份证号", "准驾车型", "驾驶证到期", "从业资格证到期"], rows);
 }
 
+function applyAccessNavigation() {
+  const access = window.UserAccess;
+  if (!access) return;
+  document.querySelectorAll(".nav-child[data-page], .nav-item[data-page]").forEach((item) => {
+    const allowed = access.canPage(item.dataset.page);
+    item.hidden = !allowed;
+    item.style.display = allowed ? "" : "none";
+    item.setAttribute("aria-hidden", String(!allowed));
+  });
+  document.querySelectorAll(".nav-section").forEach((section) => {
+    const hasVisibleItem = [...section.querySelectorAll(".nav-child[data-page]")].some((item) => !item.hidden);
+    section.hidden = !hasVisibleItem;
+    section.style.display = hasVisibleItem ? "" : "none";
+    if (!hasVisibleItem) section.classList.remove("active");
+  });
+}
+
+function renderCurrentUserIdentity() {
+  const user = window.UserAccess?.currentUser?.();
+  const role = window.UserAccess?.currentRole?.();
+  if (!user) return;
+  const name = user.name || user.account || "后台用户";
+  const roleName = role?.name || "未分配角色";
+  const nameNode = document.querySelector("#currentUserDisplayName");
+  const menuNameNode = document.querySelector("#currentMenuUserDisplayName");
+  const roleNode = document.querySelector("#currentUserRoleDisplay");
+  if (nameNode) nameNode.textContent = name;
+  if (menuNameNode) menuNameNode.textContent = name;
+  if (roleNode) roleNode.textContent = `当前身份：${roleName}`;
+  userAccountButton?.setAttribute("aria-label", `当前用户：${name}，已登录`);
+}
+
+function inferAccessAction(label) {
+  if (/导出/.test(label)) return "export";
+  if (/新增|新建|创建/.test(label)) return "create";
+  if (/编辑|修改/.test(label)) return "edit";
+  if (/删除|移除/.test(label)) return "delete";
+  if (/审核|审批|通过|驳回|发布|派单|调整运力|重置匹配|立即执行/.test(label)) return "special";
+  return null;
+}
+
+function applyAccessControls(viewName) {
+  const access = window.UserAccess;
+  const view = pageViews[viewName];
+  if (!access || !view) return;
+  view.querySelectorAll("button, [role='button']").forEach((button) => {
+    const action = inferAccessAction(button.getAttribute("aria-label") || button.textContent || "");
+    if (!action) return;
+    if (button.dataset.accessOriginalHidden === undefined) button.dataset.accessOriginalHidden = String(button.hidden);
+    if (button.dataset.accessOriginalDisplay === undefined) button.dataset.accessOriginalDisplay = button.style.display;
+    const allowed = access.can(access.pageModule(activePageName), action);
+    button.hidden = !allowed || button.dataset.accessOriginalHidden === "true";
+    button.style.display = allowed ? button.dataset.accessOriginalDisplay : "none";
+  });
+}
+
 function switchPage(pageName, navigationTarget = null) {
   const meta = pageMeta[pageName] || pageMeta.waybill;
+  if (window.UserAccess && !window.UserAccess.canPage(pageName)) {
+    showApplicationAlert("当前账号没有访问此页面的权限。");
+    return false;
+  }
   activePageName = pageName;
   document.body.classList.toggle("analysis-page-active", ["operationsOverview", "waybillProfit", "operationsReport", "selfOwnedVehicleAnalysis"].includes(meta.view));
   const activeNavPage = meta.navPage || pageName;
@@ -6450,7 +6519,54 @@ function switchPage(pageName, navigationTarget = null) {
   if (meta.view === "feedbackManagement") {
     document.querySelector("#feedbackManagementPage")?.dispatchEvent(new CustomEvent("feedback-page-open"));
   }
+  applyAccessControls(meta.view);
+  return true;
 }
+
+window.addEventListener("user-access-changed", () => {
+  renderCurrentUserIdentity();
+  applyAccessNavigation();
+  applyAccessControls(pageMeta[activePageName]?.view);
+  if (window.UserAccess && !window.UserAccess.canPage(activePageName)) {
+    const firstAllowed = [...document.querySelectorAll(".nav-child[data-page], .nav-item[data-page]")]
+      .find((item) => window.UserAccess.canPage(item.dataset.page));
+    if (firstAllowed) switchPage(firstAllowed.dataset.page, firstAllowed);
+  } else if (window.UserAccess) switchPage(activePageName);
+});
+
+document.addEventListener("click", (event) => {
+  const access = window.UserAccess;
+  if (!access) return;
+  const button = event.target.closest("button, [role='button']");
+  if (!button) return;
+  const moduleId = access.pageModule(activePageName);
+  const label = button.getAttribute("aria-label") || button.textContent || "";
+  let action = inferAccessAction(label);
+  if (button.matches("[data-dispatch-permission], #autoRunBtn, [data-auto-run]")) action = "special";
+  else if (button.id === "confirmPlatformPublish") action = "special";
+  const guardedPermission = moduleId && action ? [moduleId, action] : null;
+  if (!guardedPermission || access.can(guardedPermission[0], guardedPermission[1])) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  showApplicationAlert("当前角色没有执行此操作的权限。");
+}, true);
+
+document.addEventListener("submit", (event) => {
+  const access = window.UserAccess;
+  if (!access) return;
+  const form = event.target;
+  const submitter = event.submitter || form.querySelector("button[type='submit'], input[type='submit']");
+  const label = submitter?.getAttribute("aria-label") || submitter?.textContent || submitter?.value || "";
+  if (!/保存|新增|新建|创建|提交|确认/.test(label)) return;
+  const moduleId = access.pageModule(activePageName);
+  const title = form.querySelector("[id$='Title'], header strong, h2")?.textContent || "";
+  const specificAction = /新增|新建|创建/.test(title) ? "create" : /编辑|修改/.test(title) ? "edit" : null;
+  const allowed = specificAction ? access.can(moduleId, specificAction) : access.can(moduleId, "create") || access.can(moduleId, "edit");
+  if (allowed) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  showApplicationAlert("当前角色没有新增或编辑此类数据的权限。");
+}, true);
 
 renderRows(waybills);
 renderVehiclePage();

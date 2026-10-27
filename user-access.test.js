@@ -50,7 +50,7 @@ test("user CRUD validates account uniqueness and protects the current account", 
   assert.equal(created.configuration.users.at(-1).name, "新用户");
   const updated = api.updateUser(created.configuration, created.configuration.users.at(-1).id, { account: "new-user", name: "新用户甲", roleId: "role-fleet", status: "disabled" });
   assert.equal(updated.configuration.users.at(-1).status, "disabled");
-  assert.match(api.deleteUser(initial, "user-current").error, /当前登录账号/);
+  assert.match(api.deleteUser(initial, "user-admin").error, /当前登录账号/);
   assert.equal(api.deleteUser(updated.configuration, updated.configuration.users.at(-1).id).configuration.users.length, initial.users.length);
 });
 
@@ -94,6 +94,51 @@ test("renamed modules keep stable permission identifiers and grants", () => {
   const finance = api.load().roles.find((role) => role.id === "role-finance");
   assert.equal(finance.permissions.receivables.special, true);
   assert.equal(finance.permissions.payables.special, true);
+});
+
+test("permission catalog covers navigable pages and gates them by the current role", () => {
+  const requiredPages = ["vehicle-dashboard", "operations-overview", "waybill-profit", "operations-report", "self-owned-vehicle-analysis", "vehicle-maintenance-fees", "user-access"];
+  for (const page of requiredPages) assert.ok(api.pageModule(page), `missing permission mapping for ${page}`);
+  const dispatcher = api.load();
+  dispatcher.users.forEach((user) => { user.isCurrentUser = user.id === "user-current"; });
+  assert.equal(api.canPage("vehicle-dashboard", dispatcher), true);
+  assert.equal(api.canPage("settlement-payable", dispatcher), false);
+  assert.equal(api.canPage("operations-overview", dispatcher), false);
+  const admin = api.clone(dispatcher);
+  admin.users.find((user) => user.isCurrentUser).roleId = "role-admin";
+  assert.equal(api.canPage("settlement-payable", admin), true);
+  assert.equal(api.can("vehicleMaintenanceFees", "view", admin), true);
+  const navPages = [...html.matchAll(/<button class="nav-(?:child|item)[^"]*" data-page="([^"]+)"/g)].map((match) => match[1]);
+  for (const page of navPages) assert.ok(api.pageModule(page), `navigation page ${page} has no permission mapping`);
+});
+
+test("demo startup switches the active account to the system administrator", () => {
+  const savedStorage = new Map();
+  const previous = api.load();
+  savedStorage.set(api.STORAGE_KEY, JSON.stringify(previous));
+  const restored = api.load({ getItem: (key) => savedStorage.get(key) || null, setItem: (key, value) => savedStorage.set(key, value) });
+  assert.equal(restored.users.find((user) => user.isCurrentUser)?.account, "admin");
+  assert.equal(api.currentRole(restored).id, "role-admin");
+  assert.equal(api.canPage("settlement-payable", restored), true);
+  assert.ok(JSON.parse(savedStorage.get(api.STORAGE_KEY)).users.find((user) => user.isCurrentUser && user.account === "admin"));
+});
+
+test("data scopes filter by selected business dimensions and fail closed when empty", () => {
+  const configuration = api.load();
+  const financeRole = configuration.roles.find((role) => role.id === "role-finance");
+  configuration.users.forEach((user) => { user.isCurrentUser = user.id === "user-current"; });
+  configuration.users.find((user) => user.isCurrentUser).roleId = financeRole.id;
+  financeRole.scope = { type: "custom", customers: ["c1"], projects: ["p2"], routes: [] };
+  const records = [
+    { id: "match", customerId: "c1", projectId: "p2" },
+    { id: "wrong-customer", customerId: "c2", projectId: "p2" },
+    { id: "wrong-project", customerId: "c1", projectId: "p1" },
+  ];
+  assert.deepEqual([...api.filterRecords(records, configuration).map((record) => record.id)], ["match"]);
+  financeRole.scope = { type: "custom", customers: [], projects: [], routes: [] };
+  assert.deepEqual([...api.filterRecords(records, configuration)], []);
+  financeRole.scope = { type: "self", customers: [], projects: [], routes: [] };
+  assert.deepEqual([...api.filterRecords([{ id: "owned", creatorId: "user-current" }, { id: "other", creatorId: "user-admin" }], configuration).map((record) => record.id)], ["owned"]);
 });
 
 test("legacy settlement permission migrates to split settlement modules", () => {
